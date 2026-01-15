@@ -1557,7 +1557,7 @@ p <- df_summary_bioage %>%
     legend.box.background     = element_rect(fill = "transparent", color = NA),
     legend.key                = element_rect(fill = "transparent"),
     legend.position           = "inside",
-    legend.position.inside    = c(0.315, 0.82),
+    legend.position.inside    = c(0.325, 0.82),
     legend.key.spacing.y      = unit(1, "pt"),
     panel.border = element_part_rect(
       colour = "grey30",
