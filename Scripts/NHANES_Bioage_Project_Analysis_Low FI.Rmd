@@ -1,0 +1,3002 @@
+---
+title: "Predictive Modelling of Hearing Effect of Bioage"
+author: "Landy Qu & Tom Naber"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+
+knit: (function(input, ...) { 
+  move_script <- here::here("Scripts", "move_output.R"); 
+  output_folder <- here::here("Output"); 
+  figure_folder <- here::here("Output", "Figures");
+  rmarkdown::render(input, params = "ask"); 
+  source(move_script); 
+  move_output(input, output_folder, figure_folder) })
+  
+output:
+  html_document:
+    theme: cosmo
+    toc: true
+    toc_float: true
+    number_sections: true
+    df_ppi_print: paged
+    highlight: tango
+    self_contained: true
+    fig_width: 7
+    fig_height: 4
+    code_folding: hide
+    
+editor_options:
+  markdown:
+    wrap: 80
+  chunk_output_type: inline
+  
+params:
+  data_path:
+    label: "Data location"
+    value: "dataset_bioage.csv"
+    input: file
+  global_k:
+    label: "K (n BAM base functions)"
+    value: 50
+    input: numeric
+  global_discrete: 
+    label: "Discretize BAM (much faster but slightly worse fitting)"
+    value: FALSE
+  params$single_column_width:
+    label: "Set width of single column figure (inches)"
+    value: 3.19
+    input: numeric
+  params$double_column_width:
+    label: "Set width of double column figure (inches)"
+    value: 6.96
+    input: numeric   
+---
+
+# Set-up & Data import
+
+## Import Packages & Set Flags
+
+```{r setup, include = FALSE, cache = FALSE}
+knitr::opts_chunk$set(fig.width = 7, 
+                      fig.height = 4, 
+                      dpi = 500, 
+                      out.height = "100%",
+                      out.width = "100%",
+                      dev = "ragg_png")
+
+options(contrasts = c("contr.sum", "contr.poly"))
+
+library(mgcv) # used to train model
+library(MASS)
+library(tidyverse)
+library(ggpubr)
+library(ggthemes)
+library(ggtext)
+library(kableExtra)
+library(splines)
+library(ggh4x)
+library(afex)
+library(emmeans)
+library(car)
+library(correctR)
+library(flextable)
+library(officer)
+library(matrixStats) # used for weighted variance
+library(gratia) # used for derivative coefficients
+library(cowplot)
+library(data.table)
+library(ragg)
+library(here)
+
+source(here("scripts", "universal_helpers.R"))
+```
+
+## Import Data
+
+```{r import_data}
+df_raw <- read.csv(here("Data", "dataset_bioage.csv"))
+```
+
+# Data Preprocessing
+
+## Remove Unnecessary Columns & Rename
+
+We filter out education level 9 because there are only 2 occurences. Smoking has
+more than 2 levels but we only need two. Race 1 (Mexican American) and 2 (other
+hispanic) are merged. Income could be added but we'd have to exclude 12, 13, 77,
+99 and missing. 12 is over 20k, 13 is under 20k, 77 is refused and 99 is don't
+know. This would drop the size of the dataset by about 20%.
+
+Code levels: **Smoking** 1. Smoker (L1) 2. Non-smoker L2) 7. Refused 9. Don't
+know **Gender** 1. Male (L1) 2. Female (L2) **Race** 1. Mexican/other hispanic
+(L1) 3. White (L2) 4. Black (L3) 5. Other (L4) **Education** 1. Less than 9th
+grade (L1) 2. 9-11th grade (includes 12th grade with no diploma) (L2) 3. High
+school (L3) 4. Some college or AA degree (L4) 5. College graduate or above 7.
+Refused 9. Don't know
+
+```{r format_df}
+df <- df_raw %>%
+  select(
+    age,
+    smoking,
+    gender,
+    race,
+    education,
+    income,
+    kdm,
+    phenoage,
+    hd,
+    telolength,
+    FI_low,
+    albumin_gL,
+    alp,
+    bun,
+    creat,
+    crp,
+    glucose,
+    hba1c,
+    lymph,
+    mcv,
+    rdw,
+    sbp,
+    totchol,
+    wbc,
+    uap
+  ) %>%
+  filter(education != 9, smoking %in% c(1, 2)) %>%
+  mutate(
+    hd_log = log(hd),
+    telolength_log = log(telolength),
+    gender = factor(gender),
+    smoking = factor(smoking),
+    race = case_when(race == 2 ~ 1, TRUE ~ race),
+    race = factor(race),
+    education = factor(education))
+```
+
+## Prepare age group column
+
+```{r set_age_groups}
+df <- df %>% mutate(
+  age_group = case_when(
+    age >= 20 & age < 30 ~ "20-30",
+    age >= 30 & age < 40 ~ "30-40",
+    age >= 40 & age < 50 ~ "40-50",
+    age >= 50 & age < 60 ~ "50-60",
+    age >= 60 & age < 70 ~ "60-70",
+    age >= 70 ~ "70+"
+  ), confounders = interaction(gender, smoking)
+)
+```
+
+# Modelling
+
+## K fold splitting
+
+### Fold-maker function
+
+This function takes the indices of rows each age group, randomizes them, then
+assigns numbers of 1-10. We could integrate this into the k-fold cross
+validation function, but by doing it separately it's easier to inspect any
+possible issues.
+
+```{r fun_make_folds}
+make_repeated_folds <- function(data, grouping_variable, k, repeats) {
+  # helper function to make random k-fold indices for one repeat
+  kfold_split_stratified <- function(k, grouping_variable = NULL) {
+    grouping_variable <- as.integer(as.factor(grouping_variable)) # convert factor of age_group to number
+    group_len <- length(unique(grouping_variable)) # check number of age groups
+    observations <- length(grouping_variable) # check how many observations there are to get a number
+    
+    indices <- numeric() # empty list to add fold numbers to
+    
+    for (l in 1:group_len) {
+      # run loop for each age group
+      indices_grouping_variable <- which(grouping_variable == l) # find which rows have the age group
+      indices <- c(indices, sample(indices_grouping_variable)) # randomly shuffle indegrouping_variablees within each age group, so that the numbers 1-10 will equally be spaced throughout the age group, creating even age group distributions in each fold
+    }
+    
+    bins <- rep(observations) # create an output with the length of the number of observations
+    bins[indices] <- rep(1:k, ceiling(observations / k))[1:observations] # using the random order, 1-10 is repeated until we've reached the last observation
+    return(bins) # return shuffled k-folds, which is pasted into a new column in 'data'
+  }
+  
+  for (i in 1:repeats) {
+    # per repeat, make shuffled k-folds of indices in a new column
+    data[[paste0("fold_r", i)]] <- kfold_split_stratified(k = k, grouping_variable = data[[grouping_variable]]) # writes k-folds to a new column for each repeat
+  }
+  
+  return(data) # return the dataframe with a k-fold column per repeat
+}
+```
+
+### Make folds
+
+If k-fold validation throws errors that testing data contains factor levels that
+weren't in the training data, it may be needed to make an interaction variable
+of age_group with the problematic factor (or condense levels) to ensure the
+smaller factor levels are represented in each fold.
+
+```{r make_folds}
+set.seed(2)
+df <- make_repeated_folds(
+  data = df,
+  grouping_variable = "age_group",
+  k = 10,
+  repeats = 10
+)
+```
+
+### Inspect folds
+
+We check if each fold number is assigned equal amounts of times in two repeats
+for each age group. Thereafter, we save the row number and plot the fold number
+of points (with some jitter to spread things out) to check if bands appear
+homogenous. We know it should be homogenous in the y-axis within a band because
+the jitter is random. If there are similarities between bands, then the shuffle
+isn't randomized for each repeat. If the bands don't appear of similar intensity
+over the x-axis, then the number assignment is not random.
+
+```{r inspect_folds, fig.height = 10, fig.width = 10}
+df %>%
+  group_by(age_group) %>%
+  mutate(total_fold1 = n()) %>%
+  group_by(age_group, fold_r1, total_fold1) %>%
+  summarize(n_fold1 = n()
+            , .groups = "drop") %>% rename("fold" = fold_r1) %>%
+  left_join(
+    df %>%
+      group_by(age_group) %>%
+      mutate(total_fold2 = n()) %>%
+      group_by(age_group, fold_r2, total_fold2) %>%
+      summarize(n_fold2 = n()
+                , .groups = "drop") %>% select(age_group, fold_r2, total_fold2, n_fold2, ) %>%
+      rename("fold" = fold_r2),
+    by = c("age_group", "fold")
+  ) %>% kable("html", caption = "Inspect Fold Number Frequencies") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+
+p <- df %>%
+  mutate(row_index = row_number()) %>%
+  pivot_longer(cols = starts_with("fold_r"),
+               names_to = "r",
+               values_to = "fold") %>%
+  ggplot(aes(x = row_index, y = fold)) +
+  geom_point(
+    size = 1,
+    alpha = 0.1,
+    color = "grey80",
+    position = position_jitter(width = 0, height = 0.4)
+  ) +
+  facet_wrap( ~ r) +
+  theme_few()
+
+plot(p)
+```
+
+Fold numbers are consistent between groups and correctly split upon multiple
+repeats. each fold number has the same (within 1) frequency, so there are no
+imbalances between folds and repeats. Plot shows no non-random changes in
+intensity over the X dimension and random dissimilarities between bands in the Y
+dimension (indicating repeats have different samples). **Stratified fold
+randomization succeeded**
+
+## Confounder Analysis
+
+### Check Interaction vs Offsets
+
+We want to get a sense which confounders improve the model and which interact
+with age.
+
+```{r assess_confounders}
+assess_confounders <- function(df, confounders, k) {
+  f0 <- paste0("FI_low ~ s(age, k = ", k, ")")
+  m0 <- bam(as.formula(f0), data = df, method = "REML")
+  
+  results <- data.frame()
+  
+  for (confounder in confounders) {
+    f1 <- paste0("FI_low ~ ", confounder, " + s(age, k = ", k, ")")
+    f2 <- paste0("FI_low ~ s(age) + s(age, ", confounder, ", bs = 'sz', k = ",
+                 k,
+                 ")")
+    
+    m1 <- bam(as.formula(f1), data = df, method = "REML")
+    m2 <- bam(as.formula(f2), data = df, method = "REML")
+    
+    aov <- as.data.frame(anova(m0, m1, m2))
+    aic <- as.data.frame(AIC(m0, m1, m2))
+    bic <- as.data.frame(BIC(m0, m1, m2))
+    
+    results <- rbind(results, cbind(tibble(
+      confounder = confounder, formula = c(f0, f1, f2)
+    ), aic, bic, aov))
+  }
+  
+  return(results)
+}
+
+assess_confounders(df, confounders = c(
+  "gender", "smoking", "race", "education"), k = params$global_k)
+```
+
+**We see that for each confounder the interaction model fits better than the
+intercept-only model**
+
+### Investigate Additional Information
+
+First we see if the confounders are correlated (e.g., smoking is more prevalent
+in males than females so gender is partly coded in smoking), to see if all
+confounders actually contribute.
+
+```{r compare_added_info}
+compare_confounders <- function(df, k) {
+  m0 <- bam(FI_low ~ s(age, k = k), data = df, method = "REML")
+  m1 <- bam(
+    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k),
+    data = df,
+    method = "REML"
+  )
+  m2 <- bam(
+    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k) + s(age, race, bs = "sz", k = k),
+    data = df,
+    method = "REML"
+  )
+  m3 <- bam(
+    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k) + s(age, race, bs = "sz", k = k) + s(age, smoking, bs = "sz", k = k),
+    data = df,
+    method = "REML"
+  )
+  m4 <- bam(
+    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k) + s(age, race, bs = "sz", k = k) + s(age, smoking, bs = "sz", k = k) + s(age, education, bs = "sz", k = k),
+    data = df,
+    method = "REML"
+  )
+  
+  print(cbind(
+    as.data.frame(AIC(m0, m1, m2, m3, m4)),
+    as.data.frame(BIC(m0, m1, m2, m3, m4)),
+    as.data.frame(anova(m0, m1, m2, m3, m4))
+  ))
+  print(summary(m4))
+  plot(m4)
+}
+
+compare_confounders(df, k = params$global_k)
+```
+
+**Each factor significantly improves the model and seems to interact with age in
+some way**
+
+### Check shared wiggliness
+
+We could insist that different smooths have the same amount of smoothness, i.e.,
+that there's no difference in the wiggliness of the GAM between men and women.
+The plots from the previous chunk (where different wiggliness was permitted)
+suggest that there may be equal amount of wiggliness, so that each smooth has
+the same basis functions but with different coefficients. There's no specific
+reason to assume that wiggliness is the same in many cases, so if aiming to
+maximize model flexibility/predictive power, we should leave this unconstrained,
+but we do eat up a lot of degrees of freedom and may be 'wasting' the data
+estimating these global trends. It may also be better to spend the processing
+time on a higher k rather than estimating smooth parameters.
+
+```{r compare_wiggliness}
+compare_wiggliness <- function(df, k) {
+  m1 <- bam(
+    FI_low ~
+      s(age, k = k) +
+      
+      s(age, gender, bs = "sz", k = k, id = 1) +
+      s(age, race, bs = "sz", k = k, id = 2) +
+      s(age, smoking, bs = "sz", k = k, id = 3) +
+      s(age, education, bs = "sz", k = k, id = 4),
+    data = df,
+    method = "REML"
+  )
+  
+  m2 <- bam(
+    FI_low ~
+      s(age, k = k) +
+      
+      s(age, gender, bs = "sz", k = k) +
+      s(age, race, bs = "sz", k = k) +
+      s(age, smoking, bs = "sz", k = k) +
+      s(age, education, bs = "sz", k = k),
+    data = df,
+    method = "REML"
+  )
+  
+  print(cbind(
+    as.data.frame(AIC(m1, m2)),
+    as.data.frame(BIC(m1, m2)),
+    as.data.frame(anova(m1, m2))
+  ))
+}
+
+compare_wiggliness(df, k = params$global_k)
+```
+
+### Check factor three-way interactions
+
+<https://stats.stackexchange.com/questions/637423/conceptual-interpretation-of-bs-fs-and-by-term-in-gam>.
+The free wiggliness model takes about 15 times longer to compute but has a 0.37%
+drop in residual deviance. That is significant but probably not worth it
+compared to a higher k. Moreover, the improvement in fit must stem entirely from
+three-way interactions, which are likely noisy, so it is unlikely that out of
+fold performance would improve substantially. BIC prefers simpler model and AIC
+prefers more complex model.
+
+```{r conf_interactions}
+compare_confounder_interactions <- function(df, k, equal_wiggliness, return_model = FALSE) {
+  if (equal_wiggliness) {
+    m0 <- bam(
+      FI_low ~
+        s(age, k = k) +
+        
+        s(gender, age, bs = "sz", k = k, id = 1) +
+        s(race, age, bs = "sz", k = k, id = 2) +
+        s(smoking, age, bs = "sz", k = k, id = 3) +
+        s(education, age, bs = "sz", k = k, id = 4) +
+        
+        s(gender, race, age, bs = "sz", k = k, id = 5) +
+        s(gender, smoking, age, bs = "sz", k = k, id = 6) +
+        s(gender, education, age, bs = "sz", k = k, id = 7) +
+        s(race, smoking, age, bs = "sz", k = k, id = 8) +
+        s(race, education, age, bs = "sz", k = k, id = 9) +
+        s(smoking, education, age, bs = "sz", k = k, id = 10),
+      data = df,
+      method = "REML"
+    )
+  } else {
+    m0 <- bam(
+      FI_low ~
+        s(age, k = k) +
+        
+        s(gender, age, bs = "sz", k = k) +
+        s(race, age, bs = "sz", k = k) +
+        s(smoking, age, bs = "sz", k = k) +
+        s(education, age, bs = "sz", k = k) +
+        
+        s(gender, race, age, bs = "sz", k = k) +
+        s(gender, smoking, age, bs = "sz", k = k) +
+        s(gender, education, age, bs = "sz", k = k) +
+        s(race, smoking, age, bs = "sz", k = k) +
+        s(race, education, age, bs = "sz", k = k) +
+        s(smoking, education, age, bs = "sz", k = k),
+      data = df,
+      method = "REML"
+    )
+  }
+      
+  print(summary(m0))
+  plot(m0)
+  
+  if (return_model) {
+    return(m0)
+  }
+}
+
+system.time({
+compare_confounder_interactions(df, k = params$global_k, equal_wiggliness = TRUE)
+})
+```
+
+**We see that age \* gender \* race is a significant three-way interaction but
+it takes 3 times longer to compute. Only add on a final, very long run if
+processing power permits.**
+
+## Repeated k-fold modeling
+
+### Repeated k-fold validation function per age group
+
+```{r fun_CV}
+cross_validation <- function(data, formulas, k, repeats, discrete = FALSE, keep_models = TRUE) {
+  age_groups = c("20-30", "30-40", "40-50", "50-60", "60-70", "70+") # initialize age groups to stratify by explicitly
+  fold_columns <- paste0("fold_r", 1:repeats) # initialize names of repeat columns to iterate over
+  confounders <- c("gender", "smoking", "race", "education") # initialize vector of confounders
+  
+  names_of_predictors <- unique(unlist(lapply(formulas, extract_predictors))) # save names of all predictor columns to select for the pred vs obs dataset
+  
+  results <- data.frame() # initialize empty dataframe
+  models <- list() # intialize list of models
+  pred_vs_obs <- data.frame() # intialize df with fitted vs predicted
+  
+  for (formula in formulas) {
+    for (r in fold_columns) {
+      for (f in 1:k) {
+        train <- data %>% filter(.data[[r]] != f) # set training data
+        test  <- data %>% filter(.data[[r]] == f) # set testing data
+        
+        if (discrete) {
+          mod <- bam(
+            as.formula(formula),
+            data = train,
+            family = gaussian(),
+            method = "fREML",
+            discrete = TRUE
+          ) # fit GAM
+        } else {
+          mod <- bam(
+            as.formula(formula),
+            data = train,
+            family = gaussian(),
+            method = "REML",
+            discrete = FALSE
+          ) # fit GAM
+        }
+        
+        predictors =   paste(extract_predictors(formula), collapse = ", ") # extract predictors from formula
+        
+        rep = as.numeric(sub(".*fold_r(\\d+).*", "\\1", r)) # extract repetition number only
+        
+        if (keep_models) {
+          model_id <- paste0(predictors, "_r", rep, "_f", f)
+          models[[model_id]] <- mod # wrap model into a list to keep the models separated, attach it to the list of models, and name the model according to predictors, repeat, and fold
+        }
+        
+        # calculate performance per age group
+        for (age_group in age_groups) {
+          test_subset <- test[test$age_group == age_group, ]# subset testing data for age group
+          train_subset <- train[train$age_group == age_group, ] # subset training data for age group
+          
+          pred <- predict(mod, newdata = test_subset, type = "response") # use GAM to predict responses in current age group
+          
+          results <- bind_rows(
+            results,
+            tibble(
+              predictors = predictors,
+              age_group = age_group,
+              r = rep,
+              k = f,
+              n_train = nrow(train_subset),
+              n_test = nrow(test_subset),
+              mse = mean((test_subset$FI_low - pred) ^ 2) # calculate squared difference between predicted vs real in this age group
+            )
+          )
+          
+          pred_vs_obs <- bind_rows(
+            pred_vs_obs,
+            test_subset %>%
+              mutate(
+                predictors = predictors,
+                age_group = age_group,
+                k = f,
+                r = rep,
+                predicted = pred,
+              ) %>%
+              select(
+                predictors,
+                r,
+                k,
+                age_group,
+                all_of(names_of_predictors),
+                FI_low,
+                predicted
+              ) # add predictions used to calculate MSE to a dataframe
+          )
+        }
+      }
+    }
+  }
+  
+  return(list(
+    results = results,
+    models = models,
+    predictions = pred_vs_obs
+  )) # return models, dataframe with results, and a fitted vs predicted dataframe
+}
+```
+
+### Formula builder function
+
+The `k` determines the number of functions (linear or non-linear).The parameter
+with the lowest degrees of freedom (DF) determines the maximum basis dimensions
+(k in mgcv). Albumin has 26 distinct levels, so the maximal k value/number of
+basic functions, equivalent to the DF, is 25 if each level is in each fold. We
+must compute the DF for each fold and pick the lowest to avoid errors. The GAM
+is a composite of all these underlying functions, with different weights for
+each function.
+
+-   `k`: number of basis functions.
+-   `max_k`: sets k to the theoretical limit for each parameter (DF), note that
+    for non-integers, like the bioage measures, this will be equivalent to the
+    length of the dataframe minus one.
+-   `auto_limit_k`: if k exceeds the DF for a parameter (e.g., if k \> 25 for
+    albumin), it will automatically be limited to the DF.
+
+```{r fun_formula_gen}
+formula_generator <- function(data,
+                              formulas,
+                              k = 25,
+                              max_k = FALSE,
+                              auto_limit_k = FALSE,
+                              equal_wiggliness = TRUE) {
+  fold_columns <- grep("^fold_r", names(data), value = TRUE) # initialize the repeat columns with folds
+  folds = sort(unique(unlist(data[fold_columns]), use_name = FALSE)) # get each unique fold number in folds
+  formula_list <- list() # initialize a list to store the compiled formulas in
+  
+  for (formula in formulas) {
+    predictors <- trimws(unlist(strsplit(formula, ","))) # unlist, split by comma, and get rid of white spaces for the current predictors string
+    sm_terms <- list()
+    
+    # make a term for each predictor
+    for (predictor in predictors) {
+      DF_list <- list() # initialize a list to store the DF for each fold in
+      
+      for (rep in fold_columns) {
+        for (fold in folds) {
+          DF_list <- append(DF_list, length(unique(data[data[[rep]] != fold, ][[predictor]]))) # store the DF for each fold in each repeat in a list
+        }
+      }
+      
+      DF <- min(unlist(DF_list)) - 1 # pick the smallest value in the list and subtract 1 to obtain degrees of freedom
+      
+      if (max_k) {
+        k_formula <- DF
+      } else {
+        k_formula <- k
+      }
+      
+      if (auto_limit_k) {
+        if (k_formula > DF) {
+          k_formula <- DF
+        }
+      }
+      if ((predictor == "age") && (equal_wiggliness)) {
+        sm_terms <- append(
+          sm_terms,
+          paste0(
+            "s(age, k = ",
+            k_formula,
+            ") + s(gender, age, bs = 'sz', k = ",
+            k_formula,
+            ", id = 1) + s(race, age, bs = 'sz', k = ",
+            k_formula,
+            ", id = 2) + s(smoking, age, bs = 'sz', k = ",
+            k_formula,
+            ", id = 3) + s(education, age, bs = 'sz', k = ",
+            k_formula,
+            ", id = 4) + s(gender, race, age, bs = 'sz', k = ",
+            k_formula,
+            ", id = 5)"
+          )
+        )
+      } else if ((predictor == "age") && !(equal_wiggliness)) {
+        sm_terms <- append(
+          sm_terms,
+          paste0(
+            "s(age, k = ",
+            k_formula,
+            ") + s(gender, age, bs = 'sz', k = ",
+            k_formula,
+            ") + s(race, age, bs = 'sz', k = ",
+            k_formula,
+            ") + s(smoking, age, bs = 'sz', k = ",
+            k_formula,
+            ") + s(education, age, bs = 'sz', k = ",
+            k_formula,
+            ") + s(gender, race, age, bs = 'sz', k = ",
+            k_formula,
+            ")"
+          )
+        )
+      }
+      else {
+        sm_terms <- append(sm_terms,
+                           paste0("s(", predictor, ", k = ", k_formula, ")"))
+      }
+    }
+    
+    formula_list <- append(formula_list, paste("FI_low ~", paste(unlist(sm_terms), collapse = " + "))) # put predictor terms in formula and separate by +
+  }
+  
+  return(formula_list)
+}
+```
+
+### Extract variables from formula function
+
+```{r fun_extr_pred}
+extract_predictors <- function(formula, collapse = "") {
+  confounders <- c("gender", "smoking", "race", "education")
+  
+  s_terms <- unlist(str_extract_all(formula, "s\\([^\\)]*\\)"))
+  keep    <- !str_detect(s_terms, paste0("\\b(", paste(confounders, collapse = "|"), ")\\b"))
+  str_match(s_terms[keep], "^s\\(\\s*([^,\\)\\s]+)")[, 2]
+}
+```
+
+### Generate formulas
+
+```{r build_formulas}
+formula_list_bioage <- formula_generator(
+  data = df,
+  k = params$global_k,
+  auto_limit_k = TRUE,
+  equal_wiggliness = TRUE,
+  formulas = c("age", "age, phenoage", "age, kdm", "age, hd")
+)
+
+formula_list_biomarkers <- formula_generator(
+  data = df,
+  k = params$global_k,
+  auto_limit_k = TRUE,
+  equal_wiggliness = TRUE,
+  formulas = c(
+    "age",
+    "age, phenoage",
+    "age, albumin_gL",
+    "age, alp",
+    "age, creat",
+    "age, glucose",
+    "age, crp",
+    "age, lymph",
+    "age, mcv",
+    "age, rdw",
+    "age, wbc",
+    "age, sbp",
+    "age, bun",
+    "age, totchol",
+    "age, hba1c",
+    "age, uap",
+    "age, crp, hba1c, albumin_gL",
+    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
+    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
+    "age, crp, hba1c, albumin_gL, phenoage"
+  )
+)
+
+as.data.frame(cbind(Formulas = unlist(formula_list_bioage))) %>% kable("html", caption = "Bioage Formulas") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+
+as.data.frame(cbind(Formulas = unlist(formula_list_biomarkers))) %>% kable("html", caption = "Biomarker Formulas") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+```
+
+### Inspect k-values
+
+To assess k-value, we fit a model on the whole dataset using the formula lists,
+build a list of models, make a helper function to run the k.check function from
+mgcv, then turn it in a dataframe and return the output. The k-value determines
+the number of base functions that the GAM is constructed from. A GAM adds these
+different base functions together, some of which capture linear trends, some of
+which are just splines or polynomials with a bump in one region. The GAM gives
+different weights to each model to get as good a fit as possible, but a GAM also
+measures wiggliness and gives a penalty to wiggliness. This is what makes it
+generalized, so to perform well in general, even to unseen data. Therefore, a
+GAM optimizes to get as good a fit as possible with as little wiggliness as
+possible. Because of this wiggliness penalty, adding more base functions to the
+GAM doesn't make it overfit. Therefore, k should be as large as possible within
+computation power or degrees of freedom. If k isn't large enough, there will be
+patterns left in the residuals. Therefore, by measuring patterns in the
+residuals, we can assess if k is large enough. We want to capture all global
+patterns without fitting to any noise. This is what we assess when we look at
+k-index.
+
+For reference, k = 10 takes \~ 15 min, k = 25 takes \~ 1h, k = 50 takes \~ 4h.
+
+```{r inspect_k}
+inspect_k_values <- function(data, formulas, subsample, reps) {
+  set.seed(2)
+
+  models <- list()
+  
+  for (formula in formulas) {
+    mod <- bam(
+      as.formula(formula),
+      data = data,
+      method = "REML",
+      family = gaussian()
+    )
+    
+    predictors = paste(extract_predictors(formula), collapse = ", ")
+    
+    models[[predictors]] <- mod
+  }
+  
+  inspect_k <- function(model) {
+    k.check(model, subsample = subsample, n.rep = reps)
+  }
+  
+  k_output <- lapply(models, inspect_k)
+  k_output <- imap_dfr(k_output, ~ {
+    as.data.frame(.x) %>%
+      rownames_to_column(var = "Predictors") %>%
+      mutate(model = .y)
+  })
+  
+  return(k_output)
+}
+
+inspect_k_values(df,
+                 formula_list_bioage,
+                 subsample = 5000,
+                 reps = 400) %>% kable("html", caption = "Inspect K Bioage") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+
+inspect_k_values(df,
+                 formula_list_biomarkers,
+                 subsample = 5000,
+                 reps = 400) %>% kable("html", caption = "Inspect K Biomarkers") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+```
+
+### Estimate modeling time
+
+bam speeds up the fitting compared to gam and limits the memory footprint.
+Data.table is negligibly faster than data.frame (less than 1%) because the
+majority of computing time is spent on fitting the model as opposed to data
+operations.
+
+With discrete = FALSE: k = 5, age + phenoage: 0.5 k = 10, age + phenoage: 0.78 k
+= 15, age + phenoage: 1.34 k = 20, age + phenoage: 2.76 k = 25, age + phenoage:
+4.98 k = 30, age + phenoage: 8.16 k = 40, age + phenoage: 18.28 k = 50, age +
+phenoage: 31.97
+
+With discrete = TRUE: k = 5, age + phenoage: 0.04 k = 10, age + phenoage: 0.06 k
+= 15, age + phenoage: 0.09 k = 20, age + phenoage: 0.15 k = 25, age + phenoage:
+0.24 k = 30, age + phenoage: 0.35 k = 40, age + phenoage: 0.78 k = 50, age +
+phenoage: 1.28
+
+```{r check_modeling_time}
+estimate_modeling_time <- function(df, k, discrete = FALSE) {
+    system.time({
+      bam(FI_low ~ 
+        s(age, k = k) +
+        
+        s(gender, age, bs = "sz", k = k, id = 1) +
+        s(race, age, bs = "sz", k = k, id = 2) +
+        s(smoking, age, bs = "sz", k = k, id = 3) +
+        s(education, age, bs = "sz", k = k, id = 4) +
+        
+        s(gender, race, age, bs = "sz", k = k, id = 5) +
+
+        s(phenoage, k = k),
+        data = df, discrete = discrete, method = "fREML"
+      )
+    })
+}
+
+estimate_modeling_time(df, k = params$global_k, discrete = params$global_discrete)
+```
+
+**Without id = x, k = 15 took 39.65 theoretically, but in practice the 4 bioage
+formulas took 58s each. Similarly, k = 5 with id should have taken \~400s for
+one formula but took 650s, so add \~50% time to estimate processing time.**
+
+### Test k-fold validation
+
+Test k-fold validation on a single formula with small k. k = 5, discrete = FALSE
+takes 50s, k = 5, discrete = TRUE takes 15s
+
+```{r test_k_fold_val}
+formula_list_test <- formula_generator(
+  data = df,
+  k = params$global_k,
+  auto_limit_k = TRUE,
+  equal_wiggliness = TRUE,
+  formulas = c("age, phenoage")
+)
+
+system.time({
+  output_bioage <- cross_validation(
+    df,
+    formula_list_test,
+    k = 10,
+    repeats = 10,
+    discrete = params$global_discrete
+  )
+})
+```
+
+### Model bioage
+
+With k = 40 discrete = FALSE takes 6759s With k = 50 discrete = FALSE takes
+13506s
+
+```{r bioage_cv}
+system.time({
+  output_bioage <- cross_validation(
+    df,
+    formula_list_bioage,
+    k = 10,
+    repeats = 10,
+    discrete = params$global_discrete,
+    keep_models = FALSE
+  )
+})
+```
+
+### Model biomarkers
+
+With k = 40 discrete = FALSE takes 52564s WIth k = 50 discrete = FALSE takes
+110443s
+
+```{r biomarkers_cv}
+system.time({
+  output_biomarkers <- cross_validation(
+    df,
+    formula_list_biomarkers,
+    k = 10,
+    repeats = 10,
+    discrete = params$global_discrete,
+    keep_models = FALSE
+  )
+})
+```
+
+### Fit full model
+
+```{r fit_full_biomark_m}
+fit_full_model <- function(fit) {
+  if (fit) {
+  full_biomarker_model <- 
+    bam(
+      FI_low ~ 
+      s(age, k = params$global_k) + 
+      
+      s(gender, age, bs = 'sz', k = params$global_k, id = 1) + 
+      s(race, age, bs = 'sz', k = params$global_k, id = 2) + 
+      s(smoking, age, bs = 'sz', k = params$global_k, id = 3) + 
+      s(education, age, bs = 'sz', k = params$global_k, id = 4) + 
+      s(gender, race, age, bs = 'sz', k = params$global_k, id = 5) + 
+      
+      s(crp, k = params$global_k) + 
+      s(hba1c, k = params$global_k) + 
+      s(albumin_gL, k = params$global_k) + 
+      s(alp, k = params$global_k) + 
+      s(wbc, k = params$global_k) + 
+      s(glucose, k = params$global_k) + 
+      s(uap, k = params$global_k) + 
+      s(creat, k = params$global_k) + 
+      s(totchol, k = params$global_k) + 
+      s(rdw, k = params$global_k) + 
+      s(lymph, k = params$global_k) + 
+      s(mcv, k = params$global_k) + 
+      s(bun, k = params$global_k) + 
+      s(sbp, k = params$global_k) + 
+      
+      s(phenoage, k = 40), 
+      
+      data = df, method = "REML", discrete = FALSE
+      )
+  
+    print(summary(full_biomarker_model))
+    
+    return(full_biomarker_model)
+  }
+}
+
+fit_full_model(fit = FALSE)
+```
+
+## Assess Aging Rate
+
+### Build GAM and Linear Age Models in a List
+
+When solely wanting to predict an outcome variable, the wiggliness penalty of a
+GAM prevents overfitting, so k can be as large as we'd like. However, with a
+larger k, we have more parameters, so if we take the derivative of the GAM and
+we have more parameters, each with its own uncertainty, the total uncertainty
+will grow, even if the extra base functions don't contribute much. Therefore, a
+larger k past the number that captures all global trends decreases statistical
+power. This is a problem when assessing the rate of aging. Therefore, we need to
+have a penalty for practically useless base functions so that they shrink to 0.
+As an alternative, we can use k.check with a small k to see if its enough. With
+a k of 15 we already get an edf of 8, so k = 15 should be sufficient.
+
+```{r aging_models}
+output_age_rate <- list(models = list(), predictions = list())
+
+output_age_rate$models <- append(output_age_rate$models, list(
+  linear =
+    gam(
+      FI_low ~ age,
+      data = df,
+      method = "REML",
+      family = gaussian()
+    )
+))
+
+output_age_rate$models <- append(output_age_rate$models, list(
+  quadratic =
+    gam(
+      FI_low ~ age + I(age^2),
+      data = df,
+      method = "REML",
+      family = gaussian()
+    )
+))
+
+output_age_rate$models <- append(output_age_rate$models, list(smooth =
+                                                                gam(
+                                                                  FI_low ~ s(age, k = 10),
+                                                                  data = df,
+                                                                  method = "REML",
+                                                                  family = gaussian()
+                                                                )))
+
+set.seed = 1
+k.check(output_age_rate$models$smooth)
+```
+
+# Data Processing
+
+## Process Result Comparison dfs
+
+### Reformat df, Calculate Delta MSE Bioage, and set data types
+
+```{r reformat_df}
+reformat_df <- function(data) {
+  reformatted_data <- data$results %>%
+    left_join(
+      data$results %>%
+        filter(predictors == "age") %>%
+        mutate(mse_age = mse) %>%
+        select(-mse, -predictors, -n_train, -n_test),
+      by = c("age_group", "r", "k")
+    ) %>%
+    mutate(
+      delta_mse = mse_age - mse,
+      additional_variance = delta_mse / mse_age * 100,
+      fold_repeat_id = interaction(r, k),
+      predictors = factor(predictors),
+      age_group = factor(age_group),
+      r = as.integer(r)
+    )
+  return(reformatted_data)
+}
+
+df_results_bioage <- reformat_df(output_bioage)
+df_results_biomarkers  <- reformat_df(output_biomarkers)
+```
+
+### Calculate CI
+
+For the overall, non-age-group-stratified summary statistics, we first calculate
+mse per fold by weighting the age groups. Then, we calculate the number of
+repeats and folds, the mse of each outcome variable (weighted per number of
+observations, which produces a small difference over unweighted because the
+n_test per fold differs by 1 at most), and the variance of mse `s2_mse`, also
+weighted per n_test, grouped by predictors and possibly age group.
+
+The Nadeau Bengio corrected t-test estimates variance using the training and
+testing dataset sizes, because cross validations are not independent, violating
+the assumption of a paired t-test, inflating type 1 errors (false positives). We
+can use the corrected variance estimate for the confidence intervals too. First,
+we calculate t-crit using degrees of freedom (n-1). The t-test should be
+one-tailed because we only want to know if age + bioage is better than age, not
+if one is worse/different, so then a tcrit of 0.05 is appropriate, but for the
+confidence intervals we want to know whether the true mean is within 95% of the
+sample mean, not just where the true mean would be if it would only be above.
+The variance is used based on `n_train` and `n_test`. It doesn't matter whether
+we use the mean n per fold or the total over all folds because the ratio is the
+same.
+
+In <https://www.jmlr.org/papers/volume6/markatou05a/markatou05a.pdf> Analysis of
+Variance of Cross-Validation Estimators of the Generalization Error, the authors
+also report the variance estimate as S²\* (1/J + n2/n1), where S2 is the
+variance (squared standard deviation), J is the total number of folds, n2 is the
+validation/test set and n1 is the training set size. They also show that when J
+is appropriate (10\*10), it provides a good variance estimate. Variance is
+already in squared units, as its just the square of the standard deviation.
+
+```{r calculate_ci}
+calculate_nb_corrected_cis <- function(data, per_age_group) {
+  if (per_age_group) {
+    grouping_variables <- c("predictors", "age_group")
+  } else {
+    grouping_variables <- c("predictors")
+  }
+  
+  if (!per_age_group) {
+    data <- data %>%
+      group_by(predictors, r, k) %>%
+      summarize(
+        mse = weighted.mean(mse, w = n_test),
+        delta_mse = weighted.mean(delta_mse, w = n_test),
+        additional_variance = weighted.mean(additional_variance, w = n_test),
+        n_train = sum(n_train),
+        n_test = sum(n_test),
+        .groups = "drop"
+      )
+  }
+  
+  summary_data <- data %>%
+    group_by(across(all_of(grouping_variables))) %>%
+    summarize(
+      r = length(unique(r)),
+      k = length(unique(k)),
+      mean_mse = weighted.mean(mse, w = n_test),
+      mean_delta_mse = weighted.mean(delta_mse, w = n_test),
+      mean_additional_variance = weighted.mean(additional_variance, w = n_test),
+      s2_mse = weightedVar(mse, w = n_test),
+      s2_delta_mse = weightedVar(delta_mse, w = n_test),
+      s2_additional_variance = weightedVar(additional_variance, w = n_test),
+      sum_n_train = sum(n_train),
+      sum_n_test = sum(n_test),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      n = r * k,
+      df = n - 1,
+      t_crit = qt(1 - 0.025, df),
+      ci_low_mse = mean_mse - t_crit * (sqrt(s2_mse * (
+        1 / n + sum_n_test / sum_n_train
+      ))),
+      ci_high_mse = mean_mse + t_crit * (sqrt(s2_mse * (
+        1 / n + sum_n_test / sum_n_train
+      ))),
+      ci_low_delta_mse = mean_delta_mse - t_crit * (sqrt(
+        s2_delta_mse * (1 / n + sum_n_test / sum_n_train)
+      )),
+      ci_high_delta_mse = mean_delta_mse + t_crit * (sqrt(
+        s2_delta_mse * (1 / n + sum_n_test / sum_n_train)
+      )),
+      ci_low_additional_variance = mean_additional_variance - t_crit * (sqrt(
+        s2_additional_variance * (1 / n + sum_n_test / sum_n_train)
+      )),
+      ci_high_additional_variance = mean_additional_variance + t_crit * (sqrt(
+        s2_additional_variance * (1 / n + sum_n_test / sum_n_train)
+      ))
+    ) %>% select(-r, -k, -s2_mse, -s2_additional_variance, -df, -t_crit)
+  
+  return(summary_data)
+}
+
+df_summary_bioage <- calculate_nb_corrected_cis(df_results_bioage, per_age_group = TRUE)
+df_summary_biomarkers <- calculate_nb_corrected_cis(df_results_biomarkers, per_age_group = TRUE)
+
+df_summary_bioage_overall <- calculate_nb_corrected_cis(df_results_bioage, per_age_group = FALSE)
+df_summary_biomarkers_overall <- calculate_nb_corrected_cis(df_results_biomarkers, per_age_group = FALSE)
+```
+
+### Calculate R2 and RMSE
+
+**Calculating descriptives**: First we import `n_train` and `n_test` from the
+results dataframe per fold, either grouped or not grouped by `age_group`. If
+grouped by `age_group`, we can import directly because the results dataframe is
+already binned by age group. Then, we import the mean fletcher index from the
+whole prediction dataset for each model/set of predictors, repeat, and fold. As
+a sanity check, because each model should have the same folds and repeats, I
+checked whether the mean fletcher index is always the same at repeat 1 fold 1
+(it is). The mean FI is then called in the summarize function using median(),
+which gives the same result as mean(), because all predicted/real values within
+a model, fold, and repeat have the same `mean_FI_low`, as told by the left_join
+function. Thereafter, we group over the 100 (10x10) folds per model to calculate
+the total number of predictions (on the testing data), the mean training data
+size, mean testing data size, R² (using sum of squares), MSE, and RMSE. For
+RMSE, we could either calculate it using sqrt(mse) or sqrt(sse/n_predictions).
+It gives the same result.
+
+**Total sum of squares calculation when binning R² per age group**: It's
+imperative that for the age group stratified descriptives, the global mean is
+used. Otherwise it's as if the total sum of squares is calculated within each
+age-bin, which is as if a linear regression is fitted through the mean fletcher
+index per age group, explaining a lot of variation while it shouldn't. We want
+to assess the predictive effect on age, so the total sum of squares should be
+calculated by taking the distance from each fletcher index within an age group
+to the global mean. Of course, the models are trained on the whole dataset, not
+just one age group. We're just assessing performance per age group.
+
+<https://chatgpt.com/share/68da6507-0008-8010-857e-bc6e9b76df58> - see
+interpretation of R² differences
+
+```{r calculate_descr}
+calculate_RMSE_R2 <- function(summary_data,
+                              results_data,
+                              predictions,
+                              per_age_group) {
+  if (per_age_group) {
+    grouping_variables <- c("predictors", "age_group")
+  } else {
+    grouping_variables <- c("predictors")
+  }
+  
+  if (!per_age_group) {
+    results_data <- results_data %>%
+      group_by(predictors, r, k) %>%
+      summarize(
+        n_train = sum(n_train),
+        n_test = sum(n_test),
+        .groups = "drop"
+      )
+  }
+  
+  sample_sizes <- results_data %>%
+    select(all_of(grouping_variables), r, k, n_train, n_test)
+  
+  mean_FI_low <- predictions %>%
+    group_by(predictors, k, r) %>%
+    summarize(mean_FI_low = mean(FI_low), .groups = "drop")
+  
+  updated_summary_data <- summary_data %>%
+    left_join(
+      predictions %>%
+        left_join(sample_sizes, by = c(grouping_variables, "r", "k")) %>%
+        left_join(mean_FI_low, by = c("predictors", "r", "k")) %>%
+        group_by(across(all_of(
+          grouping_variables
+        ))) %>%
+        summarize(
+          n_predictions = n(),
+          mean_n_train = round(mean(n_train), 1),
+          mean_n_test = round(mean(n_test), 1),
+          sse = sum((FI_low - predicted) ^ 2),
+          sst = sum((FI_low - median(mean_FI_low)) ^ 2),
+          r2  = 1 - sse / sst,
+          rmse = sqrt(sse / n_predictions),
+          .groups = "drop"
+        ) %>% select(-sse, -sst),
+      by = c(grouping_variables)
+    )
+  
+  if (per_age_group) {
+    updated_summary_data <- updated_summary_data %>%
+      left_join(
+        updated_summary_data %>%
+          filter(predictors == "age") %>%
+          mutate(rmse_age = rmse) %>%
+          select(age_group, rmse_age),
+        by = c("age_group")
+      ) %>%
+      mutate(delta_rmse = rmse_age - rmse) %>%
+      select(-rmse_age)
+  } else {
+    updated_summary_data <- updated_summary_data %>% cross_join(
+      updated_summary_data %>%
+        filter(predictors == "age") %>%
+        mutate(rmse_age = rmse) %>%
+        select(rmse_age)
+    ) %>%
+      mutate(delta_rmse = rmse_age - rmse) %>%
+      select(-rmse_age)
+  }
+  
+  return(updated_summary_data)
+}
+
+df_summary_bioage <- calculate_RMSE_R2(df_summary_bioage,
+                                       df_results_bioage,
+                                       output_bioage$predictions,
+                                       per_age_group = TRUE)
+
+df_summary_biomarkers <- calculate_RMSE_R2(
+  df_summary_biomarkers,
+  df_results_biomarkers,
+  output_biomarkers$predictions,
+  per_age_group = TRUE
+)
+
+df_summary_bioage_overall <- calculate_RMSE_R2(
+  df_summary_bioage_overall,
+  df_results_bioage,
+  output_bioage$predictions,
+  per_age_group = FALSE
+)
+
+df_summary_biomarkers_overall <- calculate_RMSE_R2(
+  df_summary_biomarkers_overall,
+  df_results_biomarkers,
+  output_biomarkers$predictions,
+  per_age_group = FALSE
+)
+```
+
+## Build predictions dataframe age rate
+
+We sample 1 point for each age and predict the FI_low using the smooth-only
+model and generate simultaneous confidence intervals. We could ask for a single
+point and ask where the true mean would be with 95% certainty, but if we'd apply
+that to all 60 points, there's a large chance that somewhere we get a false
+positive. With the simultaneous interval, we can say that we're 95% sure that
+the ENTIRE derivative in the true population that was sampled from (all people
+on earth, assuming NHANES is representative) is within the band. It's
+essentially a multiple comparisons test for confidence intervals. We compute the
+fitted line of the GAM for each unique age in the dataset and compute pairwise
+confidence intervals, also for the derivative.
+
+Finally, we compute the derivative once more but now using a combined GAM with
+both a linear term and a smooth term. The derivative is only computed based on
+the smooth term. It's not possible to calculate simultaneous intervals based
+only on one term in the model, but that's fine because we're already calculating
+the simultaneous interval in the smooth-only model. The simultaneous interval
+derivative will be used for visualization. This approach is only valid if the
+smooth and combined models look the same, which we check by predicting the data
+with the smooth vs combined model and see if the results are the same. They're
+not numerically identical, but they're practically the same for all intents and
+purposes. If it's nicer to visualize, we could still subtract the slope of the
+linear model to essentially plot the simultaneous confidence intervals for the
+smooth model.
+
+To calculate the quadratic derivative, we can either calculate the slope at each
+point manually with
+
+coef(m)["age"] + 2 \* coef(m)["I(age\^2)"] \* seq(min(df$age), max(df$age), 1)
+
+Or we use emtrends to calculate the slope at each point. The result is the same.
+However, using emtrends we can calculate simultaneous intervals with "mvt".
+
+```{r predict_aging}
+build_parametric_predictions <- function(model, predictor) {
+  as.data.frame(confint(
+    emmeans(
+      model,
+      as.formula(paste("~", predictor)),
+      at = setNames(list(seq(
+        min(df[[predictor]]), max(df[[predictor]]), by = 1
+      )), predictor)
+      ,
+      type = "response"
+    ),
+    adjust = "mvt"
+  )) %>%
+    rename("estimate" = emmean,
+           "ci_lower" = lower.CL,
+           "ci_upper" = upper.CL)
+}
+
+build_parametric_derivative_predictions <- function(model, predictor) {
+  data.frame(confint(
+    emtrends(
+      model,
+      as.formula(paste("~", predictor)),
+      var = predictor,
+      at = setNames(list(seq(
+        min(df[[predictor]]), max(df[[predictor]]), by = 1
+      )), predictor),
+      delta.var = 1e-8 * diff(range(df[[predictor]]))
+    ),
+    adjust = "mvt"
+  )) %>%
+    rename(
+      "derivative" = !!paste0(predictor, ".trend"),
+      "ci_lower" = lower.CL,
+      "ci_upper" = upper.CL
+    )
+}
+
+output_age_rate$predictions <- append(output_age_rate$predictions,
+                                      list(linear = build_parametric_predictions(output_age_rate$models$linear, "age")))
+
+output_age_rate$predictions <- append(output_age_rate$predictions,
+                                      list(quadratic = build_parametric_predictions(output_age_rate$models$quadratic, "age")))
+
+output_age_rate$predictions <- append(
+  output_age_rate$predictions,
+  list(linear_derivative = build_parametric_derivative_predictions(output_age_rate$models$linear, "age"))
+)
+
+output_age_rate$predictions <- append(
+  output_age_rate$predictions,
+  list(
+    quadratic_derivative = build_parametric_derivative_predictions(output_age_rate$models$quadratic, "age")
+  )
+)
+
+output_age_rate$predictions <- append(output_age_rate$predictions,
+                                      list(
+                                        smooth =
+                                          confint(
+                                            output_age_rate$models$smooth,
+                                            parm = "s(age)",
+                                            data = as.data.frame(cbind(data.frame(
+                                              age = min(df$age):max(df$age)
+                                            ))),
+                                            type = "simultaneous"
+                                          ) %>%
+                                          rename(
+                                            "ci_lower" = .lower_ci,
+                                            "ci_upper" = .upper_ci,
+                                            "estimate" = .estimate
+                                          )
+                                      ))
+
+output_age_rate$predictions <- append(
+  output_age_rate$predictions,
+  list(
+    derivative_smooth =
+      derivatives(
+        output_age_rate$models$smooth,
+        select = "s(age)",
+        data = cbind(data.frame(age = seq(
+          min(df$age), max(df$age), 1
+        ))),
+        interval = "simultaneous"
+      ) %>%
+      rename(
+        "ci_lower" = .lower_ci,
+        "ci_upper" = .upper_ci,
+        "derivative" = .derivative
+      ) %>%
+      mutate(
+        derivative_adj = derivative - output_age_rate$predictions$quadratic_derivative$derivative,
+        ci_lower_adj = ci_lower - output_age_rate$predictions$quadratic_derivative$derivative,
+        ci_upper_adj = ci_upper - output_age_rate$predictions$quadratic_derivative$derivative
+      )
+  )
+)
+```
+
+## Assess Rate of Aging
+
+### Compare Linear vs Quadratic vs Smooth Age Fits
+
+```{r compare_aging_models}
+anova(
+  output_age_rate$models$linear,
+  output_age_rate$models$quadratic
+)
+
+anova(
+  output_age_rate$models$quadratic,
+  output_age_rate$models$smooth
+)
+
+c(linear = sqrt(mean(
+  residuals(output_age_rate$models$linear, type = "response") ^ 2
+)),quadratic = sqrt(mean(
+  residuals(output_age_rate$models$quadratic, type = "response") ^ 2
+)), smooth = sqrt(mean(
+  residuals(output_age_rate$models$smooth, type = "response") ^ 2
+))) %>% kable("html", caption = "RMSE (In-Sample)") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+```
+
+**We see that the smooth curve fits better than the linear fit, so the rate of
+aging is not constant**
+
+### Assess Where Rate of Aging Differs
+
+We use a generalized additive model with the linear term age and the smooth term
+s(age) to capture deviation from linearity. Our question is "Is the rate of
+change different at certain ages?", which we can rephrase as "Where is the
+instantaneous rate faster/slower than the overall trend?". To answer this
+question, we can ignore the linear term of the GAM (a constant slope) and only
+look at the smooth term, which is only positive whenever there is a systematic
+deviation from the overall trend. By taking the derivative of the smooth term,
+we can assess for each age how much age deviates from the overall trend.
+
+As for p-values, we should compare whether the derivative of the smooth term is
+non-zero. We're determining a linear model in our population that allows us to
+say 'in our data, the fletcher index increases one slope per year'. Then we fit
+a linear + smooth model. If the age rate is completely linear, then the
+slope/coefficient of the linear component will be the same between the combined
+and linear-only model, and the derivative coefficient of the smooth term will be
+0 for each age. However, if data randomly fluctuates (no trend), then the slope
+will be 0 and the smooth term will be different for each age. Now, if there is a
+general upward trend but with non-linearity, then the slope will be positive but
+the smooth terms will be nonzero, and the slope will be different between the
+linear model and the combined model.
+
+So, if our question is, for what ages is the rate of aging non-linear, then we
+want to test for each age whether the smooth term is not 0. If it's not 0, then
+the rate of aging is not linear. Now, when making a smooth (or linear) model, we
+fit a line to noisy data as best we can, but other lines with different
+coefficients might fit almost as well and be better for some data points then
+for others. Therefore, there is an uncertainty. We can say that, for example,
+the best-guess slope is 5 (5 increase fletcher index per year). But because the
+data is noisy, assuming a normal distribution, we know that the true slope that
+would actually fit the sampling population may be something different within a
+certain range of uncertainty (say, 2), which we can express as a standard error.
+When figuring out the derivative, we inherent this uncertainty. This standard
+error is what we can use to assess the likelihood of the null-hypothesis:
+
+H0: The rate of aging is linear, so the derivative estimate of the smooth term
+is 0. H1: The rate of aging is non-linear, so the derivative estimate of the
+smooth term is not 0.
+
+With a p-value of 0.05, we can say that if we randomly sample 100 times from the
+population and the rate of aging IS linear, then 5 times we'll see a significant
+non-zero smooth term.
+
+Depending on the variation/noise in the data, the smooth term derivative needs
+to be larger or smaller compared to 0 to get a p-value of 0.05. If the variation
+in the data is higher, the standard error is higher, and the derivative of the
+smooth term must be higher to get a p-value of 0.05 or lower.
+
+Of course, we want to know at which age ranges we have a non-zero slope, so we
+can either test for each 10 year age group or test for each individual age
+integer with correct pairwise comparison corrections.
+
+A two-tailed p-value can be calculated when we know a z-score, which is
+calculated as sample mean - hypothesized mean divided by the standard error. The
+hypothesized mean is 0. For a two-tailed t-test, we then take 2 \*
+pnorm(abs(z_score), lower.tail = FALSE). If we'd want to only know the left
+tail, we'd use lower.tail = TRUE.
+
+Because the t-tests are dependent and are likely to be either higher or lower
+when one is higher (because ages are adjacent and the aging rate can be either
+higher or lower), we should use Holm's correction.
+
+To identify significant boundaries, check which pairwise comparisons are
+significant, then check if the previous row was significant, then whenever a row
+is significant but the previous one was, change the value by 1 (using cumsum),
+or if the previous row was not significant but the current one is, also change
+by 1 to identify stretches. Then take the first and last values of the stretches
+to identify boundaries. Only keep the significant stretches.
+
+```{r find_sig_ages}
+pwc_age_rate <- output_age_rate$predictions$derivative_smooth %>%
+  mutate(
+    z_score = derivative_adj / .se,
+    p = 2 * pnorm(abs(z_score), lower.tail = FALSE),
+    p_adj = p.adjust(p, method = "holm"),
+    signif = case_when(
+      p_adj <= 0.001 ~ "***",
+      p_adj <= 0.01 ~ "**",
+      p_adj <= 0.05 ~ "*",
+      TRUE ~ "ns"
+    )) %>%
+  select(age, derivative, ci_lower, ci_upper, derivative_adj, ci_lower_adj, ci_upper_adj, p, p_adj, signif)
+
+pwc_age_rate_boundaries <- pwc_age_rate %>%
+  mutate(significant = (p_adj < 0.05),
+         run = cumsum(significant != lag(significant, default = first(significant)))) %>%
+  group_by(run, significant) %>%
+  summarise(
+    x_min = first(age),
+    x_max = last(age),
+    `Significantly non-linear age ranges` = paste0(x_min, "–", x_max),
+    .groups = "drop"
+  ) %>%
+  filter(significant)
+
+pwc_age_rate_boundaries %>%
+        select(`Significantly non-linear age ranges`) %>% kable("html", caption = "Boundaries") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+```
+
+## Repeated Nadeau-Bengio Corrected T-Tests
+
+### Check dependence
+
+Holm error correction is the best method to control family-wise error rate when
+comparisons are negatively dependent. However, if tests are either independent
+or positively dependent, we can use Hommel, which has more power. To test
+dependence, we correlate MSE of each metric over the same fold.
+
+```{r assess_cor}
+test_correlation <- function(data, grouping_variables, exclusions = NULL) {
+  data <- data %>%
+    filter(!predictors %in% exclusions) %>%
+    group_by(across(all_of(grouping_variables)), r, k) %>%
+    summarize(
+      mse = weighted.mean(mse, w = n_test),
+      delta_mse = weighted.mean(delta_mse, w = n_test),
+      additional_variance = weighted.mean(additional_variance, w = n_test),
+      n_train = sum(n_train),
+      n_test = sum(n_test),
+      .groups = "drop"
+    ) %>%
+    unite("interaction_column", all_of(grouping_variables), sep = "_") %>%
+    mutate(n = (r - 1) * 10 + k) %>%
+    select(n, interaction_column, delta_mse) %>%
+    pivot_wider(names_from = interaction_column, values_from = delta_mse) %>%
+    select(-n)
+  
+  correlation_df <- as.data.frame(cor(data, use = "pairwise.complete.obs"))
+  
+  eps = 0.2
+  
+  upper_indices <- which(upper.tri(correlation_df), arr.ind = TRUE)
+  
+  df_long <- tibble(
+    row = rownames(correlation_df)[upper_indices[, 1]],
+    col = colnames(correlation_df)[upper_indices[, 2]],
+    values = correlation_df[upper_indices]
+  )
+  
+  p <- ggplot(df_long, aes(values)) +
+      geom_density(alpha = 0.15) +
+      geom_vline(
+        xintercept = c(-eps, eps),
+        colour = "red",
+        linetype = "dashed"
+      ) + theme_few() + labs(title =  paste0("Mean correlation: ", round(
+        mean(correlation_df[upper.tri(correlation_df)], na.rm = TRUE), 2
+      )))
+  
+  return(p)
+}
+
+test_correlation(df_results_bioage,
+                 grouping_variables = "predictors",
+                 exclusions = "age")
+
+test_correlation(
+  df_results_bioage,
+  grouping_variables = c("age_group", "predictors"),
+  exclusions = "age"
+)
+
+test_correlation(
+  df_results_biomarkers,
+  grouping_variables = "predictors",
+  exclusions = c(
+    "age",
+    "age, phenoage",
+    "age, crp, hba1c, albumin_gL",
+    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
+    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
+    "age, crp, hba1c, albumin_gL, phenoage"
+  )
+)
+
+test_correlation(
+  df_results_biomarkers,
+  grouping_variables = c("age_group", "predictors"),
+  exclusions = c(
+    "age",
+    "age, phenoage",
+    "age, crp, hba1c, albumin_gL",
+    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
+    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
+    "age, crp, hba1c, albumin_gL, phenoage"
+  )
+)
+```
+
+All correlations trend positive. Overall bioage methods have positive
+dependence, so we can use Hommel, for the other comparisons, correlations center
+at 0 and are either mildly positively dependent or independent. There are some
+negative correlations but practically all are between -0.25 and 0.25, so there
+is probably no violation of the positive regression dependency in which it is
+unlikely that an increase in one test statistic would lead to a decrease in
+another. This also makes sense for bioage models. If phenoage works, kdm may
+also work a little, because they are based on the same blood markers. Similarly,
+if we get positive predictive value from one bioage method in one age group, it
+probably positively affects predictive power in another age group. For
+biomarkers, an increase in predictive power of one marker doesn't per se affect
+another. If one of two closely-related biomarkers has higher predictive power,
+it doesn't mean the other one won't. The only way to get a negative outcome is
+to get overfitting, and I don't see in which scenario a higher predictive power
+in one biomarker would increase the odds of overfitting for another biomarker,
+so we can assume independence and use Hommel.
+
+### Calculate p-values
+
+Calculate t-statistic according to nadeau bengio, which is t =
+m/(√(variance(1/n + n2/n1))). m is the difference between the sample mean and
+hypothesized population mean. In this case, we've normalized it to age so the
+null hypothesis (the hypothesized population mean) is 0, i.e., there is no
+difference from age only. The variance we already calculated. n is equivalent to
+the number of folds times the number of repeats. n2 is the number of
+testing/validation data and n1 the number of training data. We then calculate
+degrees of freedom by taking n - 1. Then we use pt (which automatically
+calculates the critical value) using a one-tailed t-test of the upper tail. This
+is because we're not interested in whether an age + bioage model is different
+from age-only. We only want to know if its better. We then adjust p values with
+Hommel or Holm error correction.
+
+We can use Hommel error correction (more power), which makes blood urea nitrogen
+significant with k = 10 but not with k = 25.
+
+First, the question is, 'Does this bioage/biomarker add predictive value for
+hearing loss in the population while controlling for chronological age?', which
+we test with the overall comparisons. Only if it's significantly different do we
+look at per age-group tests, also to control power. Another option is to ask
+'Might bioage/biomarker only matter for specific age ranges, even if it doesn't
+have an overall predictive effect?', in which case we could consider doing
+pairwise on all, but we'd lose a lot of power and would have to use FDR and
+accept a 5% false discovery rate to salvage it.
+
+The CorrectR library has an implementation of the Nadeau-Bengio corrected t-test
+(with support for repeated k-fold validations), but this makes the false
+assumption that fold sizes are always equal, so there's a small error in
+calculation of the sample mean and variance. The sample mean and variance should
+be weighted by fold size. This gets relevant for age-group delta MSEs, because
+for the 50-60 age group, some folds have a test size of 99 and others of 98.
+That means that some folds weigh 1% more than another. Not correcting for that
+could make the difference between significant or not signficant.
+
+```{r t_test_models}
+nb_corrected_repeated_t_test <- function(summary_data,
+                                         exceptions = NULL,
+                                         exception_include_exclude,
+                                         adjust_method) {
+  if (exception_include_exclude == "include") {
+    summary_data <- summary_data %>%
+      filter(predictors %in% exceptions)
+  } else {
+    summary_data <- summary_data %>%
+      filter(!predictors %in% exceptions)
+  }
+  
+  summary_data <- summary_data %>%
+    mutate(
+      t = mean_delta_mse / (sqrt(
+        s2_delta_mse * (1 / n + sum_n_test / sum_n_train)
+      )),
+      df = n - 1,
+      p = pt(t, df = df, lower.tail = FALSE),
+      p_adj = p.adjust(p, method = adjust_method),
+      signif = case_when(
+        p_adj <= 0.001 ~ "***",
+        p_adj <= 0.01 ~ "**",
+        p_adj <= 0.05 ~ "*",
+        TRUE ~ "ns"
+      )
+    ) %>%
+    select(-t, -df, -p, -s2_delta_mse, -sum_n_test, -sum_n_train, -n)
+  
+  return(summary_data)
+}
+
+pwc_bioage_overall <- nb_corrected_repeated_t_test(
+  df_summary_bioage_overall,
+  exceptions = "age",
+  exception_include_exclude = "exclude",
+  adjust_method = "holm"
+)
+
+pwc_bioage <- nb_corrected_repeated_t_test(
+  df_summary_bioage,
+  exceptions = "age, phenoage",
+  exception_include_exclude = "include",
+  adjust_method = "holm"
+)
+
+pwc_biomarkers_overall <- nb_corrected_repeated_t_test(
+  df_summary_biomarkers_overall,
+  exceptions = c(
+    "age",
+    "age, phenoage",
+    "age, crp, hba1c, albumin_gL",
+    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
+    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
+    "age, crp, hba1c, albumin_gL, phenoage"
+  ),
+  exception_include_exclude = "exclude",
+  adjust_method = "holm"
+)  %>%
+  arrange(p_adj)
+
+pwc_biomarkers <- nb_corrected_repeated_t_test(
+  df_summary_biomarkers,
+  exceptions = c("age",
+    "age, phenoage",
+    "age, crp, hba1c, albumin_gL",
+    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
+    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
+    "age, crp, hba1c, albumin_gL, phenoage"),
+  exception_include_exclude = "exclude",
+  adjust_method = "holm"
+)
+
+pwc_bioage_overall %>% kable("html", caption = "Overall Bioage Pairwise Comparisons") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+
+pwc_biomarkers_overall %>% kable("html", caption = "Overall Biomarker Pairwise Comparisons") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+```
+
+### Add p-values to summary dataframe
+
+```{r add_p_vals}
+import_p_values <- function(summary_data, pwc_data, per_age_group) {
+  if (per_age_group) {
+    grouping_variables <- c("predictors", "age_group")
+  } else {
+    grouping_variables <- c("predictors")
+  }
+  
+  updated_summary_data <- summary_data %>%
+    left_join(pwc_data %>%
+                select(all_of(grouping_variables), p_adj, signif), by = c(grouping_variables)) %>%
+    mutate(
+      p_adj = as.character(p_adj),
+      p_adj = case_when(signif == "ns" ~ "ns", is.na(p_adj) ~ "ns", TRUE ~ p_adj),
+      signif = case_when(is.na(signif) ~ "ns", TRUE ~ signif)
+    )
+  
+  return(updated_summary_data)
+}
+
+df_summary_bioage <- import_p_values(df_summary_bioage, pwc_bioage, per_age_group = TRUE)
+df_summary_bioage_overall <- import_p_values(df_summary_bioage_overall,
+                                             pwc_bioage_overall,
+                                             per_age_group = FALSE)
+
+df_summary_biomarkers <- import_p_values(df_summary_biomarkers, pwc_biomarkers, per_age_group = TRUE)
+df_summary_biomarkers_overall <- import_p_values(df_summary_biomarkers_overall,
+                                                 pwc_biomarkers_overall,
+                                                 per_age_group = FALSE)
+```
+
+**It doesn't matter whether we use holm or hommel, so perhaps we should use
+holm.**
+
+# Visualization
+
+## Descriptive Tables
+
+### Format table
+
+Round R² and delta RMSE, rename variables, set p values to bold and to " \<
+0.001" when very small.
+
+```{r format_table}
+format_table <- function(summary_data, per_age_group) {
+  if (per_age_group) {
+    table <- summary_data %>%
+      select(-n) %>%
+      mutate(r2 = round(r2, 3),
+             delta_rmse = round(delta_rmse, 2)) %>%
+      rename(
+        "Predictors" = predictors,
+        "Age" = age_group,
+        "n" = mean_n_test,
+        "∆RMSE (vs age, dB HL)" = delta_rmse,
+        "R²" = r2,
+        "p (vs age)" = p_adj
+      ) %>%
+      mutate(
+        `p (vs age)` = case_when(
+          signif == "***" ~
+            cell_spec("< 0.001", "html", bold = TRUE),
+          suppressWarnings(!is.na(as.numeric(`p (vs age)`)) &
+                             as.numeric(`p (vs age)`) < 0.05) &
+            `p (vs age)` != "< 0.001" ~
+            cell_spec(suppressWarnings(round(
+              as.numeric(`p (vs age)`), 3
+            )), "html", bold = TRUE),
+          TRUE ~ `p (vs age)`
+        )
+      ) %>%
+      select(Predictors, Age, n, `R²`, `∆RMSE (vs age, dB HL)`, `p (vs age)`)
+  } else {
+    table <- summary_data %>%
+      select(-n) %>%
+      mutate(r2 = round(r2, 3),
+             delta_rmse = round(delta_rmse, 2)) %>%
+      rename(
+        "Predictors" = predictors,
+        "n" = mean_n_test,
+        "∆RMSE (vs age, dB HL)" = delta_rmse,
+        "R²" = r2,
+        "p (vs age)" = p_adj
+      ) %>%
+      mutate(
+        `p (vs age)` = case_when(
+          signif == "***" ~
+            cell_spec("< 0.001", "html", bold = TRUE),
+          suppressWarnings(!is.na(as.numeric(`p (vs age)`)) &
+                             as.numeric(`p (vs age)`) < 0.05) &
+            `p (vs age)` != "< 0.001" ~
+            cell_spec(suppressWarnings(round(
+              as.numeric(`p (vs age)`), 3
+            )), "html", bold = TRUE),
+          TRUE ~ `p (vs age)`
+        )
+      ) %>%
+      select(Predictors, n, `R²`, `∆RMSE (vs age, dB HL)`, `p (vs age)`)
+  }
+  
+  return(table)
+}
+
+table_bioage <- format_table(df_summary_bioage, per_age_group = TRUE)
+table_bioage_overall <- format_table(df_summary_bioage_overall, per_age_group = FALSE)
+
+table_biomarkers <- format_table(df_summary_biomarkers, per_age_group = TRUE)
+table_biomarkers_overall <- format_table(df_summary_biomarkers_overall, per_age_group = FALSE)
+```
+
+### Order, Filter, and Rename Tables
+
+```{r order_table}
+rename_bioage_table <- function(bioage_table) {
+  bioage_table <- bioage_table %>%
+    mutate(
+      Predictors = case_when(
+        Predictors == "age" ~ "Age",
+        Predictors == "age, hd" ~ "Age + HD",
+        Predictors == "age, kdm" ~ "Age + KDM",
+        Predictors == "age, phenoage" ~ "Age + PhenoAge"
+      ),
+      Predictors = factor(Predictors, levels = c(
+        "Age",
+        "Age + HD",
+        "Age + KDM",
+        "Age + PhenoAge"
+      )
+    )) %>%
+    arrange(Predictors)
+  
+  return(bioage_table)
+}
+
+rename_biomarker_table <- function(biomarker_table) {
+  biomarker_table <- biomarker_table %>%
+    filter(!(
+      Predictors %in% c(
+      "age",
+      "age, phenoage",
+      "age, crp, hba1c, albumin_gL",
+      "age, crp, hba1c, albumin_gL, alp, creat, totchol",
+      "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
+      "age, crp, hba1c, albumin_gL, phenoage"
+      )
+    )) %>% mutate(
+      Predictors = case_when(
+        Predictors == "age, rdw" ~ "Age + RDW",
+        Predictors == "age, alp" ~ "Age + ALP",
+        Predictors == "age, crp" ~ "Age + CRP",
+        Predictors == "age, totchol" ~ "Age + TC",
+        Predictors == "age, albumin_gL" ~ "Age + ALB",
+        Predictors == "age, hba1c" ~ "Age + HbA1c",
+        Predictors == "age, glucose" ~ "Age + Glc",
+        Predictors == "age, sbp" ~ "Age + SBP",
+        Predictors == "age, bun" ~ "Age + BUN",
+        Predictors == "age, mcv" ~ "Age + MCV",
+        Predictors == "age, wbc" ~ "Age + WBC",
+        Predictors == "age, lymph" ~ "Age + Lymphs",
+        Predictors == "age, uap" ~ "Age + UA",
+        Predictors == "age, creat" ~ "Age + Creat"
+      ),
+      Predictors = factor(Predictors, levels = c(
+      "Age + SBP",
+      "Age + BUN",
+      "Age + MCV",
+      "Age + Lymphs",
+      "Age + RDW",
+      "Age + TC",
+      "Age + Creat",
+      "Age + UA",
+      "Age + Glc",
+      "Age + WBC",
+      "Age + ALP",
+      "Age + ALB",
+      "Age + HbA1c",
+      "Age + CRP"
+      )
+    )) %>%
+    arrange(Predictors)
+  
+  return(biomarker_table)
+}
+
+table_bioage <- rename_bioage_table(table_bioage)
+table_bioage_overall <- rename_bioage_table(table_bioage_overall)
+
+table_biomarkers <- rename_biomarker_table(table_biomarkers)
+table_biomarkers_overall <- rename_biomarker_table(table_biomarkers_overall)
+```
+
+### Render table
+
+```{r}
+render_and_save_table <- function(table, path) {
+  html_table <- table %>%
+    kable(
+      format = "html",
+      align = c("l", "l", "r", "r", "r", "r", "r", "r", "r"),
+      escape = FALSE
+    ) %>%
+    kable_styling(
+      bootstrap_options = c("striped", "hover", "condensed"),
+      full_width = FALSE,
+      position = "center"
+    ) %>%
+    collapse_rows(columns = 1, valign = "top")
+  
+  save_kable(html_table, path)
+  
+  return(html_table)
+}
+
+render_and_save_table(table_bioage, path = here("Output", "Figures", "FI_low", "table_bioage.html"))
+render_and_save_table(table_bioage_overall, path = here("Output", "Figures", "FI_low", "table_bioage_overall.html"))
+render_and_save_table(table_biomarkers, path = here("Output", "Figures", "FI_low", "table_biomarkers.html")) %>%
+  scroll_box(width = "100%", height = "400px")
+render_and_save_table(table_biomarkers_overall, path = here("Output", "Figures", "FI_low", "table_biomarkers_overall.html"))
+```
+
+## Rate of aging panel
+
+### Plot Rate of Aging
+
+The prediction dataframes are centered at 0, so the intercept has been ignored.
+We then add the intercept for the age vs fletcher index plot. We can ignore the
+intercept in the plot of the derivative because it's about the rate of change,
+thus ignores an intercept. However, the plot of the derivative by default
+contains both a smooth term and a linear term. We should subtract the slope of
+the linear term to get a 'difference from constant' visualization, which is what
+we're interested in.
+
+```{r plot_aging, warning=FALSE}
+p0 <- ggplot() +
+  geom_point(
+    data = df,
+    aes(age, FI_low),
+    alpha = 0.1,
+    size = 0.5,
+    shape = 1,
+    stroke = 0.25,
+    color = "grey30"
+  ) +
+  geom_line(
+    data = output_age_rate$predictions$linear,
+    aes(x = age, y = estimate),
+    linewidth = 0.6,
+    alpha = 1
+  ) +
+      geom_ribbon(
+    data = output_age_rate$predictions$linear,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    ),
+    alpha = 0.15
+  ) +
+  scale_y_continuous(breaks = c(0, 30, 60, 90)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-10, 100), xlim = c(20, 82)) +
+  labs(y = "High Fletcher Index<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL)</span>") +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_blank(),
+    axis.title.y = element_markdown("sans", size = 9, lineheight = 1.1),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p1 <- ggplot() +
+  geom_point(
+    data = df,
+    aes(age, FI_low),
+    alpha = 0.1,
+    size = 0.5,
+    shape = 1,
+    stroke = 0.25,
+    color = "grey30"
+  ) +
+  geom_line(
+    data = output_age_rate$predictions$quadratic,
+    aes(x = age, y = estimate),
+    linewidth = 0.6,
+    alpha = 1
+  ) +
+      geom_ribbon(
+    data = output_age_rate$predictions$quadratic,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    ),
+    alpha = 0.15
+  ) +
+  scale_y_continuous(breaks = c(0, 30, 60, 90)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-10, 100), xlim = c(20, 82)) +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p2 <- ggplot() +
+    geom_rect(
+    data = pwc_age_rate_boundaries,
+    aes(
+      xmin = x_min,
+      xmax = x_max,
+      ymin = -Inf,
+      ymax = Inf
+    ),
+    alpha = 0.125,
+    fill = "#ff0000"
+  ) +
+  geom_point(
+    data = df,
+    aes(age, FI_low),
+    alpha = 0.1,
+    size = 0.5,
+    shape = 1,
+    stroke = 0.25,
+    color = "grey30"
+  ) +
+  geom_ribbon(
+    data = output_age_rate$predictions$smooth,
+    aes(
+      x = age,
+      ymin = ci_lower + coef(output_age_rate$models$smooth)["(Intercept)"],
+      ymax = ci_upper + coef(output_age_rate$models$smooth)["(Intercept)"]
+    ),
+    alpha = 0.15
+  ) +
+  geom_line(
+    data = output_age_rate$predictions$smooth,
+    aes(
+      x = age,
+      y = estimate + coef(output_age_rate$models$smooth)["(Intercept)"]
+    ),
+    linewidth = 0.6
+  ) +
+  scale_y_continuous(breaks = c(0, 30, 60, 90)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-10, 100), xlim = c(20, 82)) +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 1,
+      b = 0,
+      l = 0,
+      unit = "pt"
+    )
+  )
+
+p3 <- ggplot() +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+  geom_line(
+    data = output_age_rate$predictions$linear_derivative,
+    aes(
+      x = age,
+      y = derivative
+    ),
+    linewidth = 0.6
+  ) +
+    geom_ribbon(
+    data = output_age_rate$predictions$linear_derivative,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    ),
+    alpha = 0.15
+  ) +
+  scale_y_continuous(breaks = c(0, 1, 2)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
+  labs(x = "Age<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Rate of HL<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL/Year)</span>") +
+  theme_few() +
+theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_markdown("sans", size = 9, lineheight = 1.1),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 0,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p4 <- ggplot() +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+  geom_line(
+    data = output_age_rate$predictions$quadratic_derivative,
+    aes(
+      x = age,
+      y = derivative
+    ),
+    linewidth = 0.6
+  ) +
+    geom_ribbon(
+    data = output_age_rate$predictions$quadratic_derivative,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    ),
+    alpha = 0.15
+  ) +
+  scale_y_continuous(breaks = c(0, 1, 2)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
+  labs(x = "Age<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Rate of HL<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL/Year)</span>") +
+  theme_few() +
+theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 0,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p5 <- ggplot() +
+    geom_rect(
+    data = pwc_age_rate_boundaries,
+    aes(
+      xmin = x_min,
+      xmax = x_max,
+      ymin = -Inf,
+      ymax = Inf
+    ),
+    alpha = 0.125,
+    fill = "#ff0000"
+  ) +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+  geom_ribbon(
+    data = output_age_rate$predictions$derivative_smooth,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    ),
+    alpha = 0.15
+  ) +
+  geom_line(
+    data = output_age_rate$predictions$derivative_smooth,
+    aes(
+      x = age,
+      y = derivative
+    ),
+    linewidth = 0.6
+  ) +
+  scale_y_continuous(breaks = c(0, 1, 2)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
+  labs(x = "Age<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Nonlinear Deviation Rate of HL<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL/Year)</span>") +
+  theme_few() +
+theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 0,
+      r = 1,
+      b = 0,
+      l = 0,
+      unit = "pt"
+    )
+  )
+
+p6 <- ggplot() +
+    geom_rect(
+    data = pwc_age_rate_boundaries,
+    aes(
+      xmin = x_min,
+      xmax = x_max,
+      ymin = -Inf,
+      ymax = Inf
+    ),
+    alpha = 0.125,
+    fill = "#ff0000"
+  ) +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+  geom_ribbon(
+    data = output_age_rate$predictions$derivative_smooth,
+    aes(
+      x = age,
+      ymin = ci_lower_adj,
+      ymax = ci_upper_adj
+    ),
+    alpha = 0.15
+  ) +
+  geom_line(
+    data = output_age_rate$predictions$derivative_smooth,
+    aes(
+      x = age,
+      y = derivative_adj
+    ),
+    linewidth = 0.6
+  ) +
+  scale_y_continuous(breaks = c(0, 1, 2)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
+  labs(x = "Age<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Deviation Rate of HL<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL/Year)</span>") +
+  theme_few() +
+theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_markdown("sans", size = 9, lineheight = 1.1),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 0,
+      r = 0,
+      b = 1,
+      l = 0,
+      unit = "pt"
+    )
+  )
+
+p <- align_plots(p0, p1, p2, p3, p4, p5, p6, align = 'hv')
+
+p <- plot_grid(
+  plot_grid(
+    plot_grid(p[[1]], NULL, p[[2]], NULL, p[[3]],
+      labels = c("A", "", "B", "", "C"),
+      nrow = 1, rel_widths = c(1, -0.01, 1, -0.01, 1),
+      label_x = 0.04, label_y = 1.02
+    ),
+    NULL,
+    plot_grid(p[[4]], NULL, p[[5]], NULL, p[[6]],
+      labels = c("D", "", "E", "", "F"),
+      nrow = 1, rel_widths = c(1, -0.01, 1, -0.01, 1),
+      label_x = 0.04, label_y = 1.02
+    ),
+    ncol = 1, rel_heights = c(1, -0.15, 1)
+  ),
+  NULL,
+  plot_grid(
+    NULL,
+    p[[7]],
+    NULL,
+    ncol = 1,
+    rel_heights = c(0.23, 0.54, 0.23),
+    labels = c("", "G", ""),
+    label_x = 0.04,
+    label_y = 1.1
+  ), 
+  ncol = 3,
+  rel_widths = c(3, 0.1, 1.005)
+)
+
+save_and_plot(
+  p,
+  path = here("Output", "Figures", "FI_low", "age_rate_panel"),
+  width = params$double_column,
+  height = 3,
+  res = 600,
+  device = "agg_png"
+) 
+```
+
+## Bioage panel
+
+### Plot Delta mse
+
+```{r plot_bioage, warning=FALSE}
+p <- df_summary_bioage %>%
+  ggplot(aes(x = age_group, y = mean_delta_mse))  +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+  geom_ribbon(
+    aes(
+      fill = predictors,
+      group = predictors,
+      ymin = ci_low_delta_mse,
+      ymax = ci_high_delta_mse
+    ),
+    alpha = 0.15,
+    show.legend = FALSE
+  ) +
+  geom_line(
+    aes(color = predictors, group = predictors),
+    linewidth = 0.7,
+    alpha = 0.75,
+    show.legend = TRUE
+  ) +
+  geom_point(
+    aes(color = predictors),
+    size = 1.25,
+    alpha = 1,
+    show.legend = TRUE
+  ) +
+  scale_color_manual(
+    values = c(
+      "age" = "#000000",
+      "age, hd" = "#256DAB",
+      "age, kdm" = "#059748",
+      "age, phenoage" = "#CB2027"
+    ),
+    labels = c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
+  ) +
+  scale_fill_manual(
+    values = c(
+      "age" = "#8C8C8C",
+      "age, hd" = "#88BDE6",
+      "age, kdm" = "#90CD97",
+      "age, phenoage" = "#F07E6E"
+    ),
+    labels = c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
+  ) +
+  guides(
+    colour = guide_legend(
+      override.aes = list(size = 1.25),
+      keywidth = unit(0.3, "cm"),
+      keyheight = unit(0.3, "cm"),
+      label.theme = element_markdown(
+        "sans",
+        size = 9,
+        margin = margin(l = 3, t = 1.5, unit = "pt")
+      ),
+    )
+  ) +
+  scale_y_continuous(breaks = seq(0, 8, 2)) +
+  coord_cartesian(ylim = c(-1, 8.5), xlim = c(1.4, 5.6)) +
+  labs(x = "Age Group<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Additional Predictive Capacity<br><span style='font-size:8pt; color:#4D4D4D'>(Δ MSE (dB HL)<sup>2</sup>)</span>") +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_markdown("sans", size = 9, lineheight = 1.1),
+    legend.title              = element_blank(),
+    legend.background         = element_rect(fill = "transparent", color = NA),
+    legend.box.background     = element_rect(fill = "transparent", color = NA),
+    legend.key                = element_rect(fill = "transparent"),
+    legend.position           = "inside",
+    legend.position.inside    = c(0.215, 0.82),
+    legend.key.spacing.y      = unit(1, "pt"),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 1,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  ) + geom_text(
+    data = . %>%
+      filter(p_adj != "ns"),
+    aes(
+      x = age_group,
+      y = ci_high_delta_mse + 0.25,
+      label = signif,
+      color = predictors
+    ),
+    manual = TRUE,
+    size = 14 / (14 / 5)
+  )
+
+save_and_plot(
+  p,
+  path = here("Output", "Figures", "FI_low", "bioage_panel"),
+  width = params$single_column,
+  height = 2.15,
+  res = 600,
+  device = "agg_png"
+) 
+```
+
+## Biomarker panel
+
+### Plot Delta mse Biomarkers (only relevant ones)
+
+```{r plot_delta_mse}
+p1 <- df_summary_biomarkers %>%
+  filter(predictors %in% c("age, crp", "age, hba1c", "age, albumin_gL")) %>%
+  mutate(
+    label = predictors,
+    label = case_when(
+      label == "age, crp" ~ "Age + CRP",
+      label == "age, hba1c" ~ "Age + HbA1c",
+      label == "age, albumin_gL" ~ "Age + ALB",
+      TRUE ~ NA
+    ),
+    predictors = factor(
+      predictors,
+      levels = c("age, crp", "age, hba1c", "age, albumin_gL")
+    )
+  ) %>%
+  ggplot(aes(x = age_group, y = mean_delta_mse))  +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+  geom_label(
+    data = . %>%
+      filter(age_group == "20-30"),
+    aes(
+      x = "20-30",
+      y = 3.65,
+      label = label,
+      fill = predictors
+    ),
+    size = 8 / (14 / 5),
+    hjust = 0,
+    label.padding = unit(0.3, "lines"),
+    nudge_x = -0.1,
+    color = "white",
+    show.legend = FALSE
+  ) +
+  geom_ribbon(
+    aes(
+      fill = predictors,
+      group = predictors,
+      ymin = ci_low_delta_mse,
+      ymax = ci_high_delta_mse
+    ),
+    alpha = 0.2,
+    show.legend = FALSE
+  ) +
+  geom_line(
+    aes(color = predictors, group = predictors),
+    linewidth = 0.7,
+    alpha = 0.75,
+    show.legend = FALSE
+  ) +
+  geom_point(
+    aes(color = predictors),
+    size = 1.25,
+    alpha = 1,
+    show.legend = FALSE
+  ) +
+  scale_color_manual(
+    values = c(
+      "age, crp" = "#256DAB",
+      "age, hba1c" = "#E5126F",
+      "age, albumin_gL" = "#DF5C24"
+    )
+  ) +
+  scale_fill_manual(
+    values = c(
+      "age, crp" = "#88BDE6",
+      "age, hba1c" = "#F6AAC9",
+      "age, albumin_gL" = "#FBB258"
+    )
+  ) +
+  facet_wrap(
+    ~ predictors,
+    ncol = 1,
+    nrow = 5,
+    labeller = labeller(
+      predictors = c(
+        "age, crp" = "Age + CRP",
+        # creatinine in mg/dL
+        "age, hba1c" = "Age + HbA1c",
+        # plasma uric acid in mg/dL
+        "age, albumin_gL" = "Age + ALB"
+      )
+    )
+  ) + # in billions per liter
+  labs(x = "Age Group<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Additional Predictive Capacity<br><span style='font-size:8pt; color:#4D4D4D'>(Δ MSE (dB HL)<sup>2</sup>)</span>") +
+  scale_y_continuous(breaks = c(0, 2)) +
+  coord_cartesian(ylim = c(-1.5, 4), xlim = c(1.4, 5.6)) +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_markdown("sans", size = 9, lineheight = 1.1),
+    strip.text = element_blank(),
+    legend.title              = element_blank(),
+    legend.background         = element_rect(fill = "transparent", color = NA),
+    legend.box.background     = element_rect(fill = "transparent", color = NA),
+    legend.key                = element_rect(fill = "transparent"),
+    legend.position           = "inside",
+    legend.position.inside    = c(0.18, 0.83),
+    legend.key.spacing.y      = unit(1, "pt"),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+save_and_plot(
+  p1,
+  path = here("Output", "Figures", "FI_low", "biomarkers_biomarkers_panel"),
+  width = 2.5,
+  height = 3,
+  res = 600,
+  device = "agg_png"
+) 
+```
+
+### Plot biomarkers together vs biomarkers + phenoage
+
+```{r plot_explained_var}
+
+p2 <- df_summary_biomarkers %>% filter(
+  predictors %in% c(
+    "age, phenoage",
+    "age, crp, hba1c, albumin_gL",
+    "age, crp, hba1c, albumin_gL, phenoage"
+  )
+) %>%
+  mutate(predictors = factor(
+    predictors,
+    levels = c(
+    "age, phenoage",
+    "age, crp, hba1c, albumin_gL",
+    "age, crp, hba1c, albumin_gL, phenoage"
+    )
+  )) %>%
+  ggplot(aes(x = age_group, y = mean_delta_mse))  +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+  geom_ribbon(
+    aes(
+      fill = predictors,
+      group = predictors,
+      ymin = ci_low_delta_mse,
+      ymax = ci_high_delta_mse
+    ),
+    alpha = 0.2,
+    show.legend = FALSE
+  ) +
+  geom_line(
+    aes(color = predictors, group = predictors),
+    linewidth = 0.7,
+    alpha = 0.75,
+    show.legend = TRUE
+  ) +
+  geom_point(
+    aes(color = predictors),
+    size = 1.25,
+    alpha = 1,
+    show.legend = FALSE
+  ) +
+  scale_color_manual(
+    values = c(
+      "age, crp, hba1c, albumin_gL, phenoage" = "#CB2027",
+      "age, crp, hba1c, albumin_gL" = "#059748",
+      "age, phenoage" = "grey65"
+    ),
+    labels = c(
+      "Age + CRP + HbA1c + ALB + PhenoAge",
+      "Age + CRP + HbA1c + ALB",
+      "Age + PhenoAge"
+    ),
+    breaks = c(
+      "age, crp, hba1c, albumin_gL, phenoage",
+      "age, crp, hba1c, albumin_gL",
+      "age, phenoage"
+    )
+  ) +
+  scale_fill_manual(
+    values = c(
+      "age, crp, hba1c, albumin_gL, phenoage" = "#F07E6E",
+      "age, crp, hba1c, albumin_gL" = "#90CD97",
+      "age, phenoage" = "grey80"
+    ),
+    labels = c(
+      "Age + CRP + HbA1c + ALB + PhenoAge",
+      "Age + CRP + HbA1c + ALB",
+      "Age + PhenoAge"
+    ),
+    breaks = c(
+      "age, crp, hba1c, albumin_gL, phenoage",
+      "age, crp, hba1c, albumin_gL",
+      "age, phenoage"
+    )
+    
+  ) +
+  guides(
+    colour = guide_legend(
+      override.aes = list(size = 1.25),
+      keywidth = unit(0.3, "cm"),
+      keyheight = unit(0.3, "cm"),
+      label.theme = element_markdown(
+        "sans",
+        size = 8,
+        margin = margin(l = 3, t = 1.5, unit = "pt")
+      ),
+    )
+  ) +
+  scale_y_continuous(breaks = c(0, 2, 4, 6, 8)) +
+  coord_cartesian(ylim = c(-3, 8.5), xlim = c(1.4, 5.6)) +
+  labs(x = "Age Group<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>") +
+  theme_few() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_blank(),
+    legend.title              = element_blank(),
+    legend.background         = element_rect(fill = "transparent", color = NA),
+    legend.box.background     = element_rect(fill = "transparent", color = NA),
+    legend.key                = element_rect(fill = "transparent"),
+    legend.position           = "inside",
+    legend.position.inside    = c(0.3, 0.91),
+    legend.key.spacing.y      = unit(1, "pt"),
+    strip.text.x              = element_markdown("sans", size = 9, lineheight = 1.1),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 1,
+      b = 0,
+      l = 0,
+      unit = "pt"
+    )
+  )
+
+
+save_and_plot(
+  p2,
+  path = here("Output", "Figures", "FI_low", "biomarkers_v_phenoage"),
+  width = 3,
+  height = 4,
+  res = 600,
+  device = "agg_png"
+) 
+```
+
+### Composite plot
+
+```{r plot_biomark_panel}
+p <- ggarrange(
+  p1,
+  NULL,
+  p2,
+  nrow = 1,
+  widths = c(0.6, 0, 1),
+  labels = c("A", "", "B"),
+  label.x = 0.02,
+  label.y = 1.01,
+  align = "v"
+)
+
+save_and_plot(
+   p,
+  path = here("Output", "Figures", "FI_low", "biomarkers_panel"),
+  width = params$double_column,
+  height = 4,
+  res = 600,
+  device = "agg_png"
+) 
+```
+
+## Overall Biomarkers Supplemental Plot
+
+```{r plot_biomarkers, warning=FALSE}
+p <- df_summary_biomarkers_overall %>%
+  filter(!(
+    predictors %in% c(
+    "age",
+    "age, phenoage",
+    "age, crp, hba1c, albumin_gL",
+    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
+    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
+    "age, crp, hba1c, albumin_gL, phenoage"
+    )
+  )) %>% mutate(predictors = factor(
+    predictors,
+    levels = c(
+      "age, sbp",
+      "age, bun",
+      "age, mcv",
+      "age, lymph",
+      "age, rdw",
+      "age, totchol",
+      "age, creat",
+      "age, uap",
+      "age, glucose",
+      "age, wbc",
+      "age, alp",
+      "age, albumin_gL",
+      "age, hba1c",
+      "age, crp"
+    ),
+    labels = c(
+      "SBP",
+      "BUN",
+      "MCV",
+      "Lymphs",
+      "RDW",
+      "TC",
+      "Creat",
+      "UA",
+      "Glc",
+      "WBC",
+      "ALP",
+      "ALB",
+      "HbA1c",
+      "CRP"
+    )
+  )) %>%
+  ggplot(aes(x = predictors, y = mean_delta_mse)) +
+  geom_point(
+    aes(color = predictors, fill = predictors),
+    size = 2.25,
+    position = position_dodge(0.8),
+    alpha = 1,
+    show.legend = FALSE
+  ) +
+  geom_linerange(
+    aes(color = predictors, ymin = ci_low_delta_mse, ymax = ci_high_delta_mse),
+    position = position_dodge(0.8),
+    lineend = "round",
+    linewidth = 0.75,
+    show.legend = FALSE
+  ) +
+  labs(y = "Additional Predictive Capacity<br><span style='font-size:8pt; color:#4D4D4D'>(Δ MSE (dB HL)<sup>2</sup>)</span>") +
+  scale_y_continuous(breaks = seq(0, 2, 1)) +
+  coord_cartesian(ylim = c(-0.25, 1.5)) +
+  theme_few() +
+  theme(
+    panel.grid.major.y = element_line(color = "grey95", linewidth = 0.25),
+    axis.text.x = element_markdown("sans", size = 8, angle = 45, hjust = 1, vjust = 1),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_blank(),
+    axis.title.y = element_markdown("sans", size = 9, lineheight = 1.1),
+    legend.title              = element_blank(),
+    legend.background         = element_rect(fill = "transparent", color = NA),
+    legend.box.background     = element_rect(fill = "transparent", color = NA),
+    legend.key                = element_rect(fill = "transparent"),
+    legend.position           = "inside",
+    legend.position.inside    = c(0.345, 0.91),
+    legend.key.spacing.y      = unit(1, "pt"),
+    strip.text.x              = element_markdown("sans", size = 9, lineheight = 1.1),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 1,
+      b = 0,
+      l = 0,
+      unit = "pt"
+    )
+  )
+
+save_and_plot(
+   p,
+  path = here("Output", "Figures", "FI_low", "biomarkers_panel"),
+  width = params$single_column,
+  height = 2.15,
+  res = 600,
+  device = "agg_png"
+) 
+```

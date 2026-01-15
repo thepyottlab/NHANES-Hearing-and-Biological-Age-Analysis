@@ -1,0 +1,18 @@
+# RStudio
+.Rproj.user/
+
+# R
+.Rhistory
+.Rdata
+.Ruserdata
+
+# Backups
+Bak/
+
+# Output (repo root)
+
+# Environment / state
+/Savestates/
+
+# Others
+desktop.ini
