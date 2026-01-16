@@ -150,8 +150,7 @@ df <- df_raw %>%
     smoking = factor(smoking),
     race = case_when(race == 2 ~ 1, TRUE ~ race),
     race = factor(race),
-    education = factor(education),
-    telolength_log = log(telolength))
+    education = factor(education))
 ```
 
 ## Prepare age group column

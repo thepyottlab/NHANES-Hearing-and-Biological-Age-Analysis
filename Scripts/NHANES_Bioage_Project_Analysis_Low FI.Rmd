@@ -2888,7 +2888,7 @@ p <- ggarrange(
 
 save_and_plot(
    p,
-  path = here("Output", "Figures", "FI_low", "biomarkers_panel"),
+  path = here("Output", "Figures", "FI_low", "biomarkers_fig_panel"),
   width = params$double_column,
   height = 4,
   res = 600,

@@ -36,11 +36,11 @@ params:
     input: file
   global_k:
     label: "K (n BAM base functions)"
-    value: 50
+    value: 25
     input: numeric
   global_discrete: 
     label: "Discretize BAM (much faster but slightly worse fitting)"
-    value: FALSE
+    value: TRUE
   single_column_width:
     label: "Set width of single column figure (inches)"
     value: 3.19
@@ -125,6 +125,7 @@ df <- df_raw %>%
     kdm,
     phenoage,
     hd,
+    hd_log,
     telolength,
     FI_low,
     FI_high,
@@ -145,7 +146,8 @@ df <- df_raw %>%
   ) %>%
   filter(education != 9, smoking %in% c(1, 2)) %>%
   mutate(
-    hd_log = log(hd),
+    hd_log2 = log(hd) + 5,
+    hd_log3 = log(hd_log),
     telolength_log = log(telolength),
     gender = factor(gender),
     smoking = factor(smoking),
@@ -374,6 +376,15 @@ compare_confounders(df, k = params$global_k)
 
 **Each factor significantly improves the model and seems to interact with age in
 some way**
+```{r}
+df %>% 
+  group_by(education, age_group) %>%
+  summarize(
+    FI_high = mean(FI_high),
+    age = mean(age)
+  )
+  
+```
 
 ### Check shared wiggliness
 
@@ -2889,7 +2900,7 @@ p <- ggarrange(
 
 save_and_plot(
    p,
-  path = here("Output", "Figures", "FI_high", "biomarkers_panel"),
+  path = here("Output", "Figures", "FI_high", "biomarkers_fig_panel"),
   width = params$double_column,
   height = 4,
   res = 600,
