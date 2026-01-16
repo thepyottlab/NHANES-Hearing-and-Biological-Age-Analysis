@@ -41,11 +41,11 @@ params:
   global_discrete: 
     label: "Discretize BAM (much faster but slightly worse fitting)"
     value: FALSE
-  params$single_column_width:
+  single_column_width:
     label: "Set width of single column figure (inches)"
     value: 3.19
     input: numeric
-  params$double_column_width:
+  double_column_width:
     label: "Set width of double column figure (inches)"
     value: 6.96
     input: numeric   

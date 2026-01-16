@@ -36,16 +36,16 @@ params:
     input: file
   global_k:
     label: "K (n BAM base functions)"
-    value: 50
+    value: 25
     input: numeric
   global_discrete: 
     label: "Discretize BAM (much faster but slightly worse fitting)"
-    value: FALSE
-  params$single_column_width:
+    value: TRUE
+  single_column_width:
     label: "Set width of single column figure (inches)"
     value: 3.19
     input: numeric
-  params$double_column_width:
+  double_column_width:
     label: "Set width of double column figure (inches)"
     value: 6.96
     input: numeric   
@@ -747,8 +747,8 @@ formula_list_biomarkers <- formula_generator(
     "age, hba1c",
     "age, uap",
     "age, crp, hba1c, albumin_gL",
-    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
-    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
+#    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
+#    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
     "age, crp, hba1c, albumin_gL, phenoage"
   )
 )
@@ -1781,7 +1781,7 @@ pwc_bioage_overall <- nb_corrected_repeated_t_test(
 
 pwc_bioage <- nb_corrected_repeated_t_test(
   df_summary_bioage,
-  exceptions = "age, phenoage",
+  exceptions = c("age, phenoage", "age, kdm"),
   exception_include_exclude = "include",
   adjust_method = "holm"
 )
