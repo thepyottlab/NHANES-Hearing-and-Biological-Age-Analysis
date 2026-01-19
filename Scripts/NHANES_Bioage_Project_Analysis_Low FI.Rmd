@@ -124,9 +124,10 @@ df <- df_raw %>%
     income,
     kdm,
     phenoage,
-    hd,
+    hd_log,
     telolength,
     FI_low,
+    FI_high,
     albumin_gL,
     alp,
     bun,
@@ -144,8 +145,6 @@ df <- df_raw %>%
   ) %>%
   filter(education != 9, smoking %in% c(1, 2)) %>%
   mutate(
-    hd_log = log(hd),
-    telolength_log = log(telolength),
     gender = factor(gender),
     smoking = factor(smoking),
     race = case_when(race == 2 ~ 1, TRUE ~ race),
@@ -721,7 +720,7 @@ formula_list_bioage <- formula_generator(
   k = params$global_k,
   auto_limit_k = TRUE,
   equal_wiggliness = TRUE,
-  formulas = c("age", "age, phenoage", "age, kdm", "age, hd")
+  formulas = c("age", "age, phenoage", "age, kdm", "age, hd_log")
 )
 
 formula_list_biomarkers <- formula_generator(
@@ -1986,7 +1985,7 @@ rename_bioage_table <- function(bioage_table) {
     mutate(
       Predictors = case_when(
         Predictors == "age" ~ "Age",
-        Predictors == "age, hd" ~ "Age + HD",
+        Predictors == "age, hd_log" ~ "Age + HD",
         Predictors == "age, kdm" ~ "Age + KDM",
         Predictors == "age, phenoage" ~ "Age + PhenoAge"
       ),
@@ -2553,7 +2552,7 @@ p <- df_summary_bioage %>%
   scale_color_manual(
     values = c(
       "age" = "#000000",
-      "age, hd" = "#256DAB",
+      "age, hd_log" = "#256DAB",
       "age, kdm" = "#059748",
       "age, phenoage" = "#CB2027"
     ),
@@ -2562,7 +2561,7 @@ p <- df_summary_bioage %>%
   scale_fill_manual(
     values = c(
       "age" = "#8C8C8C",
-      "age, hd" = "#88BDE6",
+      "age, hd_log" = "#88BDE6",
       "age, kdm" = "#90CD97",
       "age, phenoage" = "#F07E6E"
     ),

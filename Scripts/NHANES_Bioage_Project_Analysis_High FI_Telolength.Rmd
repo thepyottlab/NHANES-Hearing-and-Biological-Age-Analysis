@@ -124,7 +124,7 @@ df <- df_raw %>%
     income,
     kdm,
     phenoage,
-    hd,
+    hd_log,
     telolength,
     FI_high,
     albumin_gL,
@@ -144,8 +144,6 @@ df <- df_raw %>%
   ) %>%
   filter(education != 9, smoking %in% c(1, 2), !is.na(telolength)) %>%
   mutate(
-    hd_log = log(hd),
-    telolength_log = log(telolength),
     gender = factor(gender),
     smoking = factor(smoking),
     race = case_when(race == 2 ~ 1, TRUE ~ race),
@@ -720,7 +718,7 @@ formula_list_bioage <- formula_generator(
   k = params$global_k,
   auto_limit_k = TRUE,
   equal_wiggliness = TRUE,
-  formulas = c("age", "age, phenoage", "age, kdm", "age, hd", "age, telolength", "age, telolength_log")
+  formulas = c("age", "age, phenoage", "age, kdm", "age, hd_log", "age, telolength")
 )
 
 as.data.frame(cbind(Formulas = unlist(formula_list_bioage))) %>% kable("html", caption = "Bioage Formulas") %>%
@@ -1458,19 +1456,17 @@ rename_bioage_table <- function(bioage_table) {
     mutate(
       Predictors = case_when(
         Predictors == "age" ~ "Age",
-        Predictors == "age, hd" ~ "Age + HD",
+        Predictors == "age, hd_log" ~ "Age + HD",
         Predictors == "age, kdm" ~ "Age + KDM",
         Predictors == "age, phenoage" ~ "Age + PhenoAge",
-        Predictors == "age, telolength" ~ "Age + Telolength",
-        Predictors == "age, telolength_log" ~ "Age + Telolength (Log)"
+        Predictors == "age, telolength" ~ "Age + Telolength"
       ),
       Predictors = factor(Predictors, levels = c(
         "Age",
         "Age + HD",
         "Age + KDM",
         "Age + PhenoAge",
-        "Age + Telolength",
-        "Age + Telolength (Log)"
+        "Age + Telolength"
       )
     )) %>%
     arrange(Predictors)
@@ -1547,13 +1543,12 @@ p <- df_summary_bioage %>%
   scale_color_manual(
     values = c(
       "age" = "#000000",
-      "age, hd" = "#256DAB",
+      "age, hd_log" = "#256DAB",
       "age, kdm" = "#059748",
       "age, phenoage" = "#CB2027",
-      "age, telolength" = "#7B3A96",
-      "age, telolength_log" = "#E5126F"
+      "age, telolength" = "#7B3A96"
     ),
-    labels = c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telolength", "Age + Telolength (Log)")
+    labels = c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telolength")
   ) +
   scale_fill_manual(
     values = c(
@@ -1564,7 +1559,7 @@ p <- df_summary_bioage %>%
       "age, telolength" = "#B276B2",
       "age, telolength_log" = "#F17CB0"
     ),
-    labels = c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telolength", "Age + Telolength (Log)")
+    labels = c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telolength")
   ) +
   guides(
     colour = guide_legend(
