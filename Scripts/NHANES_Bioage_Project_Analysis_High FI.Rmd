@@ -36,11 +36,11 @@ params:
     input: file
   global_k:
     label: "K (n BAM base functions)"
-    value: 25
+    value: 50
     input: numeric
   global_discrete: 
     label: "Discretize BAM (much faster but slightly worse fitting)"
-    value: TRUE
+    value: FALSE
   single_column_width:
     label: "Set width of single column figure (inches)"
     value: 3.19
@@ -883,7 +883,7 @@ estimate_modeling_time <- function(df, k, discrete = FALSE) {
         s(gender, race, age, bs = "sz", k = k, id = 5) +
 
         s(phenoage, k = k),
-        data = df, discrete = discrete, method = "fREML"
+        data = df, discrete = discrete, method = "REML"
       )
     })
 }
@@ -2075,6 +2075,86 @@ render_and_save_table(table_biomarkers, path = here("Output", "Figures", "FI_hig
   scroll_box(width = "100%", height = "400px")
 render_and_save_table(table_biomarkers_overall, path = here("Output", "Figures", "FI_high", "table_biomarkers_overall.html"))
 ```
+
+## Confounders table
+
+### Build table and recode values
+
+```{r}
+build_confounder_table <- function(data, y = "FI_high") {
+  variables = c("Gender", "Smoking", "Race", "Education")
+  
+  data <- data %>%
+    mutate(
+      gender = dplyr::recode(gender, "1" = "Male", "2" = "Female"),
+      smoking = dplyr::recode(smoking, "1" = "Smoker", "2" = "Non-smoker"),
+      race = dplyr::recode(
+        race,
+        "1" = "Hispanic",
+        "3" = "White",
+        "4" = "Black",
+        "5" = "Other"
+      ),
+      education = dplyr::recode(
+        education,
+        "1" = "< 9th grade",
+        "2" = "9-11th grade",
+        "3" = "High school",
+        "4" = "Some college or AA degree",
+        "5" = "College graduate or higher"
+      )
+    ) %>%
+    rename(
+      "Smoking" = smoking,
+      "Gender" = gender,
+      "Race" = race,
+      "Education" = education
+    )
+
+bind_rows(lapply(variables, function(variable)
+  data %>%
+    group_by(age_group, level = .data[[variable]]) %>%
+    summarise(
+      mean = mean(.data[[y]], na.rm = TRUE),
+      sd   = sd(.data[[y]],   na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    mutate(variable = variable, .before = 1)
+))
+}
+
+table_confounders <- build_confounder_table(df)
+```
+
+### Pivot table and merge mean and standard deviation
+
+```{r}
+table_confounders <- table_confounders %>%
+  mutate(stat = sprintf("%.2f (%.2f)", mean, sd)) %>%
+  select(variable, level, age_group, stat) %>%
+  pivot_wider(names_from = age_group, values_from = stat)
+```
+
+### Format table
+
+```{r}
+table_confounders <- table_confounders %>%
+  group_by(variable) %>%
+  mutate(variable = if_else(row_number() == 1L, variable, "")) %>%
+  ungroup() %>%
+  rename(
+    " " = variable,
+    "  " = level
+  )
+```
+
+### Save table
+
+```{r}
+render_and_save_table(table_confounders, path = here("Output", "Figures", "FI_high", "table_confounders.html"))
+```
+
+
 
 ## Rate of aging panel
 
