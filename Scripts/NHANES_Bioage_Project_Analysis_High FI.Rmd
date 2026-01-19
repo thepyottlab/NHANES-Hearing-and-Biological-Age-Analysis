@@ -1882,6 +1882,34 @@ df_summary_biomarkers_overall <- import_p_values(df_summary_biomarkers_overall,
 **It doesn't matter whether we use holm or hommel, so perhaps we should use
 holm.**
 
+### Add raw Ns to dataframe
+
+```{r}
+add_n_age_groups <- function(data, summary_data, per_age_group) {
+  if (per_age_group) {
+    summary_data <- summary_data %>%
+      rename("n_folds_repeats" = n) %>%
+      left_join(data %>% select(age_group) %>%
+                  group_by(age_group) %>%
+                  summarize(n = n()),
+                by = "age_group")
+  } else {
+    summary_data <- summary_data %>%
+      rename("n_folds_repeats" = n) %>%
+      mutate(n = nrow(data))
+  }
+  
+  return(summary_data)
+}
+
+df_summary_bioage <- add_n_age_groups(df, df_summary_bioage, per_age_group = TRUE)
+df_summary_bioage_overall <- add_n_age_groups(df, df_summary_bioage_overall, per_age_group = FALSE)
+
+df_summary_biomarkers <- add_n_age_groups(df, df_summary_biomarkers, per_age_group = TRUE)
+df_summary_biomarkers_overall <- add_n_age_groups(df, df_summary_biomarkers_overall, per_age_group = FALSE)
+```
+
+
 # Visualization
 
 ## Descriptive Tables
@@ -1895,13 +1923,11 @@ Round R² and delta RMSE, rename variables, set p values to bold and to " \<
 format_table <- function(summary_data, per_age_group) {
   if (per_age_group) {
     table <- summary_data %>%
-      select(-n) %>%
       mutate(r2 = round(r2, 3),
              delta_rmse = round(delta_rmse, 2)) %>%
       rename(
         "Predictors" = predictors,
         "Age" = age_group,
-        "n" = mean_n_test,
         "∆RMSE (vs age, dB HL)" = delta_rmse,
         "R²" = r2,
         "p (vs age)" = p_adj
@@ -1917,17 +1943,20 @@ format_table <- function(summary_data, per_age_group) {
               as.numeric(`p (vs age)`), 3
             )), "html", bold = TRUE),
           TRUE ~ `p (vs age)`
-        )
+        ), `p (vs age)` = as.character(`p (vs age)`),
+        `p (vs age)` = case_when(Predictors == "age" ~ "",
+                                    TRUE ~ `p (vs age)`),
+        `∆RMSE (vs age, dB HL)` = as.character(`∆RMSE (vs age, dB HL)`),
+        `∆RMSE (vs age, dB HL)` = case_when(Predictors == "age" ~ "",
+                                    TRUE ~ `∆RMSE (vs age, dB HL)`)
       ) %>%
       select(Predictors, Age, n, `R²`, `∆RMSE (vs age, dB HL)`, `p (vs age)`)
   } else {
     table <- summary_data %>%
-      select(-n) %>%
       mutate(r2 = round(r2, 3),
              delta_rmse = round(delta_rmse, 2)) %>%
       rename(
         "Predictors" = predictors,
-        "n" = mean_n_test,
         "∆RMSE (vs age, dB HL)" = delta_rmse,
         "R²" = r2,
         "p (vs age)" = p_adj
@@ -1943,7 +1972,12 @@ format_table <- function(summary_data, per_age_group) {
               as.numeric(`p (vs age)`), 3
             )), "html", bold = TRUE),
           TRUE ~ `p (vs age)`
-        )
+        ), `p (vs age)` = as.character(`p (vs age)`),
+        `p (vs age)` = case_when(Predictors == "age" ~ "",
+                                    TRUE ~ `p (vs age)`),
+        `∆RMSE (vs age, dB HL)` = as.character(`∆RMSE (vs age, dB HL)`),
+        `∆RMSE (vs age, dB HL)` = case_when(Predictors == "age" ~ "",
+                                    TRUE ~ `∆RMSE (vs age, dB HL)`)
       ) %>%
       select(Predictors, n, `R²`, `∆RMSE (vs age, dB HL)`, `p (vs age)`)
   }
