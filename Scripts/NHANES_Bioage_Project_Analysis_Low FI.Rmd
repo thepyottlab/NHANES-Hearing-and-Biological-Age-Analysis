@@ -371,15 +371,6 @@ compare_confounders(df, k = params$global_k)
 
 **Each factor significantly improves the model and seems to interact with age in
 some way**
-```{r}
-df %>% 
-  group_by(education, age_group) %>%
-  summarize(
-    FI_low = mean(FI_low),
-    age = mean(age)
-  )
-  
-```
 
 ### Check shared wiggliness
 
