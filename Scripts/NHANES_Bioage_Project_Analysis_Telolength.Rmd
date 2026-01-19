@@ -1581,7 +1581,7 @@ p <- df_summary_bioage %>%
     ),
     manual = TRUE,
     size = 14 / (14 / 5)
-  )
+  ) 
 
 save_and_plot(
   p,

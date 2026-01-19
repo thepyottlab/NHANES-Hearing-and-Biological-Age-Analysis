@@ -3001,6 +3001,18 @@ p <- df_summary_biomarkers_overall %>%
       l = 0,
       unit = "pt"
     )
+  )  + geom_text(
+    data = . %>%
+      filter(p_adj != "ns"),
+    aes(
+      x = predictors,
+      y = ci_high_delta_mse + 0.25,
+      label = signif,
+      color = predictors
+    ),
+    manual = TRUE,
+    size = 14 / (14 / 5),
+    show.legend = FALSE
   )
 
 save_and_plot(
