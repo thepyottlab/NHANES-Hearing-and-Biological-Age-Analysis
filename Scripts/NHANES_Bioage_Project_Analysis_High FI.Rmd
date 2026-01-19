@@ -126,7 +126,6 @@ df <- df_raw %>%
     phenoage,
     hd_log,
     telolength,
-    FI_low,
     FI_high,
     albumin_gL,
     alp,
@@ -755,8 +754,6 @@ formula_list_biomarkers <- formula_generator(
     "age, hba1c",
     "age, uap",
     "age, crp, hba1c, albumin_gL",
-    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
-    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
     "age, crp, hba1c, albumin_gL, phenoage"
   )
 )
@@ -1674,8 +1671,6 @@ test_correlation(
     "age",
     "age, phenoage",
     "age, crp, hba1c, albumin_gL",
-    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
-    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
     "age, crp, hba1c, albumin_gL, phenoage"
   )
 )
@@ -1687,8 +1682,6 @@ test_correlation(
     "age",
     "age, phenoage",
     "age, crp, hba1c, albumin_gL",
-    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
-    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
     "age, crp, hba1c, albumin_gL, phenoage"
   )
 )
@@ -1800,8 +1793,6 @@ pwc_biomarkers_overall <- nb_corrected_repeated_t_test(
     "age",
     "age, phenoage",
     "age, crp, hba1c, albumin_gL",
-    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
-    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
     "age, crp, hba1c, albumin_gL, phenoage"
   ),
   exception_include_exclude = "exclude",
@@ -1814,8 +1805,6 @@ pwc_biomarkers <- nb_corrected_repeated_t_test(
   exceptions = c("age",
     "age, phenoage",
     "age, crp, hba1c, albumin_gL",
-    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
-    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
     "age, crp, hba1c, albumin_gL, phenoage"),
   exception_include_exclude = "exclude",
   adjust_method = "holm"
@@ -2019,8 +2008,6 @@ rename_biomarker_table <- function(biomarker_table) {
       "age",
       "age, phenoage",
       "age, crp, hba1c, albumin_gL",
-      "age, crp, hba1c, albumin_gL, alp, creat, totchol",
-      "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
       "age, crp, hba1c, albumin_gL, phenoage"
       )
     )) %>% mutate(
@@ -2947,8 +2934,6 @@ p <- df_summary_biomarkers_overall %>%
     "age",
     "age, phenoage",
     "age, crp, hba1c, albumin_gL",
-    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
-    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
     "age, crp, hba1c, albumin_gL, phenoage"
     )
   )) %>% mutate(predictors = factor(

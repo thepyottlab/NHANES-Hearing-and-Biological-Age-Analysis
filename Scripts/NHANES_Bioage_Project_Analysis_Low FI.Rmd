@@ -36,11 +36,11 @@ params:
     input: file
   global_k:
     label: "K (n BAM base functions)"
-    value: 50
+    value: 25
     input: numeric
   global_discrete: 
     label: "Discretize BAM (much faster but slightly worse fitting)"
-    value: FALSE
+    value: TRUE
   single_column_width:
     label: "Set width of single column figure (inches)"
     value: 3.19
@@ -127,7 +127,6 @@ df <- df_raw %>%
     hd_log,
     telolength,
     FI_low,
-    FI_high,
     albumin_gL,
     alp,
     bun,
@@ -372,6 +371,15 @@ compare_confounders(df, k = params$global_k)
 
 **Each factor significantly improves the model and seems to interact with age in
 some way**
+```{r}
+df %>% 
+  group_by(education, age_group) %>%
+  summarize(
+    FI_low = mean(FI_low),
+    age = mean(age)
+  )
+  
+```
 
 ### Check shared wiggliness
 
@@ -746,8 +754,6 @@ formula_list_biomarkers <- formula_generator(
     "age, hba1c",
     "age, uap",
     "age, crp, hba1c, albumin_gL",
-#    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
-#    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
     "age, crp, hba1c, albumin_gL, phenoage"
   )
 )
@@ -1665,8 +1671,6 @@ test_correlation(
     "age",
     "age, phenoage",
     "age, crp, hba1c, albumin_gL",
-    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
-    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
     "age, crp, hba1c, albumin_gL, phenoage"
   )
 )
@@ -1678,8 +1682,6 @@ test_correlation(
     "age",
     "age, phenoage",
     "age, crp, hba1c, albumin_gL",
-    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
-    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
     "age, crp, hba1c, albumin_gL, phenoage"
   )
 )
@@ -1780,7 +1782,7 @@ pwc_bioage_overall <- nb_corrected_repeated_t_test(
 
 pwc_bioage <- nb_corrected_repeated_t_test(
   df_summary_bioage,
-  exceptions = c("age, phenoage", "age, kdm"),
+  exceptions = "age, phenoage",
   exception_include_exclude = "include",
   adjust_method = "holm"
 )
@@ -1791,8 +1793,6 @@ pwc_biomarkers_overall <- nb_corrected_repeated_t_test(
     "age",
     "age, phenoage",
     "age, crp, hba1c, albumin_gL",
-    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
-    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
     "age, crp, hba1c, albumin_gL, phenoage"
   ),
   exception_include_exclude = "exclude",
@@ -1805,8 +1805,6 @@ pwc_biomarkers <- nb_corrected_repeated_t_test(
   exceptions = c("age",
     "age, phenoage",
     "age, crp, hba1c, albumin_gL",
-    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
-    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
     "age, crp, hba1c, albumin_gL, phenoage"),
   exception_include_exclude = "exclude",
   adjust_method = "holm"
@@ -1868,6 +1866,7 @@ df_summary_biomarkers_overall <- import_p_values(df_summary_biomarkers_overall,
 
 **It doesn't matter whether we use holm or hommel, so perhaps we should use
 holm.**
+
 ### Add raw Ns to dataframe
 
 ```{r}
@@ -1894,6 +1893,7 @@ df_summary_bioage_overall <- add_n_age_groups(df, df_summary_bioage_overall, per
 df_summary_biomarkers <- add_n_age_groups(df, df_summary_biomarkers, per_age_group = TRUE)
 df_summary_biomarkers_overall <- add_n_age_groups(df, df_summary_biomarkers_overall, per_age_group = FALSE)
 ```
+
 
 # Visualization
 
@@ -2008,8 +2008,6 @@ rename_biomarker_table <- function(biomarker_table) {
       "age",
       "age, phenoage",
       "age, crp, hba1c, albumin_gL",
-      "age, crp, hba1c, albumin_gL, alp, creat, totchol",
-      "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
       "age, crp, hba1c, albumin_gL, phenoage"
       )
     )) %>% mutate(
@@ -2936,8 +2934,6 @@ p <- df_summary_biomarkers_overall %>%
     "age",
     "age, phenoage",
     "age, crp, hba1c, albumin_gL",
-    "age, crp, hba1c, albumin_gL, alp, creat, totchol",
-    "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw",
     "age, crp, hba1c, albumin_gL, phenoage"
     )
   )) %>% mutate(predictors = factor(
@@ -3020,7 +3016,7 @@ p <- df_summary_biomarkers_overall %>%
       l = 0,
       unit = "pt"
     )
-  ) + geom_text(
+  )  + geom_text(
     data = . %>%
       filter(p_adj != "ns"),
     aes(
