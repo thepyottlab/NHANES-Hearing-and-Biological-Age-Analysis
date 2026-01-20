@@ -30,6 +30,9 @@ editor_options:
   chunk_output_type: inline
   
 params:
+  save_figures:
+    label: "Save figures"
+    value: TRUE
   data_path:
     label: "Data location"
     value: "dataset_bioage.csv"
@@ -2585,7 +2588,8 @@ save_and_plot(
   width = params$double_column,
   height = 3,
   res = 600,
-  device = "agg_png"
+  device = "agg_png",
+  save = params$save_figures
 ) 
 ```
 
@@ -2701,7 +2705,8 @@ save_and_plot(
   width = params$single_column,
   height = 2.15,
   res = 600,
-  device = "agg_png"
+  device = "agg_png",
+  save = params$save_figures
 ) 
 ```
 
@@ -2835,7 +2840,8 @@ save_and_plot(
   width = 2.5,
   height = 3,
   res = 600,
-  device = "agg_png"
+  device = "agg_png",
+  save = params$save_figures
 ) 
 ```
 
@@ -2966,14 +2972,14 @@ p2 <- df_summary_biomarkers %>% filter(
     )
   )
 
-
 save_and_plot(
   p2,
   path = here("Output", "Figures", "FI_high", "biomarkers_v_phenoage"),
   width = 3,
   height = 4,
   res = 600,
-  device = "agg_png"
+  device = "agg_png",
+  save = params$save_figures
 ) 
 ```
 
@@ -2998,7 +3004,8 @@ save_and_plot(
   width = params$double_column,
   height = 4,
   res = 600,
-  device = "agg_png"
+  device = "agg_png",
+  save = params$save_figures
 ) 
 ```
 
@@ -3113,6 +3120,7 @@ save_and_plot(
   width = params$single_column,
   height = 2.15,
   res = 600,
-  device = "agg_png"
+  device = "agg_png",
+  save = params$save_figures
 ) 
 ```

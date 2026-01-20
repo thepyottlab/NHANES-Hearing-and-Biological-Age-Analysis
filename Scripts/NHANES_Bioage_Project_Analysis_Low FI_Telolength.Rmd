@@ -30,17 +30,20 @@ editor_options:
   chunk_output_type: inline
   
 params:
+  save_figures:
+    label: "Save figures"
+    value: TRUE
   data_path:
     label: "Data location"
     value: "dataset_bioage.csv"
     input: file
   global_k:
     label: "K (n BAM base functions)"
-    value: 40
+    value: 50
     input: numeric
   global_discrete: 
     label: "Discretize BAM (much faster but slightly worse fitting)"
-    value: TRUE
+    value: FALSE
   single_column_width:
     label: "Set width of single column figure (inches)"
     value: 3.19
@@ -1620,6 +1623,7 @@ save_and_plot(
   width = params$single_column_width,
   height = 2.15,
   res = 600,
-  device = "agg_png"
+  device = "agg_png",
+  save = params$save_figures
 ) 
 ```

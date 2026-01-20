@@ -30,6 +30,9 @@ editor_options:
   chunk_output_type: inline
   
 params:
+  save_figures:
+    label: "Save figures"
+    value: TRUE
   data_path:
     label: "Data location"
     value: "dataset_bioage.csv"
@@ -1620,6 +1623,7 @@ save_and_plot(
   width = params$single_column_width,
   height = 2.15,
   res = 600,
-  device = "agg_png"
+  device = "agg_png",
+  save = params$save_figures
 ) 
 ```
