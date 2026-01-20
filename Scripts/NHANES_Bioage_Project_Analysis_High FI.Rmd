@@ -5,8 +5,8 @@ date: "`r format(Sys.Date(), '%B %d, %Y')`"
 
 knit: (function(input, ...) { 
   move_script <- here::here("Scripts", "move_output.R"); 
-  output_folder <- here::here("Output"); 
-  figure_folder <- here::here("Output", "Figures");
+  output_folder <- here::here("Output", "HTML"); 
+  figure_folder <- here::here("Output", "Figures", "FI_high");
   rmarkdown::render(input, params = "ask"); 
   source(move_script); 
   move_output(input, output_folder, figure_folder) })
@@ -88,6 +88,12 @@ library(ragg)
 library(here)
 
 source(here("scripts", "universal_helpers.R"))
+```
+
+## Print params for .md
+
+```{r}
+kable(as.data.frame(unclass(params)))
 ```
 
 ## Import Data
