@@ -39,11 +39,11 @@ params:
     input: file
   global_k:
     label: "K (n BAM base functions)"
-    value: 50
+    value: 30
     input: numeric
   global_discrete: 
     label: "Discretize BAM (much faster but slightly worse fitting)"
-    value: FALSE
+    value: TRUE
   single_column_width:
     label: "Set width of single column figure (inches)"
     value: 3.19
@@ -89,6 +89,7 @@ library(cowplot)
 library(data.table)
 library(ragg)
 library(here)
+library(sameplot)
 
 source(here("scripts", "universal_helpers.R"))
 ```
@@ -2582,13 +2583,12 @@ p <- plot_grid(
   rel_widths = c(3, 0.1, 1.005)
 )
 
-save_and_plot(
+sameplot(
   p,
-  path = here("Output", "Figures", "FI_high", "age_rate_panel"),
+  file = here("Output", "Figures", "FI_high", "age_rate_panel.png"),
   width = params$double_column,
   height = 3,
   res = 600,
-  device = "agg_png",
   save = params$save_figures
 ) 
 ```
@@ -2699,13 +2699,12 @@ p <- df_summary_bioage %>%
     size = 14 / (14 / 5)
   )
 
-save_and_plot(
+sameplot(
   p,
-  path = here("Output", "Figures", "FI_high", "bioage_panel"),
+  file = here("Output", "Figures", "FI_high", "bioage_panel.png"),
   width = params$single_column,
   height = 2.15,
   res = 600,
-  device = "agg_png",
   save = params$save_figures
 ) 
 ```
@@ -2834,13 +2833,12 @@ p1 <- df_summary_biomarkers %>%
     )
   )
 
-save_and_plot(
+sameplot(
   p1,
-  path = here("Output", "Figures", "FI_high", "biomarkers_biomarkers_panel"),
+  file = here("Output", "Figures", "FI_high", "biomarkers_biomarkers_panel.png"),
   width = 2.5,
   height = 3,
   res = 600,
-  device = "agg_png",
   save = params$save_figures
 ) 
 ```
@@ -2972,13 +2970,12 @@ p2 <- df_summary_biomarkers %>% filter(
     )
   )
 
-save_and_plot(
+sameplot(
   p2,
-  path = here("Output", "Figures", "FI_high", "biomarkers_v_phenoage"),
+  file = here("Output", "Figures", "FI_high", "biomarkers_v_phenoage.png"),
   width = 3,
   height = 4,
   res = 600,
-  device = "agg_png",
   save = params$save_figures
 ) 
 ```
@@ -2998,13 +2995,13 @@ p <- ggarrange(
   align = "v"
 )
 
-save_and_plot(
+sameplot(
    p,
-  path = here("Output", "Figures", "FI_high", "biomarkers_fig_panel"),
+  file = here("Output", "Figures", "FI_high", "biomarkers_fig_panel"),
   width = params$double_column,
   height = 4,
   res = 600,
-  device = "agg_png",
+  ,
   save = params$save_figures
 ) 
 ```
@@ -3114,13 +3111,12 @@ p <- df_summary_biomarkers_overall %>%
     show.legend = FALSE
   )
 
-save_and_plot(
+sameplot(
    p,
-  path = here("Output", "Figures", "FI_high", "biomarkers_panel"),
+  file = here("Output", "Figures", "FI_high", "biomarkers_panel.png"),
   width = params$single_column,
   height = 2.15,
   res = 600,
-  device = "agg_png",
   save = params$save_figures
 ) 
 ```

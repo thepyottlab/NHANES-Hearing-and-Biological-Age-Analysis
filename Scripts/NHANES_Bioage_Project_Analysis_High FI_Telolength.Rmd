@@ -89,6 +89,7 @@ library(cowplot)
 library(data.table)
 library(ragg)
 library(here)
+library(sameplot)
 
 source(here("scripts", "universal_helpers.R"))
 ```
@@ -1617,13 +1618,12 @@ p <- df_summary_bioage %>%
     show.legend = FALSE
   ) 
 
-save_and_plot(
+sameplot(
   p,
-  path = here("Output", "Figures", "FI_high", "Telolength", "bioage_panel"),
+  file = here("Output", "Figures", "FI_high", "Telolength", "bioage_panel.png"),
   width = params$single_column_width,
   height = 2.15,
   res = 600,
-  device = "agg_png",
   save = params$save_figures
 ) 
 ```
