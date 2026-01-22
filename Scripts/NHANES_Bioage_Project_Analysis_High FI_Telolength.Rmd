@@ -3,13 +3,12 @@ title: "Predictive Modelling of Hearing Effect of Bioage"
 author: "Landy Qu & Tom Naber"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 
-knit: (function(input, ...) { 
-  move_script <- here::here("Scripts", "move_output.R"); 
-  output_folder <- here::here("Output", "HTML"); 
-  figure_folder <- here::here("Output", "Figures", "FI_high", "Telolength");
-  rmarkdown::render(input, params = "ask"); 
-  source(move_script); 
-  move_output(input, output_folder, figure_folder) })
+knit: (function(input, ...) {
+  move_script <- here::here("Scripts", "move_output.R");
+  output_folder <- here::here("Output", "HTML");
+  rmarkdown::render(input, params = "ask");
+  source(move_script);
+  move_output(input, output_folder)})
   
 output:
   html_document:
@@ -59,12 +58,14 @@ params:
 ## Import Packages & Set Flags
 
 ```{r setup, include = FALSE, cache = FALSE}
-knitr::opts_chunk$set(fig.width = 7, 
-                      fig.height = 4, 
+knitr::opts_chunk$set(fig.width = 6.4, 
+                      fig.height = 4.8, 
                       dpi = 500, 
                       out.width = "100%",
                       out.height = "100%",
                       dev = "ragg_png")
+
+knitr::opts_knit$set(root.dir = here::here())
 
 options(contrasts = c("contr.sum", "contr.poly"))
 
@@ -91,7 +92,7 @@ library(ragg)
 library(here)
 library(sameplot)
 
-source(here("scripts", "universal_helpers.R"))
+source(here("Scripts", "universal_helpers.R"))
 ```
 
 ## Print params for .md

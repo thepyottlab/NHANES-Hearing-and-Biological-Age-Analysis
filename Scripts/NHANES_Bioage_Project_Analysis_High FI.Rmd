@@ -3,13 +3,12 @@ title: "Predictive Modelling of Hearing Effect of Bioage"
 author: "Landy Qu & Tom Naber"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 
-knit: (function(input, ...) { 
-  move_script <- here::here("Scripts", "move_output.R"); 
-  output_folder <- here::here("Output", "HTML"); 
-  figure_folder <- here::here("Output", "Figures", "FI_high");
-  rmarkdown::render(input, params = "ask"); 
-  source(move_script); 
-  move_output(input, output_folder, figure_folder) })
+knit: (function(input, ...) {
+  move_script <- here::here("Scripts", "move_output.R");
+  output_folder <- here::here("Output", "HTML");
+  rmarkdown::render(input, params = "ask");
+  source(move_script);
+  move_output(input, output_folder)})
   
 output:
   html_document:
@@ -32,14 +31,14 @@ editor_options:
 params:
   save_figures:
     label: "Save figures"
-    value: TRUE
+    value: FALSE
   data_path:
     label: "Data location"
     value: "dataset_bioage.csv"
     input: file
   global_k:
     label: "K (n BAM base functions)"
-    value: 30
+    value: 50
     input: numeric
   global_discrete: 
     label: "Discretize BAM (much faster but slightly worse fitting)"
@@ -59,12 +58,14 @@ params:
 ## Import Packages & Set Flags
 
 ```{r setup, include = FALSE, cache = FALSE}
-knitr::opts_chunk$set(fig.width = 7, 
-                      fig.height = 4, 
+knitr::opts_chunk$set(fig.width = 6.4, 
+                      fig.height = 4.8, 
                       dpi = 500, 
-                      out.height = "100%",
                       out.width = "100%",
+                      out.height = "100%",
                       dev = "ragg_png")
+
+knitr::opts_knit$set(root.dir = here::here())
 
 options(contrasts = c("contr.sum", "contr.poly"))
 
@@ -91,7 +92,7 @@ library(ragg)
 library(here)
 library(sameplot)
 
-source(here("scripts", "universal_helpers.R"))
+source(here("Scripts", "universal_helpers.R"))
 ```
 
 ## Print params for .md
@@ -893,7 +894,7 @@ estimate_modeling_time <- function(df, k, discrete = FALSE) {
         s(gender, race, age, bs = "sz", k = k, id = 5) +
 
         s(phenoage, k = k),
-        data = df, discrete = discrete, method = "REML"
+        data = df, discrete = discrete, method = "fREML"
       )
     })
 }
@@ -2997,7 +2998,7 @@ p <- ggarrange(
 
 sameplot(
    p,
-  file = here("Output", "Figures", "FI_high", "biomarkers_fig_panel"),
+  file = here("Output", "Figures", "FI_high", "biomarkers_fig_panel.png"),
   width = params$double_column,
   height = 4,
   res = 600,
