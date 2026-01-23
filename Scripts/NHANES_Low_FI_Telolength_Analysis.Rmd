@@ -3,12 +3,7 @@ title: "Predictive Modelling of Hearing Effect of Bioage"
 author: "Landy Qu & Tom Naber"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 
-knit: (function(input, ...) {
-  move_script <- here::here("Scripts", "move_output.R");
-  output_folder <- here::here("Output", "HTML");
-  rmarkdown::render(input, params = "ask");
-  source(move_script);
-  move_output(input, output_folder)})
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, params = "ask", output_file = here::here("Output", "HTML", "NHANES_FI_low_Telolength_Analysis.html"))})
   
 output:
   html_document:
@@ -31,18 +26,23 @@ editor_options:
 params:
   save_figures:
     label: "Save figures"
-    value: TRUE
-  data_path:
-    label: "Data location"
-    value: "dataset_bioage.csv"
-    input: file
+    value: FALSE
+  construct_data:
+    label: "Build NHANES dataframe from scratch"
+    value: FALSE
+  use_kwon_bioage:
+    label: "Use bioages calculated by Kwon"
+    value: FALSE
+  use_advance_bioages:
+    label: "Use difference between chronological and biological age only"
+    value: FALSE
   global_k:
     label: "K (n BAM base functions)"
     value: 50
     input: numeric
   global_discrete: 
     label: "Discretize BAM (much faster but slightly worse fitting)"
-    value: FALSE
+    value: TRUE
   single_column_width:
     label: "Set width of single column figure (inches)"
     value: 3.19
@@ -50,7 +50,7 @@ params:
   double_column_width:
     label: "Set width of double column figure (inches)"
     value: 6.96
-    input: numeric   
+    input: numeric    
 ---
 
 # Set-up & Data import
@@ -58,9 +58,10 @@ params:
 ## Import Packages & Set Flags
 
 ```{r setup, include = FALSE, cache = FALSE}
-knitr::opts_chunk$set(fig.width = 6.4, 
-                      fig.height = 4.8, 
-                      dpi = 500, 
+knitr::opts_chunk$set(fig.width = 6.4,
+                      fig.height = 4.8,
+                      dpi = 600,
+                      fig.retina = 1,
                       out.width = "100%",
                       out.height = "100%",
                       dev = "ragg_png")
@@ -103,8 +104,137 @@ kable(as.data.frame(unclass(params)))
 
 ## Import Data
 
-```{r import_data}
-df_raw <- read.csv(here("Data", "dataset_bioage.csv"))
+```{r}
+import_nhanes_data <- function(path) {
+  path
+  files <- list.files(
+    path,
+    pattern = "\\.xpt$",
+    full.names = TRUE,
+    ignore.case = TRUE
+  )
+  
+  meta <- data.table(file  = files,
+                     year = str_extract(tools::file_path_sans_ext(basename(files)), "\\d{4}-\\d{4}$"))
+  
+  meta[, dt := lapply(file, \(f) as.data.table(read_xpt(f)))]
+  by_year <- split(meta$dt, meta$year)
+  
+  as.data.frame(rbindlist(
+    lapply(by_year, \(dts)
+           Reduce(\(x, y) merge(
+             x, y, by = "SEQN", all = TRUE
+           ), dts)),
+    fill = TRUE,
+    use.names = TRUE,
+    idcol = "year"
+  ))
+}
+
+if (isTRUE(params$construct_data)) {
+  df_raw <- import_nhanes_data(here("Data", "Raw data"))
+} else {
+  df_raw <- read.csv(here("Data", "dataset_bioage.csv"))
+}
+```
+
+### Insert Kwon data
+
+If `use_kwon_bioage` is `TRUE`, load NHANES4 (cloned from Kwon's GitHub), ensure
+sampleIDs that are in BOTH Kwon's data and in the raw data are retained, then
+select only the columns in NHANES4 and remove bioage measures if they're in the
+raw_data file (either composed from scratch or from Landy).
+
+```{r}
+load_kwon_data <- function() {
+  library(BioAge)
+  
+  #HD using NHANES (separate training for men and women)
+  hd = hd_nhanes(
+    biomarkers = c(
+      "albumin",
+      "alp",
+      "lncrp",
+      "totchol",
+      "lncreat",
+      "hba1c",
+      "sbp",
+      "bun",
+      "uap",
+      "lymph",
+      "mcv",
+      "wbc"
+    )
+  )
+  
+  #KDM bioage using NHANES (separate training for men and women)
+  kdm = kdm_nhanes(
+    biomarkers = c(
+      "albumin",
+      "alp",
+      "lncrp",
+      "totchol",
+      "lncreat",
+      "hba1c",
+      "sbp",
+      "bun",
+      "uap",
+      "lymph",
+      "mcv",
+      "wbc"
+    )
+  )
+  
+  #phenoage using NHANES
+  phenoage = phenoage_nhanes(
+    biomarkers = c(
+      "albumin_gL",
+      "alp",
+      "lncrp",
+      "totchol",
+      "lncreat_umol",
+      "hba1c",
+      "sbp",
+      "bun",
+      "uap",
+      "lymph",
+      "mcv",
+      "wbc"
+    )
+  )
+  
+  merge(hd$data, kdm$data) %>% merge(., phenoage$data)
+}
+
+if (isTRUE(params$use_kwon_bioage)) {
+  NHANES4 <- load_kwon_data()
+  df_raw <- df_raw %>%
+    select(-any_of(c("hd", "hd_log", "kdm", "phenoage")))
+  
+  df_raw <- df_raw %>% filter(sampleID %in% NHANES4$sampleID) %>% arrange(sampleID) %>% relocate(sampleID, .before = 1)
+  NHANES4 <- NHANES4 %>% filter(sampleID %in% df_raw$sampleID) %>% arrange(sampleID)
+  
+  
+  
+  df_raw <- df_raw %>%
+    left_join(NHANES4 %>% select(any_of(c(
+      "sampleID", setdiff(names(NHANES4), names(df_raw))
+    ))), by = "sampleID")
+}
+```
+
+# Use advance versions
+
+```{r}
+if (isTRUE(params$use_kwon_bioage) && isTRUE(params$use_advance_bioages)) {
+  df_raw <- df_raw %>%
+    rename("phenoage_bak" = phenoage,
+           "kdm_bak" = kdm) %>%
+    mutate(phenoage = phenoage_advance,
+           kdm = kdm_advance)
+} else if (isFALSE(params$use_kwon_bioage) && isTRUE(params$use_advance_bioages)) {
+  stop("Set use_kwon_bioage to TRUE when using use_advance_bioages")
+}
 ```
 
 # Data Preprocessing
