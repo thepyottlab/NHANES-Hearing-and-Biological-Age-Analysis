@@ -32,10 +32,15 @@ params:
   save_figures:
     label: "Save figures"
     value: FALSE
-  data_path:
-    label: "Data location"
-    value: "dataset_bioage.csv"
-    input: file
+  construct_data:
+    label: "Build NHANES dataframe from scratch"
+    value: FALSE
+  use_kwon_bioage:
+    label: "Use bioages calculated by Kwon"
+    value: TRUE
+  use_advance_bioage:
+    label: "Use difference between chronological and biological age only"
+    value: FALSE
   global_k:
     label: "K (n BAM base functions)"
     value: 50
@@ -91,6 +96,7 @@ library(data.table)
 library(ragg)
 library(here)
 library(sameplot)
+library(haven)
 
 source(here("Scripts", "universal_helpers.R"))
 ```
@@ -103,9 +109,136 @@ kable(as.data.frame(unclass(params)))
 
 ## Import Data
 
-```{r import_data}
-df_raw <- read.csv(here("Data", "dataset_bioage.csv"))
+```{r}
+import_nhanes_data <- function(path) {
+  path
+  files <- list.files(
+    path,
+    pattern = "\\.xpt$",
+    full.names = TRUE,
+    ignore.case = TRUE
+  )
+  
+  meta <- data.table(file  = files,
+                     year = str_extract(tools::file_path_sans_ext(basename(files)), "\\d{4}-\\d{4}$"))
+  
+  meta[, dt := lapply(file, \(f) as.data.table(read_xpt(f)))]
+  by_year <- split(meta$dt, meta$year)
+  
+  as.data.frame(rbindlist(
+    lapply(by_year, \(dts)
+           Reduce(\(x, y) merge(
+             x, y, by = "SEQN", all = TRUE
+           ), dts)),
+    fill = TRUE,
+    use.names = TRUE,
+    idcol = "year"
+  ))
+}
+
+if (isTRUE(params$construct_data)) {
+  df_raw <- import_nhanes_data(here("Data", "Raw data"))
+} else {
+  df_raw <- read.csv(here("Data", "dataset_bioage.csv"))
+}
 ```
+
+### Insert Kwon data
+
+If `use_kwon_bioage` is `TRUE`, load NHANES4 (cloned from Kwon's GitHub), ensure sampleIDs that are in BOTH Kwon's data and in the raw data are retained, then select only the columns in NHANES4 and remove bioage measures if they're in the raw_data file (either composed from scratch or from Landy).
+
+```{r}
+load_kwon_data <- function() {
+  library(BioAge)
+  
+  #HD using NHANES (separate training for men and women)
+  hd = hd_nhanes(
+    biomarkers = c(
+      "albumin",
+      "alp",
+      "lncrp",
+      "totchol",
+      "lncreat",
+      "hba1c",
+      "sbp",
+      "bun",
+      "uap",
+      "lymph",
+      "mcv",
+      "wbc"
+    )
+  )
+  
+  #KDM bioage using NHANES (separate training for men and women)
+  kdm = kdm_nhanes(
+    biomarkers = c(
+      "albumin",
+      "alp",
+      "lncrp",
+      "totchol",
+      "lncreat",
+      "hba1c",
+      "sbp",
+      "bun",
+      "uap",
+      "lymph",
+      "mcv",
+      "wbc"
+    )
+  )
+  
+  #phenoage using NHANES
+  phenoage = phenoage_nhanes(
+    biomarkers = c(
+      "albumin_gL",
+      "alp",
+      "lncrp",
+      "totchol",
+      "lncreat_umol",
+      "hba1c",
+      "sbp",
+      "bun",
+      "uap",
+      "lymph",
+      "mcv",
+      "wbc"
+    )
+  )
+  
+  merge(hd$data, kdm$data) %>% merge(., phenoage$data)
+}
+
+if (isTRUE(params$use_kwon_bioage)) {
+  NHANES4 <- load_kwon_data()
+  df_raw <- df_raw %>%
+    select(-any_of(c("hd", "hd_log", "kdm", "phenoage")))
+  
+  df_raw <- df_raw %>% filter(sampleID %in% NHANES4$sampleID) %>% arrange(sampleID) %>% relocate(sampleID, .before = 1)
+  NHANES4 <- NHANES4 %>% filter(sampleID %in% df_raw$sampleID) %>% arrange(sampleID)
+  
+  
+  
+  df_raw <- df_raw %>%
+    left_join(NHANES4 %>% select(any_of(c(
+      "sampleID", setdiff(names(NHANES4), names(df_raw))
+    ))), by = "sampleID")
+}
+```
+
+# Use advance versions
+
+```{r}
+if (isTRUE(params$use_kwon_bioage) && isTRUE(params$use_advance_bioages)) {
+  df_raw <- df_raw %>%
+    rename("phenoage_bak" = phenoage,
+           "kdm_bak" = kdm) %>%
+    mutate(phenoage = phenoage_advance,
+           kdm = kdm_advance)
+} else if (isFALSE(params$use_kwon_bioage) && isTRUE(params$use_advance_bioages)) {
+  stop("Set use_kwon_bioage to TRUE when using use_advance_bioages")
+}
+```
+
 
 # Data Preprocessing
 
@@ -1360,7 +1493,7 @@ Or we use emtrends to calculate the slope at each point. The result is the same.
 However, using emtrends we can calculate simultaneous intervals with "mvt".
 
 ```{r predict_aging}
-build_parametric_predictions <- function(model, predictor) {
+build_parametric_predictions <- function(df, model, predictor) {
   as.data.frame(confint(
     emmeans(
       model,
@@ -1378,7 +1511,7 @@ build_parametric_predictions <- function(model, predictor) {
            "ci_upper" = upper.CL)
 }
 
-build_parametric_derivative_predictions <- function(model, predictor) {
+build_parametric_derivative_predictions <- function(df, model, predictor) {
   data.frame(confint(
     emtrends(
       model,
@@ -1399,20 +1532,20 @@ build_parametric_derivative_predictions <- function(model, predictor) {
 }
 
 output_age_rate$predictions <- append(output_age_rate$predictions,
-                                      list(linear = build_parametric_predictions(output_age_rate$models$linear, "age")))
+                                      list(linear = build_parametric_predictions(df, output_age_rate$models$linear, "age")))
 
 output_age_rate$predictions <- append(output_age_rate$predictions,
-                                      list(quadratic = build_parametric_predictions(output_age_rate$models$quadratic, "age")))
+                                      list(quadratic = build_parametric_predictions(df, output_age_rate$models$quadratic, "age")))
 
 output_age_rate$predictions <- append(
   output_age_rate$predictions,
-  list(linear_derivative = build_parametric_derivative_predictions(output_age_rate$models$linear, "age"))
+  list(linear_derivative = build_parametric_derivative_predictions(df, output_age_rate$models$linear, "age"))
 )
 
 output_age_rate$predictions <- append(
   output_age_rate$predictions,
   list(
-    quadratic_derivative = build_parametric_derivative_predictions(output_age_rate$models$quadratic, "age")
+    quadratic_derivative = build_parametric_derivative_predictions(df, output_age_rate$models$quadratic, "age")
   )
 )
 
@@ -2075,7 +2208,9 @@ render_and_save_table <- function(table, path) {
     ) %>%
     collapse_rows(columns = 1, valign = "top")
   
+  if (isTRUE(params$save_figures)) {
   save_kable(html_table, path)
+  }
   
   return(html_table)
 }

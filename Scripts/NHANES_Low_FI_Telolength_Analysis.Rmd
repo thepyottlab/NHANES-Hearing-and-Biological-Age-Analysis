@@ -1501,7 +1501,9 @@ render_and_save_table <- function(table, path) {
     ) %>%
     collapse_rows(columns = 1, valign = "top")
   
+  if (isTRUE(params$save_figures)) {
   save_kable(html_table, path)
+  }
   
   return(html_table)
 }
