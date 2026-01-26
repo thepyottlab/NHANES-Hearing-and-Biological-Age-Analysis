@@ -1183,7 +1183,7 @@ output_age_rate$models <- append(output_age_rate$models, list(
 
 output_age_rate$models <- append(output_age_rate$models, list(smooth =
                                                                 gam(
-                                                                  FI_high ~ s(age, k = 10),
+                                                                  FI_high ~ age + I(age^2) + s(age, k = 10),
                                                                   data = df,
                                                                   method = "REML",
                                                                   family = gaussian()
