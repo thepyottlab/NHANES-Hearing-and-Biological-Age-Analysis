@@ -5,11 +5,13 @@
 .Rhistory
 .Rdata
 .Ruserdata
+.RDataTmp
 
 # Backups
 Bak/
 
-# Output (repo root)
+# Output
+*.pptx
 
 # Environment / state
 /Savestates/

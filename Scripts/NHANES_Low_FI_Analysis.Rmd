@@ -1145,7 +1145,7 @@ fit_full_model(fit = FALSE)
 
 ## Assess Aging Rate
 
-### Build GAM and Linear Age Models in a List
+<!-- ### Build GAM and Linear Age Models in a List -->
 
 When solely wanting to predict an outcome variable, the wiggliness penalty of a
 GAM prevents overfitting, so k can be as large as we'd like. However, with a
