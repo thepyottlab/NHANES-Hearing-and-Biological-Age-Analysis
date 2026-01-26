@@ -3,7 +3,7 @@ title: "Predictive Modelling of Hearing Effect of Bioage"
 author: "Landy Qu & Tom Naber"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 
-knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, params = "ask", output_file = here::here("Output", "HTML", "NHANES_FI_low_Analysis.html"))})
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, params = "ask", output_file = here::here("Output", "HTML", "NHANES_FI_low_Analysis_Kwon_Advance.html"))})
   
 output:
   html_document:
@@ -32,7 +32,7 @@ params:
     value: FALSE
   use_kwon_bioage:
     label: "Use bioages calculated by Kwon"
-    value: TRUE
+    value: FALSE
   use_advance_bioages:
     label: "Use difference between chronological and biological age only"
     value: FALSE
@@ -1145,7 +1145,7 @@ fit_full_model(fit = FALSE)
 
 ## Assess Aging Rate
 
-<!-- ### Build GAM and Linear Age Models in a List -->
+### Build GAM and Linear Age Models in a List
 
 When solely wanting to predict an outcome variable, the wiggliness penalty of a
 GAM prevents overfitting, so k can be as large as we'd like. However, with a
@@ -1183,7 +1183,7 @@ output_age_rate$models <- append(output_age_rate$models, list(
 
 output_age_rate$models <- append(output_age_rate$models, list(smooth =
                                                                 gam(
-                                                                  FI_low ~ s(age, k = 10),
+                                                                  FI_low ~ age + I(age^2) + s(age, k = 10),
                                                                   data = df,
                                                                   method = "REML",
                                                                   family = gaussian()
@@ -1485,8 +1485,7 @@ smooth model.
 To calculate the quadratic derivative, we can either calculate the slope at each
 point manually with
 
-`coef(m)["age"] + 2 * coef(m)["I(age^2)"] * seq(min(df$age), max(df$age), 1)`
-
+`coef(m)["age"] + 2 * coef(m)["I(age^2)"] * seq(min(df$age), max(df$age), 1)}`
 
 Or we use emtrends to calculate the slope at each point. The result is the same.
 However, using emtrends we can calculate simultaneous intervals with "mvt".
@@ -1520,7 +1519,6 @@ build_parametric_derivative_predictions <- function(df, model, predictor) {
       at = setNames(list(seq(
         min(df[[predictor]]), max(df[[predictor]]), by = 1
       )), predictor),
-      delta.var = 1e-8 * diff(range(df[[predictor]])),
       data = df
     ),
     adjust = "mvt"
@@ -1553,38 +1551,15 @@ output_age_rate$predictions <- append(
 output_age_rate$predictions <- append(output_age_rate$predictions,
                                       list(
                                         smooth =
-                                          confint(
-                                            output_age_rate$models$smooth,
-                                            parm = "s(age)",
-                                            data = as.data.frame(cbind(data.frame(
-                                              age = min(df$age):max(df$age)
-                                            ))),
-                                            type = "simultaneous"
-                                          ) %>%
-                                          rename(
-                                            "ci_lower" = .lower_ci,
-                                            "ci_upper" = .upper_ci,
-                                            "estimate" = .estimate
-                                          )
-                                      ))
+build_parametric_predictions(
+        df, output_age_rate$models$smooth, "age")))
 
 output_age_rate$predictions <- append(
   output_age_rate$predictions,
   list(
     derivative_smooth =
-      derivatives(
-        output_age_rate$models$smooth,
-        select = "s(age)",
-        data = cbind(data.frame(age = seq(
-          min(df$age), max(df$age), 1
-        ))),
-        interval = "simultaneous"
-      ) %>%
-      rename(
-        "ci_lower" = .lower_ci,
-        "ci_upper" = .upper_ci,
-        "derivative" = .derivative
-      ) %>%
+      build_parametric_derivative_predictions(
+        df, output_age_rate$models$smooth, "age") %>%
       mutate(
         derivative_adj = derivative - output_age_rate$predictions$quadratic_derivative$derivative,
         ci_lower_adj = ci_lower - output_age_rate$predictions$quadratic_derivative$derivative,
@@ -1702,7 +1677,7 @@ to identify boundaries. Only keep the significant stretches.
 ```{r find_sig_ages}
 pwc_age_rate <- output_age_rate$predictions$derivative_smooth %>%
   mutate(
-    z_score = derivative_adj / .se,
+    z_score = derivative_adj / SE,
     p = 2 * pnorm(abs(z_score), lower.tail = FALSE),
     p_adj = p.adjust(p, method = "holm"),
     signif = case_when(
