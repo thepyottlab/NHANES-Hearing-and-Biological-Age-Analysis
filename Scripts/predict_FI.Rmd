@@ -1,0 +1,186 @@
+---
+title: "predict_FI"
+output: html_document
+---
+
+# Import data and packages
+
+```{r setup, include = FALSE, cache = FALSE}
+knitr::opts_chunk$set(fig.width = 6.4,
+                      fig.height = 4.8,
+                      dpi = 600,
+                      fig.retina = 1,
+                      out.width = "100%",
+                      out.height = "100%",
+                      dev = "ragg_png")
+
+knitr::opts_knit$set(root.dir = here::here())
+
+options(contrasts = c("contr.sum", "contr.poly"))
+
+library(mgcv)
+library(dplyr)
+library(sameplot)
+df_raw <- read.csv(here("Data", "dataset_bioage.csv"))
+```
+
+# Preprocess data 
+```{r}
+df <- df_raw %>%
+  select(
+    age,
+    smoking,
+    gender,
+    race,
+    education,
+    income,
+    kdm,
+    phenoage,
+    hd_log,
+    telolength,
+    FI_high,
+    FI_low,
+    albumin_gL,
+    alp,
+    bun,
+    creat,
+    crp,
+    glucose,
+    hba1c,
+    lymph,
+    mcv,
+    rdw,
+    sbp,
+    totchol,
+    wbc,
+    uap
+  ) %>%
+  filter(education != 9, smoking %in% c(1, 2)) %>%
+  mutate(
+    gender = factor(gender),
+    smoking = factor(smoking),
+    race = case_when(race == 2 ~ 1, TRUE ~ race),
+    race = factor(race),
+    education = factor(education)) %>%
+    mutate(
+      gender = dplyr::recode(gender, "1" = "Male", "2" = "Female"),
+      smoking = dplyr::recode(smoking, "1" = "Smoker", "2" = "Non-smoker"),
+      race = dplyr::recode(
+        race,
+        "1" = "Hispanic",
+        "3" = "White",
+        "4" = "Black",
+        "5" = "Other"
+      ),
+      education = dplyr::recode(
+        education,
+        "1" = "< 9th grade",
+        "2" = "9-11th grade",
+        "3" = "High school",
+        "4" = "Some college or AA degree",
+        "5" = "College graduate or higher"
+      )
+    )
+
+```
+
+# Fit models
+
+```{r}
+m_fi_high <- bam(FI_high ~ s(age, k = 50) + s(gender, age, bs = 'sz', k = 50, id = 1) + s(race, age, bs = 'sz', k = 50, id = 2) + s(smoking, age, bs = 'sz', k = 50, id = 3) + s(education, age, bs = 'sz', k = 50, id = 4) + s(gender, race, age, bs = 'sz', k = 50, id = 5), discrete = TRUE, method = "fREML", data = df)
+
+m_fi_low <- bam(FI_low ~ s(age, k = 50) + s(gender, age, bs = 'sz', k = 50, id = 1) + s(race, age, bs = 'sz', k = 50, id = 2) + s(smoking, age, bs = 'sz', k = 50, id = 3) + s(education, age, bs = 'sz', k = 50, id = 4) + s(gender, race, age, bs = 'sz', k = 50, id = 5), discrete = TRUE, method = "fREML", data = df)
+```
+
+# Make prediction dataframe
+
+```{r}
+predict_df <- crossing(age = 20:84, df %>% distinct(gender, race, smoking, education))
+```
+
+# Make predictions
+
+```{r}
+predict_df <-
+  predict_df %>%
+  mutate(
+    FI_high = predict(m_fi_high, newdata = predict_df, type = "response"),
+    FI_low = predict(m_fi_low, newdata = predict_df, type = "response")
+  ) %>%
+  arrange(age, gender, smoking, race, education)
+```
+
+# Look up values
+
+```{r}
+predict_df %>% filter(
+  gender == "Male",
+  smoking == "Non-smoker",
+  race == "White",
+  education == "College graduate or higher",
+  age == 28
+)
+```
+# Check mean FI per factor
+
+```{r}
+predict_df %>%
+  group_by(gender, race, smoking, education) %>%
+  summarize(
+    FI_high = mean(FI_high),
+    FI_low = mean(FI_low)
+  ) %>%
+  arrange(FI_high)
+```
+
+# Plot curves
+
+```{r}
+p <- predict_df %>%
+  mutate(interaction = interaction(gender, smoking, race, education)) %>%
+  ggplot(data = ., aes(x = age, y = FI_high)) +
+  stat_summary(geom = "line", aes(color = interaction)) +
+  theme_few() +
+  theme(legend.position = "bottom", text = element_text(size = 9))
+
+sameplot(p, width = 16, height = 12, res = 100)
+```
+
+# Plot individual curves
+
+```{r}
+plot_predictions <- function(response_variable, group_variable) {
+  predict_df %>%
+    ggplot(data = ., aes(x = age, y = FI_high)) +
+    stat_summary(fun = mean, geom = "line", aes(color = .data[[group_variable]])) +
+    theme_few() +
+    labs(title = paste0(response_variable, " ~ ", group_variable)) +
+    theme(
+      text = element_text(size = 9),
+      plot.title = element_text(size = 9),
+      legend.position = "inside",
+      legend.justification = c(0, 1),
+      legend.title              = element_blank(),
+      legend.background         = element_rect(fill = "transparent", color = NA),
+      legend.box.background     = element_rect(fill = "transparent", color = NA),
+      legend.key                = element_rect(fill = "transparent"),
+      legend.position.inside = c(-0.03, 1.05),
+      legend.key.spacing.y      = unit(-5, "pt")
+    )
+}
+
+p1 <- plot_predictions("FI_high", "gender")
+p2 <- plot_predictions("FI_high", "smoking")
+p3 <- plot_predictions("FI_high", "race")
+p4 <- plot_predictions("FI_high", "education")
+p5 <- plot_predictions("FI_low", "gender")
+p6 <- plot_predictions("FI_low", "smoking")
+p7 <- plot_predictions("FI_low", "race")
+p8 <- plot_predictions("FI_low", "education")
+
+p <- plot_grid(p1, p2, p5, p6, p3, p4, p7, p8, ncol = 4, nrow = 2, align = "hv")
+sameplot(p, height = 7, width = 12, res = 150)
+```
+
+
+
