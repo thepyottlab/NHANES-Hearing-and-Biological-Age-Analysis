@@ -464,8 +464,7 @@ assess_confounders(df, confounders = c(
   "gender", "smoking", "race", "education"), k = params$global_k)
 ```
 
-**We see that for each confounder the interaction model fits better than the
-intercept-only model**
+**We see that for each confounder the interaction model fits better than the intercept-only model**
 
 ### Investigate Additional Information
 
@@ -509,8 +508,7 @@ compare_confounders <- function(df, k) {
 compare_confounders(df, k = params$global_k)
 ```
 
-**Each factor significantly improves the model and seems to interact with age in
-some way**
+**Each factor significantly improves the model and seems to interact with age in some way**
 
 ### Check shared wiggliness
 
@@ -626,9 +624,8 @@ compare_confounder_interactions(df, k = params$global_k, equal_wiggliness = TRUE
 })
 ```
 
-**We see that age \* gender \* race is a significant three-way interaction but
-it takes 3 times longer to compute. Only add on a final, very long run if
-processing power permits.**
+We see that `age*gender*race` is a significant three-way interaction but it
+takes 3 times longer to compute. Thanks to bam() we can afford this cost.
 
 ## Repeated k-fold modeling
 
@@ -746,7 +743,7 @@ each function.
 -   `max_k`: sets k to the theoretical limit for each parameter (DF), note that
     for non-integers, like the bioage measures, this will be equivalent to the
     length of the dataframe minus one.
--   `auto_limit_k`: if k exceeds the DF for a parameter (e.g., if k \> 25 for
+-   `auto_limit_k`: if k exceeds the DF for a parameter (e.g., if k > 25 for
     albumin), it will automatically be limited to the DF.
 
 ```{r fun_formula_gen}
@@ -893,7 +890,7 @@ residuals, we can assess if k is large enough. We want to capture all global
 patterns without fitting to any noise. This is what we assess when we look at
 k-index.
 
-For reference, k = 10 takes \~ 15 min, k = 25 takes \~ 1h, k = 50 takes \~ 4h.
+For reference, k = 10 takes ~ 15 min, k = 25 takes ~ 1h, k = 50 takes ~ 4h.
 
 ```{r inspect_k}
 inspect_k_values <- function(data, formulas, subsample, reps) {
@@ -982,8 +979,8 @@ estimate_modeling_time(df, k = params$global_k, discrete = params$global_discret
 ```
 
 **Without id = x, k = 15 took 39.65 theoretically, but in practice the 4 bioage
-formulas took 58s each. Similarly, k = 5 with id should have taken \~400s for
-one formula but took 650s, so add \~50% time to estimate processing time.**
+formulas took 58s each. Similarly, k = 5 with id should have taken ~400s for
+one formula but took 650s, so add ~50% time to estimate processing time.**
 
 ### Test k-fold validation
 
@@ -1080,12 +1077,12 @@ The variance is used based on `n_train` and `n_test`. It doesn't matter whether
 we use the mean n per fold or the total over all folds because the ratio is the
 same.
 
-In <https://www.jmlr.org/papers/volume6/markatou05a/markatou05a.pdf> Analysis of
+In <https://www.jmlr.org/papers/volume6/markatou05a/markatou05a.pdf>, Analysis of
 Variance of Cross-Validation Estimators of the Generalization Error, the authors
-also report the variance estimate as S²\* (1/J + n2/n1), where S2 is the
-variance (squared standard deviation), J is the total number of folds, n2 is the
-validation/test set and n1 is the training set size. They also show that when J
-is appropriate (10\*10), it provides a good variance estimate. Variance is
+also report the variance estimate as `S² * (1/J + n2/n1)`, where `S2` is the
+variance (squared standard deviation), `J` is the total number of folds, `n2` is the
+validation/test set and `n1` is the training set size. They also show that when `J`
+is appropriate (`10*10`), it provides a good variance estimate. Variance is
 already in squared units, as its just the square of the standard deviation.
 
 ```{r calculate_ci}
@@ -1357,8 +1354,7 @@ so we can assume independence and use Hommel.
 
 ### Calculate p-values
 
-Calculate t-statistic according to nadeau bengio, which is t =
-m/(√(variance(1/n + n2/n1))). m is the difference between the sample mean and
+Calculate t-statistic according to nadeau bengio, which is` t = m/(√(variance(1/n + n2/n1)))`. m is the difference between the sample mean and
 hypothesized population mean. In this case, we've normalized it to age so the
 null hypothesis (the hypothesized population mean) is 0, i.e., there is no
 difference from age only. The variance we already calculated. n is equivalent to
@@ -1369,9 +1365,6 @@ calculates the critical value) using a one-tailed t-test of the upper tail. This
 is because we're not interested in whether an age + bioage model is different
 from age-only. We only want to know if its better. We then adjust p values with
 Hommel or Holm error correction.
-
-We can use Hommel error correction (more power), which makes blood urea nitrogen
-significant with k = 10 but not with k = 25.
 
 First, the question is, 'Does this bioage/biomarker add predictive value for
 hearing loss in the population while controlling for chronological age?', which
@@ -1478,7 +1471,7 @@ df_summary_bioage_overall <- import_p_values(df_summary_bioage_overall,
 ```
 
 **It doesn't matter whether we use holm or hommel, so perhaps we should use
-holm.**
+hommel.**
 
 ### Add raw Ns to dataframe
 
@@ -1510,7 +1503,7 @@ df_summary_bioage_overall <- add_n_age_groups(df, df_summary_bioage_overall, per
 
 ### Format table
 
-Round R² and delta RMSE, rename variables, set p values to bold and to " \<
+Round R² and delta RMSE, rename variables, set p values to bold and to "<
 0.001" when very small.
 
 ```{r format_table}

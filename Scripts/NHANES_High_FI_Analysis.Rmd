@@ -71,28 +71,28 @@ knitr::opts_knit$set(root.dir = here::here())
 options(contrasts = c("contr.sum", "contr.poly"))
 
 library(mgcv) # used to train model
-library(MASS)
-library(tidyverse)
-library(ggpubr)
-library(ggthemes)
-library(ggtext)
-library(kableExtra)
+library(MASS) 
+library(tidyverse) # for general data operations
+library(ggpubr) # for ggarrange()
+library(ggthemes) # for theme_few()
+library(ggtext) # for element_markdown()
+library(kableExtra) # for pretty tables
 library(splines)
 library(ggh4x)
 library(afex)
-library(emmeans)
+library(emmeans) # for pairwise comparisons
 library(car)
 library(correctR)
 library(flextable)
 library(officer)
 library(matrixStats) # used for weighted variance
 library(gratia) # used for derivative coefficients
-library(cowplot)
-library(data.table)
-library(ragg)
-library(here)
-library(sameplot)
-library(haven)
+library(cowplot) # for combined plots 
+library(data.table) # for speedy dataframes 
+library(ragg) # graphics device
+library(here) # for file access
+library(sameplot) # for plotting
+library(haven) # for importing .xpt
 
 source(here("Scripts", "universal_helpers.R"))
 ```
@@ -104,6 +104,10 @@ kable(as.data.frame(unclass(params)))
 ```
 
 ## Import Data
+
+.xpt files are loaded, then stripped of extension. The year is stored. All files
+per year are merged horizontally (adding columns) by the SEQN column. Each
+yearly merged file is then added vertically (stacked rows).
 
 ```{r}
 import_nhanes_data <- function(path) {
@@ -226,6 +230,9 @@ if (isTRUE(params$use_kwon_bioage)) {
 
 # Use advance versions
 
+Replaces phenoage/kdm with 'advance' versions, which are the difference between
+age and the bioage measured.
+
 ```{r}
 if (isTRUE(params$use_kwon_bioage) && isTRUE(params$use_advance_bioages)) {
   df_raw <- df_raw %>%
@@ -242,14 +249,14 @@ if (isTRUE(params$use_kwon_bioage) && isTRUE(params$use_advance_bioages)) {
 
 ## Remove Unnecessary Columns & Rename
 
-We filter out education level 9 because there are only 2 occurences. Smoking has
-more than 2 levels but we only need two. Race 1 (Mexican American) and 2 (other
-hispanic) are merged. Income could be added but we'd have to exclude 12, 13, 77,
-99 and missing. 12 is over 20k, 13 is under 20k, 77 is refused and 99 is don't
-know. This would drop the size of the dataset by about 20%.
+We filter out education level 9 because there are only 2 occurrences. Smoking
+has more than 2 levels but we only need two. Race 1 (Mexican American) and 2
+(other Hispanic) are merged. Income could be added but we'd have to exclude 12,
+13, 77, 99 and missing. 12 is over 20k, 13 is under 20k, 77 is refused and 99 is
+don't know. This would drop the size of the data set by about 20%.
 
 Code levels: **Smoking** 1. Smoker (L1) 2. Non-smoker L2) 7. Refused 9. Don't
-know **Gender** 1. Male (L1) 2. Female (L2) **Race** 1. Mexican/other hispanic
+know **Gender** 1. Male (L1) 2. Female (L2) **Race** 1. Mexican/other Hispanic
 (L1) 3. White (L2) 4. Black (L3) 5. Other (L4) **Education** 1. Less than 9th
 grade (L1) 2. 9-11th grade (includes 12th grade with no diploma) (L2) 3. High
 school (L3) 4. Some college or AA degree (L4) 5. College graduate or above 7.
@@ -628,9 +635,8 @@ compare_confounder_interactions(df, k = params$global_k, equal_wiggliness = TRUE
 })
 ```
 
-**We see that age \* gender \* race is a significant three-way interaction but
-it takes 3 times longer to compute. Only add on a final, very long run if
-processing power permits.**
+We see that `age*gender*race` is a significant three-way interaction but it
+takes 3 times longer to compute. Thanks to bam() we can afford this cost.
 
 ## Repeated k-fold modeling
 
@@ -1033,9 +1039,9 @@ estimate_modeling_time <- function(df, k, discrete = FALSE) {
 estimate_modeling_time(df, k = params$global_k, discrete = params$global_discrete)
 ```
 
-**Without id = x, k = 15 took 39.65 theoretically, but in practice the 4 bioage
+*Without id = x, k = 15 took 39.65 theoretically, but in practice the 4 bioage
 formulas took 58s each. Similarly, k = 5 with id should have taken \~400s for
-one formula but took 650s, so add \~50% time to estimate processing time.**
+one formula but took 650s, so add \~50% time to estimate processing time.*
 
 ### Test k-fold validation
 
@@ -1156,7 +1162,7 @@ larger k past the number that captures all global trends decreases statistical
 power. This is a problem when assessing the rate of aging. Therefore, we need to
 have a penalty for practically useless base functions so that they shrink to 0.
 As an alternative, we can use k.check with a small k to see if its enough. With
-a k of 15 we already get an edf of 8, so k = 15 should be sufficient.
+a k of 10 we already get an edf of almost 8, so k = 10 should be sufficient.
 
 ```{r aging_models}
 output_age_rate <- list(models = list(), predictions = list())
@@ -1246,12 +1252,12 @@ The variance is used based on `n_train` and `n_test`. It doesn't matter whether
 we use the mean n per fold or the total over all folds because the ratio is the
 same.
 
-In <https://www.jmlr.org/papers/volume6/markatou05a/markatou05a.pdf> Analysis of
+In <https://www.jmlr.org/papers/volume6/markatou05a/markatou05a.pdf>, Analysis of
 Variance of Cross-Validation Estimators of the Generalization Error, the authors
-also report the variance estimate as S²\* (1/J + n2/n1), where S2 is the
-variance (squared standard deviation), J is the total number of folds, n2 is the
-validation/test set and n1 is the training set size. They also show that when J
-is appropriate (10\*10), it provides a good variance estimate. Variance is
+also report the variance estimate as `S² * (1/J + n2/n1)`, where `S2` is the
+variance (squared standard deviation), `J` is the total number of folds, `n2` is the
+validation/test set and `n1` is the training set size. They also show that when `J`
+is appropriate (`10*10`), it provides a good variance estimate. Variance is
 already in squared units, as its just the square of the standard deviation.
 
 ```{r calculate_ci}
@@ -1329,26 +1335,26 @@ df_summary_biomarkers_overall <- calculate_nb_corrected_cis(df_results_biomarker
 **Calculating descriptives**: First we import `n_train` and `n_test` from the
 results dataframe per fold, either grouped or not grouped by `age_group`. If
 grouped by `age_group`, we can import directly because the results dataframe is
-already binned by age group. Then, we import the mean fletcher index from the
+already binned by age group. Then, we import the mean Fletcher Index from the
 whole prediction dataset for each model/set of predictors, repeat, and fold. As
 a sanity check, because each model should have the same folds and repeats, I
-checked whether the mean fletcher index is always the same at repeat 1 fold 1
+checked whether the mean Fletcher Index is always the same at repeat 1 fold 1
 (it is). The mean FI is then called in the summarize function using median(),
 which gives the same result as mean(), because all predicted/real values within
 a model, fold, and repeat have the same `mean_FI_high`, as told by the left_join
 function. Thereafter, we group over the 100 (10x10) folds per model to calculate
 the total number of predictions (on the testing data), the mean training data
 size, mean testing data size, R² (using sum of squares), MSE, and RMSE. For
-RMSE, we could either calculate it using sqrt(mse) or sqrt(sse/n_predictions).
+RMSE, we could either calculate it using `sqrt(mse)` or `sqrt(sse/n_predictions)`.
 It gives the same result.
 
 **Total sum of squares calculation when binning R² per age group**: It's
 imperative that for the age group stratified descriptives, the global mean is
 used. Otherwise it's as if the total sum of squares is calculated within each
-age-bin, which is as if a linear regression is fitted through the mean fletcher
-index per age group, explaining a lot of variation while it shouldn't. We want
+age-bin, which is as if a linear regression is fitted through the mean Fletcher
+Index per age group, explaining a lot of variation while it shouldn't. We want
 to assess the predictive effect on age, so the total sum of squares should be
-calculated by taking the distance from each fletcher index within an age group
+calculated by taking the distance from each Fletcher Index within an age group
 to the global mean. Of course, the models are trained on the whole dataset, not
 just one age group. We're just assessing performance per age group.
 
@@ -1462,25 +1468,9 @@ We sample 1 point for each age and predict the FI_high using the smooth-only
 model and generate simultaneous confidence intervals. We could ask for a single
 point and ask where the true mean would be with 95% certainty, but if we'd apply
 that to all 60 points, there's a large chance that somewhere we get a false
-positive. With the simultaneous interval, we can say that we're 95% sure that
-the ENTIRE derivative in the true population that was sampled from (all people
+positive. With the simultaneous interval or with multivariate t distribution error correction, we can say that we're 95% sure that the ENTIRE derivative in the true population that was sampled from (all people
 on earth, assuming NHANES is representative) is within the band. It's
-essentially a multiple comparisons test for confidence intervals. We compute the
-fitted line of the GAM for each unique age in the dataset and compute pairwise
-confidence intervals, also for the derivative.
-
-Finally, we compute the derivative once more but now using a combined GAM with
-both a linear term and a smooth term. The derivative is only computed based on
-the smooth term. It's not possible to calculate simultaneous intervals based
-only on one term in the model, but that's fine because we're already calculating
-the simultaneous interval in the smooth-only model. The simultaneous interval
-derivative will be used for visualization. This approach is only valid if the
-smooth and combined models look the same, which we check by predicting the data
-with the smooth vs combined model and see if the results are the same. They're
-not numerically identical, but they're practically the same for all intents and
-purposes. If it's nicer to visualize, we could still subtract the slope of the
-linear model to essentially plot the simultaneous confidence intervals for the
-smooth model.
+essentially a multiple comparisons test for confidence intervals.
 
 To calculate the quadratic derivative, we can either calculate the slope at each
 point manually with
@@ -1488,7 +1478,7 @@ point manually with
 `coef(m)["age"] + 2 * coef(m)["I(age^2)"] * seq(min(df$age), max(df$age), 1)}`
 
 Or we use emtrends to calculate the slope at each point. The result is the same.
-However, using emtrends we can calculate simultaneous intervals with "mvt".
+However, using emtrends we can calculate simultaneous intervals with "mvt". Emtrends also works with smooth terms.
 
 ```{r predict_aging}
 build_parametric_predictions <- function(df, model, predictor) {
@@ -1573,6 +1563,8 @@ output_age_rate$predictions <- append(
 
 ### Compare Linear vs Quadratic vs Smooth Age Fits
 
+We do a partial F-test to compare a full model with a constrained model, to see if the added term significantly improves fit.
+
 ```{r compare_aging_models}
 anova(
   output_age_rate$models$linear,
@@ -1601,35 +1593,14 @@ c(linear = sqrt(mean(
   scroll_box(width = "100%", height = "400px")
 ```
 
-**We see that the smooth curve fits better than the linear fit, so the rate of
-aging is not constant**
+*We see that the quadratic curve fits better than the linear one, so the rate of
+aging is not linear, and the smooth curve fits better than the quadratic one, so there are deviations from a quadratic pattern*
 
 ### Assess Where Rate of Aging Differs
 
-We use a generalized additive model with the linear term age and the smooth term
-s(age) to capture deviation from linearity. Our question is "Is the rate of
-change different at certain ages?", which we can rephrase as "Where is the
-instantaneous rate faster/slower than the overall trend?". To answer this
-question, we can ignore the linear term of the GAM (a constant slope) and only
-look at the smooth term, which is only positive whenever there is a systematic
-deviation from the overall trend. By taking the derivative of the smooth term,
-we can assess for each age how much age deviates from the overall trend.
+By taking the derivative of the full model (with smooth) and subtracting the derivative of the nested quadratic model, we can test against zero to test deviations from a quadratic pattern.
 
-As for p-values, we should compare whether the derivative of the smooth term is
-non-zero. We're determining a linear model in our population that allows us to
-say 'in our data, the fletcher index increases one slope per year'. Then we fit
-a linear + smooth model. If the age rate is completely linear, then the
-slope/coefficient of the linear component will be the same between the combined
-and linear-only model, and the derivative coefficient of the smooth term will be
-0 for each age. However, if data randomly fluctuates (no trend), then the slope
-will be 0 and the smooth term will be different for each age. Now, if there is a
-general upward trend but with non-linearity, then the slope will be positive but
-the smooth terms will be nonzero, and the slope will be different between the
-linear model and the combined model.
-
-So, if our question is, for what ages is the rate of aging non-linear, then we
-want to test for each age whether the smooth term is not 0. If it's not 0, then
-the rate of aging is not linear. Now, when making a smooth (or linear) model, we
+When making a smooth (or linear) model, we
 fit a line to noisy data as best we can, but other lines with different
 coefficients might fit almost as well and be better for some data points then
 for others. Therefore, there is an uncertainty. We can say that, for example,
@@ -1640,9 +1611,7 @@ certain range of uncertainty (say, 2), which we can express as a standard error.
 When figuring out the derivative, we inherent this uncertainty. This standard
 error is what we can use to assess the likelihood of the null-hypothesis:
 
-H0: The rate of aging is linear, so the derivative estimate of the smooth term
-is 0. H1: The rate of aging is non-linear, so the derivative estimate of the
-smooth term is not 0.
+H0: The rate of aging is quadratic, so the GAM derivative minus the quadratic coefficients equals 0. H1: The rate of aging is non-quadratic, so the GAM derivative minus the quadratic coefficients is not 0.
 
 With a p-value of 0.05, we can say that if we randomly sample 100 times from the
 population and the rate of aging IS linear, then 5 times we'll see a significant
@@ -1659,9 +1628,8 @@ integer with correct pairwise comparison corrections.
 
 A two-tailed p-value can be calculated when we know a z-score, which is
 calculated as sample mean - hypothesized mean divided by the standard error. The
-hypothesized mean is 0. For a two-tailed t-test, we then take 2 \*
-pnorm(abs(z_score), lower.tail = FALSE). If we'd want to only know the left
-tail, we'd use lower.tail = TRUE.
+hypothesized mean is 0. For a two-tailed t-test, we then take `2 * pnorm(abs(z_score), lower.tail = FALSE)`. If we'd want to only know the left
+tail, we'd use `lower.tail = TRUE`.
 
 Because the t-tests are dependent and are likely to be either higher or lower
 when one is higher (because ages are adjacent and the aging rate can be either
@@ -1817,8 +1785,7 @@ so we can assume independence and use Hommel.
 
 ### Calculate p-values
 
-Calculate t-statistic according to nadeau bengio, which is t =
-m/(√(variance(1/n + n2/n1))). m is the difference between the sample mean and
+Calculate t-statistic according to nadeau bengio, which is` t = m/(√(variance(1/n + n2/n1)))`. m is the difference between the sample mean and
 hypothesized population mean. In this case, we've normalized it to age so the
 null hypothesis (the hypothesized population mean) is 0, i.e., there is no
 difference from age only. The variance we already calculated. n is equivalent to
@@ -1829,9 +1796,6 @@ calculates the critical value) using a one-tailed t-test of the upper tail. This
 is because we're not interested in whether an age + bioage model is different
 from age-only. We only want to know if its better. We then adjust p values with
 Hommel or Holm error correction.
-
-We can use Hommel error correction (more power), which makes blood urea nitrogen
-significant with k = 10 but not with k = 25.
 
 First, the question is, 'Does this bioage/biomarker add predictive value for
 hearing loss in the population while controlling for chronological age?', which
@@ -1975,8 +1939,7 @@ df_summary_biomarkers_overall <- import_p_values(df_summary_biomarkers_overall,
                                                  per_age_group = FALSE)
 ```
 
-**It doesn't matter whether we use holm or hommel, so perhaps we should use
-holm.**
+**It doesn't matter whether we use holm or hommel, so perhaps we should use hommel.**
 
 ### Add raw Ns to dataframe
 
@@ -2011,7 +1974,7 @@ df_summary_biomarkers_overall <- add_n_age_groups(df, df_summary_biomarkers_over
 
 ### Format table
 
-Round R² and delta RMSE, rename variables, set p values to bold and to " \<
+Round R² and delta RMSE, rename variables, set p values to bold and to " <
 0.001" when very small.
 
 ```{r format_table}
@@ -2278,14 +2241,6 @@ render_and_save_table(table_confounders, path = here("Output", "Figures", "FI_hi
 ## Rate of aging panel
 
 ### Plot Rate of Aging
-
-The prediction dataframes are centered at 0, so the intercept has been ignored.
-We then add the intercept for the age vs fletcher index plot. We can ignore the
-intercept in the plot of the derivative because it's about the rate of change,
-thus ignores an intercept. However, the plot of the derivative by default
-contains both a smooth term and a linear term. We should subtract the slope of
-the linear term to get a 'difference from constant' visualization, which is what
-we're interested in.
 
 ```{r plot_aging, warning=FALSE}
 p0 <- ggplot() +
