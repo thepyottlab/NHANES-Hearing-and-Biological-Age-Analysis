@@ -879,8 +879,28 @@ system.time({
 ### Build confounder models
 
 ```{r}
-output_confounders <- list(models = list(), predictions = list())
+for (formula in formula_list_confounders) {
+  output_confounders$models <- append(output_confounders$models, list(
+      bam(
+        as.formula(formula),
+        data = df,
+        family = gaussian(),
+        method = "REML",
+        discrete = FALSE
+      )
+  ))
+}
 
+names(output_confounders$models) <-
+  c(
+    "full",
+    "no_gender",
+    "no_smoking",
+    "no_race",
+    "no_education",
+    "no_gender_race",
+    "full_with_phenoage"
+  )
 ```
 
 ## Optional tests
