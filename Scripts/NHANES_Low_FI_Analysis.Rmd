@@ -38,7 +38,7 @@ params:
     value: FALSE
   global_k:
     label: "K (n BAM base functions)"
-    value: 50
+    value: 20
     input: numeric
   global_discrete: 
     label: "Discretize BAM (much faster but slightly worse fitting)"
@@ -897,7 +897,7 @@ isn't randomized for each repeat. If the bands don't appear of similar intensity
 over the x-axis, then the number assignment is not random.
 
 ```{r inspect_folds, fig.height = 10, fig.width = 10}
-if (is.TRUE(params$run_optional_chunks)) {
+if (isTRUE(params$run_optional_chunks)) {
 df %>%
   group_by(age_group) %>%
   mutate(total_fold1 = n()) %>%
@@ -955,7 +955,7 @@ We want to get a sense which confounders improve the model and which interact
 with age.
 
 ```{r assess_confounders}
-if (is.TRUE(params$run_optional_chunks)) {
+if (isTRUE(params$run_optional_chunks)) {
 assess_confounders <- function(df, confounders, k) {
   f0 <- paste0("FI_low ~ s(age, k = ", k, ")")
   m0 <- bam(as.formula(f0), data = df, method = "REML")
@@ -998,7 +998,7 @@ in males than females so gender is partly coded in smoking), to see if all
 confounders actually contribute.
 
 ```{r compare_added_info}
-if (is.TRUE(params$run_optional_chunks)) {
+if (isTRUE(params$run_optional_chunks)) {
 compare_confounders <- function(df, k) {
   m0 <- bam(FI_low ~ s(age, k = k), data = df, method = "REML")
   m1 <- bam(
@@ -1052,7 +1052,7 @@ estimating these global trends. It may also be better to spend the processing
 time on a higher k rather than estimating smooth parameters.
 
 ```{r compare_wiggliness}
-if (is.TRUE(params$run_optional_chunks)) {
+if (isTRUE(params$run_optional_chunks)) {
 compare_wiggliness <- function(df, k) {
   m1 <- bam(
     FI_low ~
@@ -1100,7 +1100,7 @@ fold performance would improve substantially. BIC prefers simpler model and AIC
 prefers more complex model.
 
 ```{r conf_interactions}
-if (is.TRUE(params$run_optional_chunks)) {
+if (isTRUE(params$run_optional_chunks)) {
 compare_confounder_interactions <- function(df, k, equal_wiggliness, return_model = FALSE) {
   if (equal_wiggliness) {
     m0 <- bam(
@@ -1182,7 +1182,7 @@ k-index.
 For reference, k = 10 takes \~ 15 min, k = 25 takes \~ 1h, k = 50 takes \~ 4h.
 
 ```{r inspect_k}
-if (is.TRUE(params$run_optional_chunks)) {
+if (isTRUE(params$run_optional_chunks)) {
 inspect_k_values <- function(data, formulas, subsample, reps) {
   set.seed(2)
 
@@ -1261,7 +1261,7 @@ With discrete = TRUE: k = 5, age + phenoage: 0.04 k = 10, age + phenoage: 0.06 k
 phenoage: 1.28
 
 ```{r check_modeling_time}
-if (is.TRUE(params$run_optional_chunks)) {
+if (isTRUE(params$run_optional_chunks)) {
 estimate_modeling_time <- function(df, k, discrete = FALSE) {
     system.time({
       bam(FI_low ~ 
@@ -1294,7 +1294,7 @@ Test k-fold validation on a single formula with small k. k = 5, discrete = FALSE
 takes 50s, k = 5, discrete = TRUE takes 15s
 
 ```{r test_k_fold_val}
-if (is.TRUE(params$run_optional_chunks)) {
+if (isTRUE(params$run_optional_chunks)) {
 formula_list_test <- formula_generator(
   data = df,
   k = params$global_k,
@@ -1307,7 +1307,7 @@ system.time({
   output_bioage <- cross_validation(
     df,
     formula_list_test,
-    k = 10,
+    k = 20,
     repeats = 10,
     discrete = params$global_discrete
   )
