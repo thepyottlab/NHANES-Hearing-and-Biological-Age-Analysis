@@ -905,7 +905,6 @@ names(output_confounders$models) <-
 
 ## Optional tests
 
-
 ### (Optional) Inspect folds
 
 We check if each fold number is assigned equal amounts of times in two repeats
@@ -1694,6 +1693,8 @@ output_age_rate$predictions <- append(
   )
 )
 ```
+
+# Statistics
 
 ## Assess Rate of Aging
 
