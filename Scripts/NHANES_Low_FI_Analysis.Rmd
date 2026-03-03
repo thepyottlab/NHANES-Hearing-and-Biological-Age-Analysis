@@ -42,7 +42,7 @@ params:
     input: numeric
   global_discrete: 
     label: "Discretize BAM (much faster but slightly worse fitting)"
-    value: FALSE
+    value: TRUE
   single_column_width:
     label: "Set width of single column figure (inches)"
     value: 3.19
@@ -484,7 +484,7 @@ cross_validation <- function(data, formulas, k, repeats, discrete = FALSE, keep_
   
   return(list(
     results = results,
-    models = models,
+    cv_models = models,
     predictions = pred_vs_obs
   )) # return models, dataframe with results, and a fitted vs predicted dataframe
 }
@@ -514,7 +514,8 @@ formula_generator <- function(data,
                               k = 25,
                               max_k = FALSE,
                               auto_limit_k = FALSE,
-                              equal_wiggliness = TRUE) {
+                              equal_wiggliness = TRUE,
+                              stepdown = FALSE) {
   fold_columns <- grep("^fold_r", names(data), value = TRUE) # initialize the repeat columns with folds
   folds = sort(unique(unlist(data[fold_columns]), use_name = FALSE)) # get each unique fold number in folds
   formula_list <- list() # initialize a list to store the compiled formulas in
@@ -548,19 +549,22 @@ formula_generator <- function(data,
       if ((predictor == "age") && (equal_wiggliness)) {
         sm_terms <- append(sm_terms, paste0("s(age, k = ", k_formula, ")"))
         
+        
         if (!is.null(confounders)) {
           for (i in seq_along(confounders)) {
             confounder <- confounders[i]
-            sm_terms <- append(sm_terms,
-                               paste0(
-                                 "s(age, ",
-                                 confounder,
-                                 ", k = ",
-                                 k_formula,
-                                 ", id = ",
-                                 i,
-                                 ") "
-                               ))
+            sm_terms <- append(
+              sm_terms,
+              paste0(
+                "s(age, ",
+                confounder,
+                ", bs = 'sz', k = ",
+                k_formula,
+                ", id = ",
+                i,
+                ") "
+              )
+            )
           }
         }
       } else if ((predictor == "age") && !(equal_wiggliness)) {
@@ -568,7 +572,13 @@ formula_generator <- function(data,
         if (!is.null(confounders)) {
           for (confounder in confounders) {
             sm_terms <- append(sm_terms,
-                               paste0("s(age, ", confounder, ", k = ", k_formula, ") "))
+                               paste0(
+                                 "s(age, ",
+                                 confounder,
+                                 ", bs = 'sz', k = ",
+                                 k_formula,
+                                 ") "
+                               ))
           }
         }
       }
@@ -577,10 +587,49 @@ formula_generator <- function(data,
                            paste0("s(", predictor, ", k = ", k_formula, ")"))
       }
     }
-    
     formula_list <- append(formula_list, paste("FI_low ~", paste(unlist(sm_terms), collapse = " + "))) # put predictor terms in formula and separate by +
+    if (isTRUE(stepdown) && formula == "age") {
+      for (rep in fold_columns) {
+        for (fold in folds) {
+          DF = length(unique(data[data[[rep]] != fold, ][["age"]])) - 1
+        }
+      }
+      if (max_k) {
+        k_formula <- DF
+      } else {
+        k_formula <- k
+      }
+      
+      if (auto_limit_k) {
+        if (k_formula > DF) {
+          k_formula <- DF
+        }
+      }
+      for (i in seq_along(confounders)) {
+        sm_terms <- list()
+        sm_terms <- append(sm_terms, paste0("s(age, k = ", k_formula, ")"))
+        constrained_confounders <- confounders[-i]
+        
+        for (j in seq_along(constrained_confounders)) {
+          constrained_confounder <- constrained_confounders[j]
+          sm_terms <- append(
+            sm_terms,
+            paste0(
+              "s(age, ",
+              constrained_confounder,
+              ", bs = 'sz', k = ",
+              k_formula,
+              ", id = ",
+              j,
+              ") "
+            )
+          )
+        }
+        
+        formula_list <- append(formula_list, paste("FI_low ~", paste(unlist(sm_terms), collapse = " + ")))
+      }
+    }
   }
-  
   return(formula_list)
 }
 ```
@@ -608,7 +657,14 @@ formula_list_bioage <- formula_generator(
   formulas = c("age", "age, phenoage", "age, kdm", "age, hd_log"),
   confounders = confounder_interactions
 )
-
+formula_generator(
+  data = df,
+  k = params$global_k,
+  auto_limit_k = TRUE,
+  equal_wiggliness = TRUE,
+  formulas = c("age", "age, phenoage", "age, kdm", "age, hd_log"),
+  confounders = confounder_interactions
+)
 formula_list_biomarkers <- formula_generator(
   data = df,
   k = params$global_k,
@@ -794,63 +850,39 @@ k.check(output_age_rate$models$smooth)
 ### Generate formulas
 
 ```{r}
-formula_generator_confounders <- function(data,
-                                          formulas,
-                                          confounders,
-                                          k = 25,
-                                          max_k = FALSE,
-                                          auto_limit_k = FALSE, interaction_confounders = FALSE) {
-  fold_columns <- grep("^fold_r", names(data), value = TRUE) # initialize the repeat columns with folds
-  folds = sort(unique(unlist(data[fold_columns]), use_name = FALSE)) # get each unique fold number in folds
-  formula_list <- list() # initialize a list to store the compiled formulas in
-  sm_terms <- list()
-  DF_list <- list() # initialize a list to store the DF for each fold in
-  
-  for (rep in fold_columns) {
-    for (fold in folds) {
-      DF_list <- append(DF_list, length(unique(data[data[[rep]] != fold, ][["age"]]))) # store the DF for each fold in each repeat in a list
-    }
-  }
-  
-  DF <- min(unlist(DF_list)) - 1 # pick the smallest value in the list and subtract 1 to obtain degrees of freedom
-  
-  if (max_k) {
-    k_formula <- DF
-  } else {
-    k_formula <- k
-  }
-  
-  if (auto_limit_k) {
-    if (k_formula > DF) {
-      k_formula <- DF
-    }
-  }
-  sm_terms <- append(sm_terms, paste0("s(age, k = ", k_formula, ")"))
-  for (i in seq_along(confounders)) {
-    confounder <- confounders[i]
-    sm_terms <- append(sm_terms,
-                       paste0("s(age, ", confounder, ", k = ", k_formula, ", id = ", i, ") "))
-  }
-
-  
-  formula_list <- append(formula_list, paste("FI_low ~", paste(unlist(sm_terms), collapse = " + "))) # put predictor terms in formula and separate by +
-  
-  return(formula_list)
-}
-```
-
-
-```{r}
-output_confounders <- list(models = list())
-formula_generator(
+formula_list_confounders <- formula_generator(
   data = df,
   k = params$global_k,
   auto_limit_k = TRUE,
+  equal_wiggliness = TRUE,
   formulas = c("age", "age, phenoage"),
-  confounders = confounder_interactions
+  confounders = confounder_interactions,
+  stepdown = TRUE
 )
-  
 ```
+
+### K-fold CV of confounder models
+
+```{r}
+system.time({
+  output_confounders <- cross_validation(
+    df,
+    formula_list_confounders,
+    k = 10,
+    repeats = 10,
+    discrete = params$global_discrete,
+    keep_models = FALSE
+  )
+})
+```
+
+### Build confounder models
+
+```{r}
+output_confounders <- list(models = list(), predictions = list())
+
+```
+
 ## Optional tests
 
 
