@@ -51,6 +51,13 @@ params:
     label: "Set width of double column figure (inches)"
     value: 6.96
     input: numeric   
+  confounders:
+    label: "List of included confounders (underscore separated)"
+    value: "gender_smoking_race_education_gender, race"
+    input: text
+  run_optional_chunks:
+    label: "Run tests and validations"
+    value: FALSE
 ---
 
 # Set-up & Data import
@@ -228,7 +235,7 @@ if (isTRUE(params$use_kwon_bioage)) {
 }
 ```
 
-# Use advance versions
+## Use advance versions
 
 Replaces phenoage/kdm with 'advance' versions, which are the difference between
 age and the bioage measured.
@@ -246,6 +253,15 @@ if (isTRUE(params$use_kwon_bioage) && isTRUE(params$use_advance_bioages)) {
 ```
 
 # Data Preprocessing
+
+## Unpack confounders list
+
+We take the param value for confounders and build one lists with all included interactions with age and one with just the variables
+
+```{r}
+confounder_interactions <- trimws(strsplit(params$confounders, "_")[[1]])
+confounder_vars <- confounder_interactions[!grepl(",", confounder_interactions)]
+```
 
 ## Remove Unnecessary Columns & Rename
 
@@ -266,11 +282,7 @@ Refused 9. Don't know
 df <- df_raw %>%
   select(
     age,
-    smoking,
-    gender,
-    race,
-    education,
-    income,
+    all_of(confounder_vars),
     kdm,
     phenoage,
     hd_log,
@@ -373,270 +385,8 @@ df <- make_repeated_folds(
 )
 ```
 
-### Inspect folds
+### Optional tests
 
-We check if each fold number is assigned equal amounts of times in two repeats
-for each age group. Thereafter, we save the row number and plot the fold number
-of points (with some jitter to spread things out) to check if bands appear
-homogenous. We know it should be homogenous in the y-axis within a band because
-the jitter is random. If there are similarities between bands, then the shuffle
-isn't randomized for each repeat. If the bands don't appear of similar intensity
-over the x-axis, then the number assignment is not random.
-
-```{r inspect_folds, fig.height = 10, fig.width = 10}
-df %>%
-  group_by(age_group) %>%
-  mutate(total_fold1 = n()) %>%
-  group_by(age_group, fold_r1, total_fold1) %>%
-  summarize(n_fold1 = n()
-            , .groups = "drop") %>% rename("fold" = fold_r1) %>%
-  left_join(
-    df %>%
-      group_by(age_group) %>%
-      mutate(total_fold2 = n()) %>%
-      group_by(age_group, fold_r2, total_fold2) %>%
-      summarize(n_fold2 = n()
-                , .groups = "drop") %>% select(age_group, fold_r2, total_fold2, n_fold2, ) %>%
-      rename("fold" = fold_r2),
-    by = c("age_group", "fold")
-  ) %>% kable("html", caption = "Inspect Fold Number Frequencies") %>%
-  kable_styling(
-    bootstrap_options = c("striped", "hover"),
-    full_width = FALSE,
-    position = "left",
-    font_size = 12,
-    fixed_thead = TRUE
-  ) %>%
-  scroll_box(width = "100%", height = "400px")
-
-p <- df %>%
-  mutate(row_index = row_number()) %>%
-  pivot_longer(cols = starts_with("fold_r"),
-               names_to = "r",
-               values_to = "fold") %>%
-  ggplot(aes(x = row_index, y = fold)) +
-  geom_point(
-    size = 1,
-    alpha = 0.1,
-    color = "grey80",
-    position = position_jitter(width = 0, height = 0.4)
-  ) +
-  facet_wrap( ~ r) +
-  theme_few()
-
-plot(p)
-```
-
-Fold numbers are consistent between groups and correctly split upon multiple
-repeats. each fold number has the same (within 1) frequency, so there are no
-imbalances between folds and repeats. Plot shows no non-random changes in
-intensity over the X dimension and random dissimilarities between bands in the Y
-dimension (indicating repeats have different samples). **Stratified fold
-randomization succeeded**
-
-## Confounder Analysis
-
-### Check Interaction vs Offsets
-
-We want to get a sense which confounders improve the model and which interact
-with age.
-
-```{r assess_confounders}
-assess_confounders <- function(df, confounders, k) {
-  f0 <- paste0("FI_low ~ s(age, k = ", k, ")")
-  m0 <- bam(as.formula(f0), data = df, method = "REML")
-  
-  results <- data.frame()
-  
-  for (confounder in confounders) {
-    f1 <- paste0("FI_low ~ ", confounder, " + s(age, k = ", k, ")")
-    f2 <- paste0("FI_low ~ s(age) + s(age, ", confounder, ", bs = 'sz', k = ",
-                 k,
-                 ")")
-    
-    m1 <- bam(as.formula(f1), data = df, method = "REML")
-    m2 <- bam(as.formula(f2), data = df, method = "REML")
-    
-    aov <- as.data.frame(anova(m0, m1, m2))
-    aic <- as.data.frame(AIC(m0, m1, m2))
-    bic <- as.data.frame(BIC(m0, m1, m2))
-    
-    results <- rbind(results, cbind(tibble(
-      confounder = confounder, formula = c(f0, f1, f2)
-    ), aic, bic, aov))
-  }
-  
-  return(results)
-}
-
-assess_confounders(df, confounders = c(
-  "gender", "smoking", "race", "education"), k = params$global_k)
-```
-
-**We see that for each confounder the interaction model fits better than the
-intercept-only model**
-
-### Investigate Additional Information
-
-First we see if the confounders are correlated (e.g., smoking is more prevalent
-in males than females so gender is partly coded in smoking), to see if all
-confounders actually contribute.
-
-```{r compare_added_info}
-compare_confounders <- function(df, k) {
-  m0 <- bam(FI_low ~ s(age, k = k), data = df, method = "REML")
-  m1 <- bam(
-    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k),
-    data = df,
-    method = "REML"
-  )
-  m2 <- bam(
-    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k) + s(age, race, bs = "sz", k = k),
-    data = df,
-    method = "REML"
-  )
-  m3 <- bam(
-    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k) + s(age, race, bs = "sz", k = k) + s(age, smoking, bs = "sz", k = k),
-    data = df,
-    method = "REML"
-  )
-  m4 <- bam(
-    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k) + s(age, race, bs = "sz", k = k) + s(age, smoking, bs = "sz", k = k) + s(age, education, bs = "sz", k = k),
-    data = df,
-    method = "REML"
-  )
-  
-  print(cbind(
-    as.data.frame(AIC(m0, m1, m2, m3, m4)),
-    as.data.frame(BIC(m0, m1, m2, m3, m4)),
-    as.data.frame(anova(m0, m1, m2, m3, m4))
-  ))
-  print(summary(m4))
-  plot(m4)
-}
-
-compare_confounders(df, k = params$global_k)
-```
-
-**Each factor significantly improves the model and seems to interact with age in
-some way**
-
-### Check shared wiggliness
-
-We could insist that different smooths have the same amount of smoothness, i.e.,
-that there's no difference in the wiggliness of the GAM between men and women.
-The plots from the previous chunk (where different wiggliness was permitted)
-suggest that there may be equal amount of wiggliness, so that each smooth has
-the same basis functions but with different coefficients. There's no specific
-reason to assume that wiggliness is the same in many cases, so if aiming to
-maximize model flexibility/predictive power, we should leave this unconstrained,
-but we do eat up a lot of degrees of freedom and may be 'wasting' the data
-estimating these global trends. It may also be better to spend the processing
-time on a higher k rather than estimating smooth parameters.
-
-```{r compare_wiggliness}
-compare_wiggliness <- function(df, k) {
-  m1 <- bam(
-    FI_low ~
-      s(age, k = k) +
-      
-      s(age, gender, bs = "sz", k = k, id = 1) +
-      s(age, race, bs = "sz", k = k, id = 2) +
-      s(age, smoking, bs = "sz", k = k, id = 3) +
-      s(age, education, bs = "sz", k = k, id = 4),
-    data = df,
-    method = "REML"
-  )
-  
-  m2 <- bam(
-    FI_low ~
-      s(age, k = k) +
-      
-      s(age, gender, bs = "sz", k = k) +
-      s(age, race, bs = "sz", k = k) +
-      s(age, smoking, bs = "sz", k = k) +
-      s(age, education, bs = "sz", k = k),
-    data = df,
-    method = "REML"
-  )
-  
-  print(cbind(
-    as.data.frame(AIC(m1, m2)),
-    as.data.frame(BIC(m1, m2)),
-    as.data.frame(anova(m1, m2))
-  ))
-}
-
-compare_wiggliness(df, k = params$global_k)
-```
-
-### Check factor three-way interactions
-
-<https://stats.stackexchange.com/questions/637423/conceptual-interpretation-of-bs-fs-and-by-term-in-gam>.
-The free wiggliness model takes about 15 times longer to compute but has a 0.37%
-drop in residual deviance. That is significant but probably not worth it
-compared to a higher k. Moreover, the improvement in fit must stem entirely from
-three-way interactions, which are likely noisy, so it is unlikely that out of
-fold performance would improve substantially. BIC prefers simpler model and AIC
-prefers more complex model.
-
-```{r conf_interactions}
-compare_confounder_interactions <- function(df, k, equal_wiggliness, return_model = FALSE) {
-  if (equal_wiggliness) {
-    m0 <- bam(
-      FI_low ~
-        s(age, k = k) +
-        
-        s(gender, age, bs = "sz", k = k, id = 1) +
-        s(race, age, bs = "sz", k = k, id = 2) +
-        s(smoking, age, bs = "sz", k = k, id = 3) +
-        s(education, age, bs = "sz", k = k, id = 4) +
-        
-        s(gender, race, age, bs = "sz", k = k, id = 5) +
-        s(gender, smoking, age, bs = "sz", k = k, id = 6) +
-        s(gender, education, age, bs = "sz", k = k, id = 7) +
-        s(race, smoking, age, bs = "sz", k = k, id = 8) +
-        s(race, education, age, bs = "sz", k = k, id = 9) +
-        s(smoking, education, age, bs = "sz", k = k, id = 10),
-      data = df,
-      method = "REML"
-    )
-  } else {
-    m0 <- bam(
-      FI_low ~
-        s(age, k = k) +
-        
-        s(gender, age, bs = "sz", k = k) +
-        s(race, age, bs = "sz", k = k) +
-        s(smoking, age, bs = "sz", k = k) +
-        s(education, age, bs = "sz", k = k) +
-        
-        s(gender, race, age, bs = "sz", k = k) +
-        s(gender, smoking, age, bs = "sz", k = k) +
-        s(gender, education, age, bs = "sz", k = k) +
-        s(race, smoking, age, bs = "sz", k = k) +
-        s(race, education, age, bs = "sz", k = k) +
-        s(smoking, education, age, bs = "sz", k = k),
-      data = df,
-      method = "REML"
-    )
-  }
-      
-  print(summary(m0))
-  plot(m0)
-  
-  if (return_model) {
-    return(m0)
-  }
-}
-
-system.time({
-compare_confounder_interactions(df, k = params$global_k, equal_wiggliness = TRUE)
-})
-```
-
-We see that `age*gender*race` is a significant three-way interaction but it
-takes 3 times longer to compute. Thanks to bam() we can afford this cost.
 
 ## Repeated k-fold modeling
 
@@ -646,7 +396,7 @@ takes 3 times longer to compute. Thanks to bam() we can afford this cost.
 cross_validation <- function(data, formulas, k, repeats, discrete = FALSE, keep_models = TRUE) {
   age_groups = c("20-30", "30-40", "40-50", "50-60", "60-70", "70+") # initialize age groups to stratify by explicitly
   fold_columns <- paste0("fold_r", 1:repeats) # initialize names of repeat columns to iterate over
-  confounders <- c("gender", "smoking", "race", "education") # initialize vector of confounders
+  confounders <- confounder_vars # initialize vector of confounders
   
   names_of_predictors <- unique(unlist(lapply(formulas, extract_predictors))) # save names of all predictor columns to select for the pred vs obs dataset
   
@@ -760,6 +510,7 @@ each function.
 ```{r fun_formula_gen}
 formula_generator <- function(data,
                               formulas,
+                              confounders = NULL,
                               k = 25,
                               max_k = FALSE,
                               auto_limit_k = FALSE,
@@ -781,7 +532,6 @@ formula_generator <- function(data,
           DF_list <- append(DF_list, length(unique(data[data[[rep]] != fold, ][[predictor]]))) # store the DF for each fold in each repeat in a list
         }
       }
-      
       DF <- min(unlist(DF_list)) - 1 # pick the smallest value in the list and subtract 1 to obtain degrees of freedom
       
       if (max_k) {
@@ -796,43 +546,31 @@ formula_generator <- function(data,
         }
       }
       if ((predictor == "age") && (equal_wiggliness)) {
-        sm_terms <- append(
-          sm_terms,
-          paste0(
-            "s(age, k = ",
-            k_formula,
-            ") + s(gender, age, bs = 'sz', k = ",
-            k_formula,
-            ", id = 1) + s(race, age, bs = 'sz', k = ",
-            k_formula,
-            ", id = 2) + s(smoking, age, bs = 'sz', k = ",
-            k_formula,
-            ", id = 3) + s(education, age, bs = 'sz', k = ",
-            k_formula,
-            ", id = 4) + s(gender, race, age, bs = 'sz', k = ",
-            k_formula,
-            ", id = 5)"
-          )
-        )
+        sm_terms <- append(sm_terms, paste0("s(age, k = ", k_formula, ")"))
+        
+        if (!is.null(confounders)) {
+          for (i in seq_along(confounders)) {
+            confounder <- confounders[i]
+            sm_terms <- append(sm_terms,
+                               paste0(
+                                 "s(age, ",
+                                 confounder,
+                                 ", k = ",
+                                 k_formula,
+                                 ", id = ",
+                                 i,
+                                 ") "
+                               ))
+          }
+        }
       } else if ((predictor == "age") && !(equal_wiggliness)) {
-        sm_terms <- append(
-          sm_terms,
-          paste0(
-            "s(age, k = ",
-            k_formula,
-            ") + s(gender, age, bs = 'sz', k = ",
-            k_formula,
-            ") + s(race, age, bs = 'sz', k = ",
-            k_formula,
-            ") + s(smoking, age, bs = 'sz', k = ",
-            k_formula,
-            ") + s(education, age, bs = 'sz', k = ",
-            k_formula,
-            ") + s(gender, race, age, bs = 'sz', k = ",
-            k_formula,
-            ")"
-          )
-        )
+        sm_terms <- append(sm_terms, paste0("s(age, k = ", k_formula, ")"))
+        if (!is.null(confounders)) {
+          for (confounder in confounders) {
+            sm_terms <- append(sm_terms,
+                               paste0("s(age, ", confounder, ", k = ", k_formula, ") "))
+          }
+        }
       }
       else {
         sm_terms <- append(sm_terms,
@@ -851,7 +589,7 @@ formula_generator <- function(data,
 
 ```{r fun_extr_pred}
 extract_predictors <- function(formula, collapse = "") {
-  confounders <- c("gender", "smoking", "race", "education")
+  confounders <- confounder_vars
   
   s_terms <- unlist(str_extract_all(formula, "s\\([^\\)]*\\)"))
   keep    <- !str_detect(s_terms, paste0("\\b(", paste(confounders, collapse = "|"), ")\\b"))
@@ -867,7 +605,8 @@ formula_list_bioage <- formula_generator(
   k = params$global_k,
   auto_limit_k = TRUE,
   equal_wiggliness = TRUE,
-  formulas = c("age", "age, phenoage", "age, kdm", "age, hd_log")
+  formulas = c("age", "age, phenoage", "age, kdm", "age, hd_log"),
+  confounders = confounder_interactions
 )
 
 formula_list_biomarkers <- formula_generator(
@@ -894,7 +633,8 @@ formula_list_biomarkers <- formula_generator(
     "age, uap",
     "age, crp, hba1c, albumin_gL",
     "age, crp, hba1c, albumin_gL, phenoage"
-  )
+  ),
+  confounders = confounder_interactions
 )
 
 as.data.frame(cbind(Formulas = unlist(formula_list_bioage))) %>% kable("html", caption = "Bioage Formulas") %>%
@@ -916,156 +656,6 @@ as.data.frame(cbind(Formulas = unlist(formula_list_biomarkers))) %>% kable("html
     fixed_thead = TRUE
   ) %>%
   scroll_box(width = "100%", height = "400px")
-```
-
-### Inspect k-values
-
-To assess k-value, we fit a model on the whole dataset using the formula lists,
-build a list of models, make a helper function to run the k.check function from
-mgcv, then turn it in a dataframe and return the output. The k-value determines
-the number of base functions that the GAM is constructed from. A GAM adds these
-different base functions together, some of which capture linear trends, some of
-which are just splines or polynomials with a bump in one region. The GAM gives
-different weights to each model to get as good a fit as possible, but a GAM also
-measures wiggliness and gives a penalty to wiggliness. This is what makes it
-generalized, so to perform well in general, even to unseen data. Therefore, a
-GAM optimizes to get as good a fit as possible with as little wiggliness as
-possible. Because of this wiggliness penalty, adding more base functions to the
-GAM doesn't make it overfit. Therefore, k should be as large as possible within
-computation power or degrees of freedom. If k isn't large enough, there will be
-patterns left in the residuals. Therefore, by measuring patterns in the
-residuals, we can assess if k is large enough. We want to capture all global
-patterns without fitting to any noise. This is what we assess when we look at
-k-index.
-
-For reference, k = 10 takes \~ 15 min, k = 25 takes \~ 1h, k = 50 takes \~ 4h.
-
-```{r inspect_k}
-inspect_k_values <- function(data, formulas, subsample, reps) {
-  set.seed(2)
-
-  models <- list()
-  
-  for (formula in formulas) {
-    mod <- bam(
-      as.formula(formula),
-      data = data,
-      method = "REML",
-      family = gaussian()
-    )
-    
-    predictors = paste(extract_predictors(formula), collapse = ", ")
-    
-    models[[predictors]] <- mod
-  }
-  
-  inspect_k <- function(model) {
-    k.check(model, subsample = subsample, n.rep = reps)
-  }
-  
-  k_output <- lapply(models, inspect_k)
-  k_output <- imap_dfr(k_output, ~ {
-    as.data.frame(.x) %>%
-      rownames_to_column(var = "Predictors") %>%
-      mutate(model = .y)
-  })
-  
-  return(k_output)
-}
-
-inspect_k_values(df,
-                 formula_list_bioage,
-                 subsample = 5000,
-                 reps = 400) %>% kable("html", caption = "Inspect K Bioage") %>%
-  kable_styling(
-    bootstrap_options = c("striped", "hover"),
-    full_width = FALSE,
-    position = "left",
-    font_size = 12,
-    fixed_thead = TRUE
-  ) %>%
-  scroll_box(width = "100%", height = "400px")
-
-inspect_k_values(df,
-                 formula_list_biomarkers,
-                 subsample = 5000,
-                 reps = 400) %>% kable("html", caption = "Inspect K Biomarkers") %>%
-  kable_styling(
-    bootstrap_options = c("striped", "hover"),
-    full_width = FALSE,
-    position = "left",
-    font_size = 12,
-    fixed_thead = TRUE
-  ) %>%
-  scroll_box(width = "100%", height = "400px")
-```
-
-### Estimate modeling time
-
-bam speeds up the fitting compared to gam and limits the memory footprint.
-Data.table is negligibly faster than data.frame (less than 1%) because the
-majority of computing time is spent on fitting the model as opposed to data
-operations.
-
-With discrete = FALSE: k = 5, age + phenoage: 0.5 k = 10, age + phenoage: 0.78 k
-= 15, age + phenoage: 1.34 k = 20, age + phenoage: 2.76 k = 25, age + phenoage:
-4.98 k = 30, age + phenoage: 8.16 k = 40, age + phenoage: 18.28 k = 50, age +
-phenoage: 31.97
-
-With discrete = TRUE: k = 5, age + phenoage: 0.04 k = 10, age + phenoage: 0.06 k
-= 15, age + phenoage: 0.09 k = 20, age + phenoage: 0.15 k = 25, age + phenoage:
-0.24 k = 30, age + phenoage: 0.35 k = 40, age + phenoage: 0.78 k = 50, age +
-phenoage: 1.28
-
-```{r check_modeling_time}
-estimate_modeling_time <- function(df, k, discrete = FALSE) {
-    system.time({
-      bam(FI_low ~ 
-        s(age, k = k) +
-        
-        s(gender, age, bs = "sz", k = k, id = 1) +
-        s(race, age, bs = "sz", k = k, id = 2) +
-        s(smoking, age, bs = "sz", k = k, id = 3) +
-        s(education, age, bs = "sz", k = k, id = 4) +
-        
-        s(gender, race, age, bs = "sz", k = k, id = 5) +
-
-        s(phenoage, k = k),
-        data = df, discrete = discrete, method = "fREML"
-      )
-    })
-}
-
-estimate_modeling_time(df, k = params$global_k, discrete = params$global_discrete)
-```
-
-*Without id = x, k = 15 took 39.65 theoretically, but in practice the 4 bioage
-formulas took 58s each. Similarly, k = 5 with id should have taken \~400s for
-one formula but took 650s, so add \~50% time to estimate processing time.*
-
-### Test k-fold validation
-
-Test k-fold validation on a single formula with small k. k = 5, discrete = FALSE
-takes 50s, k = 5, discrete = TRUE takes 15s
-
-```{r test_k_fold_val}
-formula_list_test <- formula_generator(
-  data = df,
-  k = params$global_k,
-  auto_limit_k = TRUE,
-  equal_wiggliness = TRUE,
-  formulas = c("age, phenoage")
-)
-
-system.time({
-  output_bioage <- cross_validation(
-    df,
-    formula_list_test,
-    k = 10,
-    repeats = 10,
-    discrete = params$global_discrete
-  )
-})
 ```
 
 ### Model bioage
@@ -1197,6 +787,500 @@ output_age_rate$models <- append(output_age_rate$models, list(smooth =
 
 set.seed = 1
 k.check(output_age_rate$models$smooth)
+```
+
+## Assess Confounders
+
+### Generate formulas
+
+```{r}
+formula_generator_confounders <- function(data,
+                                          formulas,
+                                          confounders,
+                                          k = 25,
+                                          max_k = FALSE,
+                                          auto_limit_k = FALSE, interaction_confounders = FALSE) {
+  fold_columns <- grep("^fold_r", names(data), value = TRUE) # initialize the repeat columns with folds
+  folds = sort(unique(unlist(data[fold_columns]), use_name = FALSE)) # get each unique fold number in folds
+  formula_list <- list() # initialize a list to store the compiled formulas in
+  sm_terms <- list()
+  DF_list <- list() # initialize a list to store the DF for each fold in
+  
+  for (rep in fold_columns) {
+    for (fold in folds) {
+      DF_list <- append(DF_list, length(unique(data[data[[rep]] != fold, ][["age"]]))) # store the DF for each fold in each repeat in a list
+    }
+  }
+  
+  DF <- min(unlist(DF_list)) - 1 # pick the smallest value in the list and subtract 1 to obtain degrees of freedom
+  
+  if (max_k) {
+    k_formula <- DF
+  } else {
+    k_formula <- k
+  }
+  
+  if (auto_limit_k) {
+    if (k_formula > DF) {
+      k_formula <- DF
+    }
+  }
+  sm_terms <- append(sm_terms, paste0("s(age, k = ", k_formula, ")"))
+  for (i in seq_along(confounders)) {
+    confounder <- confounders[i]
+    sm_terms <- append(sm_terms,
+                       paste0("s(age, ", confounder, ", k = ", k_formula, ", id = ", i, ") "))
+  }
+
+  
+  formula_list <- append(formula_list, paste("FI_low ~", paste(unlist(sm_terms), collapse = " + "))) # put predictor terms in formula and separate by +
+  
+  return(formula_list)
+}
+```
+
+
+```{r}
+output_confounders <- list(models = list())
+formula_generator(
+  data = df,
+  k = params$global_k,
+  auto_limit_k = TRUE,
+  formulas = c("age", "age, phenoage"),
+  confounders = confounder_interactions
+)
+  
+```
+## Optional tests
+
+
+### (Optional) Inspect folds
+
+We check if each fold number is assigned equal amounts of times in two repeats
+for each age group. Thereafter, we save the row number and plot the fold number
+of points (with some jitter to spread things out) to check if bands appear
+homogenous. We know it should be homogenous in the y-axis within a band because
+the jitter is random. If there are similarities between bands, then the shuffle
+isn't randomized for each repeat. If the bands don't appear of similar intensity
+over the x-axis, then the number assignment is not random.
+
+```{r inspect_folds, fig.height = 10, fig.width = 10}
+if (is.TRUE(params$run_optional_chunks)) {
+df %>%
+  group_by(age_group) %>%
+  mutate(total_fold1 = n()) %>%
+  group_by(age_group, fold_r1, total_fold1) %>%
+  summarize(n_fold1 = n()
+            , .groups = "drop") %>% rename("fold" = fold_r1) %>%
+  left_join(
+    df %>%
+      group_by(age_group) %>%
+      mutate(total_fold2 = n()) %>%
+      group_by(age_group, fold_r2, total_fold2) %>%
+      summarize(n_fold2 = n()
+                , .groups = "drop") %>% select(age_group, fold_r2, total_fold2, n_fold2, ) %>%
+      rename("fold" = fold_r2),
+    by = c("age_group", "fold")
+  ) %>% kable("html", caption = "Inspect Fold Number Frequencies") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+
+p <- df %>%
+  mutate(row_index = row_number()) %>%
+  pivot_longer(cols = starts_with("fold_r"),
+               names_to = "r",
+               values_to = "fold") %>%
+  ggplot(aes(x = row_index, y = fold)) +
+  geom_point(
+    size = 1,
+    alpha = 0.1,
+    color = "grey80",
+    position = position_jitter(width = 0, height = 0.4)
+  ) +
+  facet_wrap( ~ r) +
+  theme_few()
+
+plot(p)
+}
+```
+
+Fold numbers are consistent between groups and correctly split upon multiple
+repeats. each fold number has the same (within 1) frequency, so there are no
+imbalances between folds and repeats. Plot shows no non-random changes in
+intensity over the X dimension and random dissimilarities between bands in the Y
+dimension (indicating repeats have different samples). **Stratified fold
+randomization succeeded**
+
+### (Optional) Check Interaction vs Offsets
+
+We want to get a sense which confounders improve the model and which interact
+with age.
+
+```{r assess_confounders}
+if (is.TRUE(params$run_optional_chunks)) {
+assess_confounders <- function(df, confounders, k) {
+  f0 <- paste0("FI_low ~ s(age, k = ", k, ")")
+  m0 <- bam(as.formula(f0), data = df, method = "REML")
+  
+  results <- data.frame()
+  
+  for (confounder in confounders) {
+    f1 <- paste0("FI_low ~ ", confounder, " + s(age, k = ", k, ")")
+    f2 <- paste0("FI_low ~ s(age) + s(age, ", confounder, ", bs = 'sz', k = ",
+                 k,
+                 ")")
+    
+    m1 <- bam(as.formula(f1), data = df, method = "REML")
+    m2 <- bam(as.formula(f2), data = df, method = "REML")
+    
+    aov <- as.data.frame(anova(m0, m1, m2))
+    aic <- as.data.frame(AIC(m0, m1, m2))
+    bic <- as.data.frame(BIC(m0, m1, m2))
+    
+    results <- rbind(results, cbind(tibble(
+      confounder = confounder, formula = c(f0, f1, f2)
+    ), aic, bic, aov))
+  }
+  
+  return(results)
+}
+
+assess_confounders(df, confounders = c(
+  "gender", "smoking", "race", "education"), k = params$global_k)
+}
+```
+
+**We see that for each confounder the interaction model fits better than the
+intercept-only model**
+
+### (Optional) Investigate Additional Information
+
+First we see if the confounders are correlated (e.g., smoking is more prevalent
+in males than females so gender is partly coded in smoking), to see if all
+confounders actually contribute.
+
+```{r compare_added_info}
+if (is.TRUE(params$run_optional_chunks)) {
+compare_confounders <- function(df, k) {
+  m0 <- bam(FI_low ~ s(age, k = k), data = df, method = "REML")
+  m1 <- bam(
+    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k),
+    data = df,
+    method = "REML"
+  )
+  m2 <- bam(
+    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k) + s(age, race, bs = "sz", k = k),
+    data = df,
+    method = "REML"
+  )
+  m3 <- bam(
+    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k) + s(age, race, bs = "sz", k = k) + s(age, smoking, bs = "sz", k = k),
+    data = df,
+    method = "REML"
+  )
+  m4 <- bam(
+    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k) + s(age, race, bs = "sz", k = k) + s(age, smoking, bs = "sz", k = k) + s(age, education, bs = "sz", k = k),
+    data = df,
+    method = "REML"
+  )
+  
+  print(cbind(
+    as.data.frame(AIC(m0, m1, m2, m3, m4)),
+    as.data.frame(BIC(m0, m1, m2, m3, m4)),
+    as.data.frame(anova(m0, m1, m2, m3, m4))
+  ))
+  print(summary(m4))
+  plot(m4)
+}
+
+compare_confounders(df, k = params$global_k)
+}
+```
+
+**Each factor significantly improves the model and seems to interact with age in
+some way**
+
+### (Optional) Check shared wiggliness
+
+We could insist that different smooths have the same amount of smoothness, i.e.,
+that there's no difference in the wiggliness of the GAM between men and women.
+The plots from the previous chunk (where different wiggliness was permitted)
+suggest that there may be equal amount of wiggliness, so that each smooth has
+the same basis functions but with different coefficients. There's no specific
+reason to assume that wiggliness is the same in many cases, so if aiming to
+maximize model flexibility/predictive power, we should leave this unconstrained,
+but we do eat up a lot of degrees of freedom and may be 'wasting' the data
+estimating these global trends. It may also be better to spend the processing
+time on a higher k rather than estimating smooth parameters.
+
+```{r compare_wiggliness}
+if (is.TRUE(params$run_optional_chunks)) {
+compare_wiggliness <- function(df, k) {
+  m1 <- bam(
+    FI_low ~
+      s(age, k = k) +
+      
+      s(age, gender, bs = "sz", k = k, id = 1) +
+      s(age, race, bs = "sz", k = k, id = 2) +
+      s(age, smoking, bs = "sz", k = k, id = 3) +
+      s(age, education, bs = "sz", k = k, id = 4),
+    data = df,
+    method = "REML"
+  )
+  
+  m2 <- bam(
+    FI_low ~
+      s(age, k = k) +
+      
+      s(age, gender, bs = "sz", k = k) +
+      s(age, race, bs = "sz", k = k) +
+      s(age, smoking, bs = "sz", k = k) +
+      s(age, education, bs = "sz", k = k),
+    data = df,
+    method = "REML"
+  )
+  
+  print(cbind(
+    as.data.frame(AIC(m1, m2)),
+    as.data.frame(BIC(m1, m2)),
+    as.data.frame(anova(m1, m2))
+  ))
+}
+
+compare_wiggliness(df, k = params$global_k)
+}
+```
+
+### (Optional) Check factor three-way interactions
+
+<https://stats.stackexchange.com/questions/637423/conceptual-interpretation-of-bs-fs-and-by-term-in-gam>.
+The free wiggliness model takes about 15 times longer to compute but has a 0.37%
+drop in residual deviance. That is significant but probably not worth it
+compared to a higher k. Moreover, the improvement in fit must stem entirely from
+three-way interactions, which are likely noisy, so it is unlikely that out of
+fold performance would improve substantially. BIC prefers simpler model and AIC
+prefers more complex model.
+
+```{r conf_interactions}
+if (is.TRUE(params$run_optional_chunks)) {
+compare_confounder_interactions <- function(df, k, equal_wiggliness, return_model = FALSE) {
+  if (equal_wiggliness) {
+    m0 <- bam(
+      FI_low ~
+        s(age, k = k) +
+        
+        s(gender, age, bs = "sz", k = k, id = 1) +
+        s(race, age, bs = "sz", k = k, id = 2) +
+        s(smoking, age, bs = "sz", k = k, id = 3) +
+        s(education, age, bs = "sz", k = k, id = 4) +
+        
+        s(gender, race, age, bs = "sz", k = k, id = 5) +
+        s(gender, smoking, age, bs = "sz", k = k, id = 6) +
+        s(gender, education, age, bs = "sz", k = k, id = 7) +
+        s(race, smoking, age, bs = "sz", k = k, id = 8) +
+        s(race, education, age, bs = "sz", k = k, id = 9) +
+        s(smoking, education, age, bs = "sz", k = k, id = 10),
+      data = df,
+      method = "REML"
+    )
+  } else {
+    m0 <- bam(
+      FI_low ~
+        s(age, k = k) +
+        
+        s(gender, age, bs = "sz", k = k) +
+        s(race, age, bs = "sz", k = k) +
+        s(smoking, age, bs = "sz", k = k) +
+        s(education, age, bs = "sz", k = k) +
+        
+        s(gender, race, age, bs = "sz", k = k) +
+        s(gender, smoking, age, bs = "sz", k = k) +
+        s(gender, education, age, bs = "sz", k = k) +
+        s(race, smoking, age, bs = "sz", k = k) +
+        s(race, education, age, bs = "sz", k = k) +
+        s(smoking, education, age, bs = "sz", k = k),
+      data = df,
+      method = "REML"
+    )
+  }
+      
+  print(summary(m0))
+  plot(m0)
+  
+  if (return_model) {
+    return(m0)
+  }
+}
+
+system.time({
+compare_confounder_interactions(df, k = params$global_k, equal_wiggliness = TRUE)
+})
+}
+```
+
+We see that `age*gender*race` is a significant three-way interaction but it
+takes 3 times longer to compute. Thanks to bam() we can afford this cost.
+
+### (Optional) Inspect k-values
+
+To assess k-value, we fit a model on the whole dataset using the formula lists,
+build a list of models, make a helper function to run the k.check function from
+mgcv, then turn it in a dataframe and return the output. The k-value determines
+the number of base functions that the GAM is constructed from. A GAM adds these
+different base functions together, some of which capture linear trends, some of
+which are just splines or polynomials with a bump in one region. The GAM gives
+different weights to each model to get as good a fit as possible, but a GAM also
+measures wiggliness and gives a penalty to wiggliness. This is what makes it
+generalized, so to perform well in general, even to unseen data. Therefore, a
+GAM optimizes to get as good a fit as possible with as little wiggliness as
+possible. Because of this wiggliness penalty, adding more base functions to the
+GAM doesn't make it overfit. Therefore, k should be as large as possible within
+computation power or degrees of freedom. If k isn't large enough, there will be
+patterns left in the residuals. Therefore, by measuring patterns in the
+residuals, we can assess if k is large enough. We want to capture all global
+patterns without fitting to any noise. This is what we assess when we look at
+k-index.
+
+For reference, k = 10 takes \~ 15 min, k = 25 takes \~ 1h, k = 50 takes \~ 4h.
+
+```{r inspect_k}
+if (is.TRUE(params$run_optional_chunks)) {
+inspect_k_values <- function(data, formulas, subsample, reps) {
+  set.seed(2)
+
+  models <- list()
+  
+  for (formula in formulas) {
+    mod <- bam(
+      as.formula(formula),
+      data = data,
+      method = "REML",
+      family = gaussian()
+    )
+    
+    predictors = paste(extract_predictors(formula), collapse = ", ")
+    
+    models[[predictors]] <- mod
+  }
+  
+  inspect_k <- function(model) {
+    k.check(model, subsample = subsample, n.rep = reps)
+  }
+  
+  k_output <- lapply(models, inspect_k)
+  k_output <- imap_dfr(k_output, ~ {
+    as.data.frame(.x) %>%
+      rownames_to_column(var = "Predictors") %>%
+      mutate(model = .y)
+  })
+  
+  return(k_output)
+}
+
+inspect_k_values(df,
+                 formula_list_bioage,
+                 subsample = 5000,
+                 reps = 400) %>% kable("html", caption = "Inspect K Bioage") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+
+inspect_k_values(df,
+                 formula_list_biomarkers,
+                 subsample = 5000,
+                 reps = 400) %>% kable("html", caption = "Inspect K Biomarkers") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+}
+```
+
+### (Optional) Estimate modeling time
+
+bam speeds up the fitting compared to gam and limits the memory footprint.
+Data.table is negligibly faster than data.frame (less than 1%) because the
+majority of computing time is spent on fitting the model as opposed to data
+operations.
+
+With discrete = FALSE: k = 5, age + phenoage: 0.5 k = 10, age + phenoage: 0.78 k
+= 15, age + phenoage: 1.34 k = 20, age + phenoage: 2.76 k = 25, age + phenoage:
+4.98 k = 30, age + phenoage: 8.16 k = 40, age + phenoage: 18.28 k = 50, age +
+phenoage: 31.97
+
+With discrete = TRUE: k = 5, age + phenoage: 0.04 k = 10, age + phenoage: 0.06 k
+= 15, age + phenoage: 0.09 k = 20, age + phenoage: 0.15 k = 25, age + phenoage:
+0.24 k = 30, age + phenoage: 0.35 k = 40, age + phenoage: 0.78 k = 50, age +
+phenoage: 1.28
+
+```{r check_modeling_time}
+if (is.TRUE(params$run_optional_chunks)) {
+estimate_modeling_time <- function(df, k, discrete = FALSE) {
+    system.time({
+      bam(FI_low ~ 
+        s(age, k = k) +
+        
+        s(gender, age, bs = "sz", k = k, id = 1) +
+        s(race, age, bs = "sz", k = k, id = 2) +
+        s(smoking, age, bs = "sz", k = k, id = 3) +
+        s(education, age, bs = "sz", k = k, id = 4) +
+        
+        s(gender, race, age, bs = "sz", k = k, id = 5) +
+
+        s(phenoage, k = k),
+        data = df, discrete = discrete, method = "fREML"
+      )
+    })
+}
+
+estimate_modeling_time(df, k = params$global_k, discrete = params$global_discrete)
+}
+```
+
+*Without id = x, k = 15 took 39.65 theoretically, but in practice the 4 bioage
+formulas took 58s each. Similarly, k = 5 with id should have taken \~400s for
+one formula but took 650s, so add \~50% time to estimate processing time.*
+
+### (Optional) Test k-fold validation
+
+Test k-fold validation on a single formula with small k. k = 5, discrete = FALSE
+takes 50s, k = 5, discrete = TRUE takes 15s
+
+```{r test_k_fold_val}
+if (is.TRUE(params$run_optional_chunks)) {
+formula_list_test <- formula_generator(
+  data = df,
+  k = params$global_k,
+  auto_limit_k = TRUE,
+  equal_wiggliness = TRUE,
+  formulas = c("age, phenoage")
+)
+
+system.time({
+  output_bioage <- cross_validation(
+    df,
+    formula_list_test,
+    k = 10,
+    repeats = 10,
+    discrete = params$global_discrete
+  )
+})
+}
 ```
 
 # Data Processing
