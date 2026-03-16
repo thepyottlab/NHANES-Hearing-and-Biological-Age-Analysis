@@ -58,6 +58,9 @@ params:
   load_model_results:
     label: "Load large model results and skip refitting"
     value: FALSE
+  keep_models:
+    label: "Store actual models (very large filesizes and RAM usage with discrete = TRUE)"
+    value: FALSE
   save_figures:
     label: "Save figures"
     value: FALSE
@@ -793,7 +796,7 @@ system.time({
       k = 10,
       repeats = 10,
       discrete = params$global_discrete,
-      keep_models = FALSE
+      keep_models = params$keep_models
     )
   }
 })
@@ -820,7 +823,7 @@ if (isFALSE(params$telolength)) {
         k = 10,
         repeats = 10,
         discrete = params$global_discrete,
-        keep_models = FALSE
+        keep_models = params$keep_models
       )
     }
   })
@@ -951,7 +954,7 @@ if (isFALSE(params$telolength)) {
         repeats = 10,
         discrete = TRUE,
         confounder_analysis = TRUE,
-        keep_models = FALSE
+        keep_models = params$keep_models
       )
     }
   })
