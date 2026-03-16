@@ -29,6 +29,9 @@ params:
     value: "FI_high"
     input: select
     choices: ["FI_high", "FI_low"]
+  telolength:
+      label: "Analyze telomere length dataset"
+      value: TRUE
   save_figures:
     label: "Save figures"
     value: FALSE
@@ -316,6 +319,18 @@ df <- df_raw %>%
     race = factor(race),
     education = factor(education))
 ```
+
+## Optionally only include telolength rows
+
+```{r}
+if (isTRUE(params$telolength)) {
+  df <- df %>%
+    filter(
+      !is.na(telolength)
+    )
+}
+```
+
 
 ## Prepare age group column
 
@@ -670,17 +685,19 @@ formula_list_bioage <- formula_generator(
   k = params$global_k,
   auto_limit_k = TRUE,
   equal_wiggliness = TRUE,
-  formulas = c("age", "age, phenoage", "age, kdm", "age, hd_log"),
+  formulas = c(
+    "age",
+    "age, phenoage",
+    "age, kdm",
+    "age, hd_log",
+    if (isTRUE(params$telolength))
+      "age, telolength"
+    else
+      NULL
+  ),
   confounders = confounder_interactions
 )
-formula_generator(
-  data = df,
-  k = params$global_k,
-  auto_limit_k = TRUE,
-  equal_wiggliness = TRUE,
-  formulas = c("age", "age, phenoage", "age, kdm", "age, hd_log"),
-  confounders = confounder_interactions
-)
+
 formula_list_biomarkers <- formula_generator(
   data = df,
   k = params$global_k,
@@ -754,6 +771,7 @@ With k = 40 discrete = FALSE takes 52564s WIth k = 50 discrete = FALSE takes
 110443s
 
 ```{r biomarkers_cv}
+if (isFALSE(params$telolength)) {
 system.time({
   output_biomarkers <- cross_validation(
     df,
@@ -764,11 +782,13 @@ system.time({
     keep_models = FALSE
   )
 })
+}
 ```
 
 ### Fit full model
 
 ```{r fit_full_biomark_m}
+if (isFALSE(params$telolength)) {
 fit_full_model <- function(fit) {
   if (fit) {
     full_biomarker_model <-
@@ -797,6 +817,7 @@ fit_full_model <- function(fit) {
 }
 
 fit_full_model(fit = FALSE)
+}
 ```
 
 ## Assess Aging Rate
@@ -856,6 +877,7 @@ k.check(output_age_rate$models$smooth)
 ### Generate formulas
 
 ```{r}
+if (isFALSE(params$telolength)) {
 formula_list_confounders <- formula_generator(
   data = df,
   k = params$global_k,
@@ -865,11 +887,13 @@ formula_list_confounders <- formula_generator(
   confounders = confounder_interactions,
   stepdown = TRUE
 )
+}
 ```
 
 ### K-fold CV of confounder models
 
 ```{r}
+if (isFALSE(params$telolength)) {
 system.time({
   output_confounders <- cross_validation(
     df,
@@ -881,11 +905,13 @@ system.time({
     keep_models = FALSE
   )
 })
+}
 ```
 
 ### Build confounder models
 
 ```{r}
+if (isFALSE(params$telolength)) {
 for (formula in formula_list_confounders) {
   output_confounders$models <- append(output_confounders$models, list(
       bam(
@@ -907,6 +933,7 @@ names(output_confounders$models) <-
   )
 
 output_confounders$results
+}
 ```
 
 ## Optional tests
@@ -1332,7 +1359,7 @@ system.time({
   output_bioage <- cross_validation(
     df,
     formula_list_test,
-    k = 20,
+    k = 10,
     repeats = 10,
     discrete = params$global_discrete
   )
@@ -1368,7 +1395,10 @@ reformat_df <- function(data) {
 }
 
 df_results_bioage <- reformat_df(output_bioage)
+
+if (isFALSE(params$telolength)) {
 df_results_biomarkers  <- reformat_df(output_biomarkers)
+}
 ```
 
 ### Calculate CI
@@ -1465,10 +1495,12 @@ calculate_nb_corrected_cis <- function(data, per_age_group) {
 }
 
 df_summary_bioage <- calculate_nb_corrected_cis(df_results_bioage, per_age_group = TRUE)
-df_summary_biomarkers <- calculate_nb_corrected_cis(df_results_biomarkers, per_age_group = TRUE)
-
 df_summary_bioage_overall <- calculate_nb_corrected_cis(df_results_bioage, per_age_group = FALSE)
+
+if (isFALSE(params$telolength)) {
+  df_summary_biomarkers <- calculate_nb_corrected_cis(df_results_biomarkers, per_age_group = TRUE)
 df_summary_biomarkers_overall <- calculate_nb_corrected_cis(df_results_biomarkers, per_age_group = FALSE)
+}
 ```
 
 ### Calculate R2 and RMSE
@@ -1581,18 +1613,19 @@ df_summary_bioage <- calculate_RMSE_R2(df_summary_bioage,
                                        output_bioage$predictions,
                                        per_age_group = TRUE)
 
-df_summary_biomarkers <- calculate_RMSE_R2(
-  df_summary_biomarkers,
-  df_results_biomarkers,
-  output_biomarkers$predictions,
-  per_age_group = TRUE
-)
-
 df_summary_bioage_overall <- calculate_RMSE_R2(
   df_summary_bioage_overall,
   df_results_bioage,
   output_bioage$predictions,
   per_age_group = FALSE
+)
+
+if (isFALSE(params$telolength)) {
+  df_summary_biomarkers <- calculate_RMSE_R2(
+  df_summary_biomarkers,
+  df_results_biomarkers,
+  output_biomarkers$predictions,
+  per_age_group = TRUE
 )
 
 df_summary_biomarkers_overall <- calculate_RMSE_R2(
@@ -1601,6 +1634,7 @@ df_summary_biomarkers_overall <- calculate_RMSE_R2(
   output_biomarkers$predictions,
   per_age_group = FALSE
 )
+}
 ```
 
 ## Build predictions dataframe age rate
@@ -1886,6 +1920,7 @@ test_correlation(
   exclusions = "age"
 )
 
+if (isFALSE(params$telolength)) {
 test_correlation(
   df_results_biomarkers,
   grouping_variables = "predictors",
@@ -1907,6 +1942,7 @@ test_correlation(
     "age, crp, hba1c, albumin_gL, phenoage"
   )
 )
+}
 ```
 
 All correlations trend positive. Overall bioage methods have positive
@@ -2005,6 +2041,7 @@ pwc_bioage <- nb_corrected_repeated_t_test(
   adjust_method = "holm"
 )
 
+if (isFALSE(params$telolength)) {
 pwc_biomarkers_overall <- nb_corrected_repeated_t_test(
   df_summary_biomarkers_overall,
   exceptions = c(
@@ -2027,6 +2064,7 @@ pwc_biomarkers <- nb_corrected_repeated_t_test(
   exception_include_exclude = "exclude",
   adjust_method = "holm"
 )
+}
 
 pwc_bioage_overall %>% kable("html", caption = "Overall Bioage Pairwise Comparisons") %>%
   kable_styling(
@@ -2038,6 +2076,7 @@ pwc_bioage_overall %>% kable("html", caption = "Overall Bioage Pairwise Comparis
   ) %>%
   scroll_box(width = "100%", height = "400px")
 
+if (isFALSE(params$telolength)) {
 pwc_biomarkers_overall %>% kable("html", caption = "Overall Biomarker Pairwise Comparisons") %>%
   kable_styling(
     bootstrap_options = c("striped", "hover"),
@@ -2047,6 +2086,7 @@ pwc_biomarkers_overall %>% kable("html", caption = "Overall Biomarker Pairwise C
     fixed_thead = TRUE
   ) %>%
   scroll_box(width = "100%", height = "400px")
+}
 ```
 
 ### Add p-values to summary dataframe
@@ -2076,10 +2116,12 @@ df_summary_bioage_overall <- import_p_values(df_summary_bioage_overall,
                                              pwc_bioage_overall,
                                              per_age_group = FALSE)
 
+if (isFALSE(params$telolength)) {
 df_summary_biomarkers <- import_p_values(df_summary_biomarkers, pwc_biomarkers, per_age_group = TRUE)
 df_summary_biomarkers_overall <- import_p_values(df_summary_biomarkers_overall,
                                                  pwc_biomarkers_overall,
                                                  per_age_group = FALSE)
+}
 ```
 
 **It doesn't matter whether we use holm or hommel, so perhaps we should use hommel.**
@@ -2107,8 +2149,10 @@ add_n_age_groups <- function(data, summary_data, per_age_group) {
 df_summary_bioage <- add_n_age_groups(df, df_summary_bioage, per_age_group = TRUE)
 df_summary_bioage_overall <- add_n_age_groups(df, df_summary_bioage_overall, per_age_group = FALSE)
 
+if (isFALSE(params$telolength)) {
 df_summary_biomarkers <- add_n_age_groups(df, df_summary_biomarkers, per_age_group = TRUE)
 df_summary_biomarkers_overall <- add_n_age_groups(df, df_summary_biomarkers_overall, per_age_group = FALSE)
+}
 ```
 
 # Visualization
@@ -2189,30 +2233,54 @@ format_table <- function(summary_data, per_age_group) {
 table_bioage <- format_table(df_summary_bioage, per_age_group = TRUE)
 table_bioage_overall <- format_table(df_summary_bioage_overall, per_age_group = FALSE)
 
+if (isFALSE(params$telolength)) {
 table_biomarkers <- format_table(df_summary_biomarkers, per_age_group = TRUE)
 table_biomarkers_overall <- format_table(df_summary_biomarkers_overall, per_age_group = FALSE)
+}
 ```
 
 ### Order, Filter, and Rename Tables
 
 ```{r order_table}
 rename_bioage_table <- function(bioage_table) {
-  bioage_table <- bioage_table %>%
-    mutate(
-      Predictors = case_when(
-        Predictors == "age" ~ "Age",
-        Predictors == "age, hd_log" ~ "Age + HD",
-        Predictors == "age, kdm" ~ "Age + KDM",
-        Predictors == "age, phenoage" ~ "Age + PhenoAge"
-      ),
-      Predictors = factor(Predictors, levels = c(
-        "Age",
-        "Age + HD",
-        "Age + KDM",
-        "Age + PhenoAge"
-      )
-    )) %>%
-    arrange(Predictors)
+  if (isFALSE(params$telolength)) {
+    bioage_table <- bioage_table %>%
+      mutate(
+        Predictors = case_when(
+          Predictors == "age" ~ "Age",
+          Predictors == "age, hd_log" ~ "Age + HD",
+          Predictors == "age, kdm" ~ "Age + KDM",
+          Predictors == "age, phenoage" ~ "Age + PhenoAge"
+        ),
+        Predictors = factor(
+          Predictors,
+          levels = c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
+        )
+      ) %>%
+      arrange(Predictors)
+  } else {
+    bioage_table <- bioage_table %>%
+      mutate(
+        Predictors = case_when(
+          Predictors == "age" ~ "Age",
+          Predictors == "age, hd_log" ~ "Age + HD",
+          Predictors == "age, kdm" ~ "Age + KDM",
+          Predictors == "age, phenoage" ~ "Age + PhenoAge",
+          Predictors == "age, telolength" ~ "Age + Telolength"
+        ),
+        Predictors = factor(
+          Predictors,
+          levels = c(
+            "Age",
+            "Age + HD",
+            "Age + KDM",
+            "Age + PhenoAge",
+            "Age + Telolength"
+          )
+        )
+      ) %>%
+      arrange(Predictors)
+  }
   
   return(bioage_table)
 }
@@ -2268,8 +2336,10 @@ rename_biomarker_table <- function(biomarker_table) {
 table_bioage <- rename_bioage_table(table_bioage)
 table_bioage_overall <- rename_bioage_table(table_bioage_overall)
 
+if (isFALSE(params$telolength)) {
 table_biomarkers <- rename_biomarker_table(table_biomarkers)
 table_biomarkers_overall <- rename_biomarker_table(table_biomarkers_overall)
+}
 ```
 
 ### Render table
@@ -2298,9 +2368,12 @@ render_and_save_table <- function(table, path) {
 
 render_and_save_table(table_bioage, path = here("Output", "Figures", params$hearing_var, "table_bioage.html"))
 render_and_save_table(table_bioage_overall, path = here("Output", "Figures", params$hearing_var, "table_bioage_overall.html"))
+
+if (isFALSE(params$telolength)) {
 render_and_save_table(table_biomarkers, path = here("Output", "Figures", params$hearing_var, "table_biomarkers.html")) %>%
   scroll_box(width = "100%", height = "400px")
 render_and_save_table(table_biomarkers_overall, path = here("Output", "Figures", params$hearing_var, "table_biomarkers_overall.html"))
+}
 ```
 
 ## Confounders table
@@ -2350,21 +2423,26 @@ bind_rows(lapply(variables, function(variable)
 ))
 }
 
+if (isFALSE(params$telolength)) {
 table_confounders <- build_confounder_table(df)
+}
 ```
 
 ### Pivot table and merge mean and standard deviation
 
 ```{r}
+if (isFALSE(params$telolength)) {
 table_confounders <- table_confounders %>%
   mutate(stat = sprintf("%.2f (%.2f)", mean, sd)) %>%
   select(variable, level, age_group, stat) %>%
   pivot_wider(names_from = age_group, values_from = stat)
+}
 ```
 
 ### Format table
 
 ```{r}
+if (isFALSE(params$telolength)) {
 table_confounders <- table_confounders %>%
   group_by(variable) %>%
   mutate(variable = if_else(row_number() == 1L, variable, "")) %>%
@@ -2373,12 +2451,15 @@ table_confounders <- table_confounders %>%
     " " = variable,
     "  " = level
   )
+}
 ```
 
 ### Save table
 
 ```{r}
+if (isFALSE(params$telolength)) {
 render_and_save_table(table_confounders, path = here("Output", "Figures", params$hearing_var, "table_confounders.html"))
+}
 ```
 
 ## Rate of aging panel
@@ -2792,7 +2873,7 @@ p <- plot_grid(
 
 sameplot(
   p,
-  file = here("Output", "Figures", params$hearing_var, "age_rate_panel.png"),
+  file = here("Output", "Figures", if (isTRUE(params$telolength)) paste0(params$hearing_var, "_telolength") else params$hearing_var, "age_rate_panel.png"),
   width = params$double_column,
   height = 3,
   res = 600,
@@ -2835,24 +2916,46 @@ p <- df_summary_bioage %>%
     alpha = 1,
     show.legend = TRUE
   ) +
-  scale_color_manual(
-    values = c(
+  scale_color_manual(values = if (isTRUE(params$telolength)) {
+    c(
+      "age" = "#000000",
+      "age, hd_log" = "#256DAB",
+      "age, kdm" = "#059748",
+      "age, phenoage" = "#CB2027",
+      "age, telolength" = "#7B3A96"
+    )
+  } else {
+    c(
       "age" = "#000000",
       "age, hd_log" = "#256DAB",
       "age, kdm" = "#059748",
       "age, phenoage" = "#CB2027"
-    ),
-    labels = c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
-  ) +
-  scale_fill_manual(
-    values = c(
+    )
+  }, labels = if (isTRUE(params$telolength)) {
+    c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telolength")
+  } else {
+    c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
+  }) +
+  scale_fill_manual(values = if (isTRUE(params$telolength)) {
+    c(
       "age" = "#8C8C8C",
       "age, hd_log" = "#88BDE6",
       "age, kdm" = "#90CD97",
-      "age, phenoage" = "#F07E6E"
-    ),
-    labels = c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
-  ) +
+      "age, phenoage" = "#F07E6E",
+      "age, telolength" = "#B276B2"
+    )
+  } else {
+    c(
+      "age" = "#8C8C8C",
+      "age, hd_log" = "#88BDE6",
+      "age, kdm" = "#90CD97",
+      "age, phenoage" = "#F07E6E",
+    )
+  }, labels = if (isTRUE(params$telolength)) {
+    c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telolength")
+  } else {
+    c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
+  }) +
   guides(
     colour = guide_legend(
       override.aes = list(size = 1.25),
@@ -2908,7 +3011,15 @@ p <- df_summary_bioage %>%
 
 sameplot(
   p,
-  file = here("Output", "Figures", params$hearing_var, "bioage_panel.png"),
+  file = here(
+    "Output",
+    "Figures",
+    if (isTRUE(params$telolength))
+      paste0(params$hearing_var, "_telolength")
+    else
+      params$hearing_var,
+    "bioage_panel.png"
+  ),
   width = params$single_column,
   height = 2.15,
   res = 600,
@@ -2921,6 +3032,7 @@ sameplot(
 ### Plot Delta mse Biomarkers (only relevant ones)
 
 ```{r plot_delta_mse}
+if (isFALSE(params$telolength)) {
 p1 <- df_summary_biomarkers %>%
   filter(predictors %in% c("age, crp", "age, hba1c", "age, albumin_gL")) %>%
   mutate(
@@ -3047,13 +3159,14 @@ sameplot(
   height = 3,
   res = 600,
   save = params$save_figures
-) 
+)
+}
 ```
 
 ### Plot biomarkers together vs biomarkers + phenoage
 
 ```{r plot_explained_var}
-
+if (isFALSE(params$telolength)) {
 p2 <- df_summary_biomarkers %>% filter(
   predictors %in% c(
     "age, phenoage",
@@ -3185,11 +3298,13 @@ sameplot(
   res = 600,
   save = params$save_figures
 ) 
+}
 ```
 
 ### Composite plot
 
 ```{r plot_biomark_panel}
+if (isFALSE(params$telolength)) {
 p <- ggarrange(
   p1,
   NULL,
@@ -3211,11 +3326,13 @@ sameplot(
   ,
   save = params$save_figures
 ) 
+}
 ```
 
 ## Overall Biomarkers Supplemental Plot
 
 ```{r plot_biomarkers, warning=FALSE}
+if (isFALSE(params$telolength)) {
 p <- df_summary_biomarkers_overall %>%
   filter(!(
     predictors %in% c(
@@ -3326,6 +3443,7 @@ sameplot(
   res = 600,
   save = params$save_figures
 ) 
+}
 ```
 
 ## Additional Plots
@@ -3333,6 +3451,7 @@ sameplot(
 ### Simplified Rate of Aging
 
 ```{r}
+if (isFALSE(params$telolength)) {
 p0 <- ggplot() +
   geom_point(
     data = df,
@@ -3673,11 +3792,13 @@ sameplot(
   res = 600,
   save = params$save_figures
 ) 
+}
 ```
 
 ### Blank rate of aging
 
 ```{r}
+if (isFALSE(params$telolength)) {
 p0 <- ggplot() +
   geom_point(
     data = df,
@@ -3918,11 +4039,13 @@ sameplot(
   res = 600,
   save = params$save_figures
 ) 
+}
 ```
 
 ### Plot PhenoAge Only
 
 ```{r plot_bioage, warning=FALSE}
+if (isFALSE(params$telolength)) {
 p <- df_summary_bioage %>% filter(
   predictors %in% c("age", "age, phenoage")
 ) %>%
@@ -4031,6 +4154,7 @@ sameplot(
   res = 600,
   save = params$save_figures
 ) 
+}
 ```
 
 ### Rate of aging gender
@@ -4038,6 +4162,7 @@ sameplot(
 #### Calculate gender GAM
 
 ```{r}
+if (isFALSE(params$telolength)) {
 gam_gender <- gam(
   as.formula(paste0(params$hearing_var, "~ s(age, k = 10) + s(gender, age, bs = 'sz', k = 10)")),
   data = df,
@@ -4119,11 +4244,13 @@ gender_predictions_der <-  data.frame(confint(
       "ci_lower" = lower.CL,
       "ci_upper" = upper.CL
     )
+}
 ```
 
 #### Plot rate of aging gender
 
 ```{r}
+if (isFALSE(params$telolength)) {
 p0 <- ggplot() +
   geom_point(
     data = df,
@@ -4454,6 +4581,7 @@ sameplot(
   res = 600,
   save = params$save_figures
 ) 
+}
 ```
 
 ### Plot aging means with and without confounders
@@ -4461,6 +4589,7 @@ sameplot(
 #### Plot aging mean without confounders
 
 ```{r}
+if (isFALSE(params$telolength)) {
 p0 <- ggplot() +
   geom_point(
     data = df,
@@ -4521,11 +4650,13 @@ sameplot(
   res = 600,
   save = params$save_figures
 ) 
+}
 ```
 
 #### Plot aging mean per gender
 
 ```{r}
+if (isFALSE(params$telolength)) {
 p0 <- ggplot() +
   geom_point(
     data = df,
@@ -4593,6 +4724,7 @@ sameplot(
   res = 600,
   save = params$save_figures
 ) 
+}
 ```
 
 
