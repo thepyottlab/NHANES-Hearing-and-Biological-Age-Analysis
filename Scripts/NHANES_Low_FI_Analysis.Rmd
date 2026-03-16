@@ -820,7 +820,7 @@ output_age_rate <- list(models = list(), predictions = list())
 output_age_rate$models <- append(output_age_rate$models, list(
   linear =
     gam(
-      FI_low ~ age,
+      reformulate(c("age"), response = params$hearing_var),
       data = df,
       method = "REML",
       family = gaussian()
@@ -830,20 +830,22 @@ output_age_rate$models <- append(output_age_rate$models, list(
 output_age_rate$models <- append(output_age_rate$models, list(
   quadratic =
     gam(
-      FI_low ~ age + I(age^2),
+      reformulate(c("age", "I(age^2)"), response = params$hearing_var),
       data = df,
       method = "REML",
       family = gaussian()
     )
 ))
 
-output_age_rate$models <- append(output_age_rate$models, list(smooth =
-                                                                gam(
-                                                                  FI_low ~ age + I(age^2) + s(age, k = 10),
-                                                                  data = df,
-                                                                  method = "REML",
-                                                                  family = gaussian()
-                                                                )))
+output_age_rate$models <- append(output_age_rate$models, list(
+  smooth =
+    gam(
+      reformulate(c("age", "I(age^2)", "s(age, k = 10)"), response = params$hearing_var),
+      data = df,
+      method = "REML",
+      family = gaussian()
+    )
+))
 
 set.seed = 1
 k.check(output_age_rate$models$smooth)
@@ -980,14 +982,14 @@ with age.
 ```{r assess_confounders}
 if (isTRUE(params$run_optional_chunks)) {
 assess_confounders <- function(df, confounders, k) {
-  f0 <- paste0("FI_low ~ s(age, k = ", k, ")")
+  f0 <- paste0(params$hearing_var, " ~ s(age, k = ", k, ")")
   m0 <- bam(as.formula(f0), data = df, method = "REML")
   
   results <- data.frame()
   
   for (confounder in confounders) {
-    f1 <- paste0("FI_low ~ ", confounder, " + s(age, k = ", k, ")")
-    f2 <- paste0("FI_low ~ s(age) + s(age, ", confounder, ", bs = 'sz', k = ",
+    f1 <- paste0(params$hearing_var, " ~ ", confounder, " + s(age, k = ", k, ")")
+    f2 <- paste0(params$hearing_var, " ~ s(age) + s(age, ", confounder, ", bs = 'sz', k = ",
                  k,
                  ")")
     
@@ -1023,24 +1025,24 @@ confounders actually contribute.
 ```{r compare_added_info}
 if (isTRUE(params$run_optional_chunks)) {
 compare_confounders <- function(df, k) {
-  m0 <- bam(FI_low ~ s(age, k = k), data = df, method = "REML")
+  m0 <- bam(reformulate("s(age, k = k)", response = params$hearing_var), data = df, method = "REML")
   m1 <- bam(
-    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k),
+reformulate(c("s(age, k = k)", "s(age, gender, bs = 'sz', k = k)"), response = params$hearing_var),
     data = df,
     method = "REML"
   )
   m2 <- bam(
-    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k) + s(age, race, bs = "sz", k = k),
+    reformulate(c("s(age, k = k)", "s(age, gender, bs = 'sz', k = k)", "s(age, race, bs = 'sz', k = k)"), response = params$hearing_var),
     data = df,
     method = "REML"
   )
   m3 <- bam(
-    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k) + s(age, race, bs = "sz", k = k) + s(age, smoking, bs = "sz", k = k),
+    reformulate(c("s(age, k = k)", "s(age, gender, bs = 'sz', k = k)", "s(age, race, bs = 'sz', k = k)", "s(age, smoking, bs = 'sz', k = k)"), response = params$hearing_var),
     data = df,
     method = "REML"
   )
   m4 <- bam(
-    FI_low ~ s(age, k = k) + s(age, gender, bs = "sz", k = k) + s(age, race, bs = "sz", k = k) + s(age, smoking, bs = "sz", k = k) + s(age, education, bs = "sz", k = k),
+    reformulate(c("s(age, k = k)", "s(age, gender, bs = 'sz', k = k)", "s(age, race, bs = 'sz', k = k)", "s(age, smoking, bs = 'sz', k = k)", "s(age, education, bs = 'sz', k = k)"), response = params$hearing_var),
     data = df,
     method = "REML"
   )
@@ -1078,25 +1080,25 @@ time on a higher k rather than estimating smooth parameters.
 if (isTRUE(params$run_optional_chunks)) {
 compare_wiggliness <- function(df, k) {
   m1 <- bam(
-    FI_low ~
+    as.formula(paste0(params$hearing_var, ' ~
       s(age, k = k) +
       
       s(age, gender, bs = "sz", k = k, id = 1) +
       s(age, race, bs = "sz", k = k, id = 2) +
       s(age, smoking, bs = "sz", k = k, id = 3) +
-      s(age, education, bs = "sz", k = k, id = 4),
+      s(age, education, bs = "sz", k = k, id = 4)')),
     data = df,
     method = "REML"
   )
   
   m2 <- bam(
-    FI_low ~
+    as.formula(paste0(params$hearing_var, ' ~
       s(age, k = k) +
       
       s(age, gender, bs = "sz", k = k) +
       s(age, race, bs = "sz", k = k) +
       s(age, smoking, bs = "sz", k = k) +
-      s(age, education, bs = "sz", k = k),
+      s(age, education, bs = "sz", k = k)')),
     data = df,
     method = "REML"
   )
@@ -1127,7 +1129,7 @@ if (isTRUE(params$run_optional_chunks)) {
 compare_confounder_interactions <- function(df, k, equal_wiggliness, return_model = FALSE) {
   if (equal_wiggliness) {
     m0 <- bam(
-      FI_low ~
+      as.formula(paste0(params$hearing_var, ' ~
         s(age, k = k) +
         
         s(gender, age, bs = "sz", k = k, id = 1) +
@@ -1140,13 +1142,13 @@ compare_confounder_interactions <- function(df, k, equal_wiggliness, return_mode
         s(gender, education, age, bs = "sz", k = k, id = 7) +
         s(race, smoking, age, bs = "sz", k = k, id = 8) +
         s(race, education, age, bs = "sz", k = k, id = 9) +
-        s(smoking, education, age, bs = "sz", k = k, id = 10),
+        s(smoking, education, age, bs = "sz", k = k, id = 10)')),
       data = df,
       method = "REML"
     )
   } else {
     m0 <- bam(
-      FI_low ~
+      as.formula(paste0(params$hearing_var, ' ~
         s(age, k = k) +
         
         s(gender, age, bs = "sz", k = k) +
@@ -1159,7 +1161,7 @@ compare_confounder_interactions <- function(df, k, equal_wiggliness, return_mode
         s(gender, education, age, bs = "sz", k = k) +
         s(race, smoking, age, bs = "sz", k = k) +
         s(race, education, age, bs = "sz", k = k) +
-        s(smoking, education, age, bs = "sz", k = k),
+        s(smoking, education, age, bs = "sz", k = k)')),
       data = df,
       method = "REML"
     )
@@ -1287,7 +1289,7 @@ phenoage: 1.28
 if (isTRUE(params$run_optional_chunks)) {
 estimate_modeling_time <- function(df, k, discrete = FALSE) {
     system.time({
-      bam(FI_low ~ 
+      bam(as.formula(paste0(params$hearing_var, ' ~ 
         s(age, k = k) +
         
         s(gender, age, bs = "sz", k = k, id = 1) +
@@ -1297,7 +1299,7 @@ estimate_modeling_time <- function(df, k, discrete = FALSE) {
         
         s(gender, race, age, bs = "sz", k = k, id = 5) +
 
-        s(phenoage, k = k),
+        s(phenoage, k = k)')),
         data = df, discrete = discrete, method = "fREML"
       )
     })
@@ -1480,7 +1482,7 @@ a sanity check, because each model should have the same folds and repeats, I
 checked whether the mean Fletcher Index is always the same at repeat 1 fold 1
 (it is). The mean FI is then called in the summarize function using median(),
 which gives the same result as mean(), because all predicted/real values within
-a model, fold, and repeat have the same `mean_FI_low`, as told by the left_join
+a model, fold, and repeat have the same `mean_FI`, as told by the left_join
 function. Thereafter, we group over the 100 (10x10) folds per model to calculate
 the total number of predictions (on the testing data), the mean training data
 size, mean testing data size, R² (using sum of squares), MSE, and RMSE. For
@@ -1524,15 +1526,15 @@ calculate_RMSE_R2 <- function(summary_data,
   sample_sizes <- results_data %>%
     select(all_of(grouping_variables), r, k, n_train, n_test)
   
-  mean_FI_low <- predictions %>%
+  mean_hearing_var_df <- output_bioage$predictions %>%
     group_by(predictors, k, r) %>%
-    summarize(mean_FI_low = mean(FI_low), .groups = "drop")
+    summarize(mean_hearing_var = mean(.data[[params$hearing_var]]), .groups = "drop")
   
   updated_summary_data <- summary_data %>%
     left_join(
       predictions %>%
         left_join(sample_sizes, by = c(grouping_variables, "r", "k")) %>%
-        left_join(mean_FI_low, by = c("predictors", "r", "k")) %>%
+        left_join(mean_hearing_var_df, by = c("predictors", "r", "k")) %>%
         group_by(across(all_of(
           grouping_variables
         ))) %>%
@@ -1540,8 +1542,8 @@ calculate_RMSE_R2 <- function(summary_data,
           n_predictions = n(),
           mean_n_train = round(mean(n_train), 1),
           mean_n_test = round(mean(n_test), 1),
-          sse = sum((FI_low - predicted) ^ 2),
-          sst = sum((FI_low - median(mean_FI_low)) ^ 2),
+          sse = sum((.data[[params$hearing_var]] - predicted) ^ 2),
+          sst = sum((.data[[params$hearing_var]] - median(mean_hearing_var)) ^ 2),
           r2  = 1 - sse / sst,
           rmse = sqrt(sse / n_predictions),
           .groups = "drop"
@@ -1603,7 +1605,7 @@ df_summary_biomarkers_overall <- calculate_RMSE_R2(
 
 ## Build predictions dataframe age rate
 
-We sample 1 point for each age and predict the FI_low using the smooth-only
+We sample 1 point for each age and predict the FI using the smooth-only
 model and generate simultaneous confidence intervals. We could ask for a single
 point and ask where the true mean would be with 95% certainty, but if we'd apply
 that to all 60 points, there's a large chance that somewhere we get a false
@@ -2294,11 +2296,11 @@ render_and_save_table <- function(table, path) {
   return(html_table)
 }
 
-render_and_save_table(table_bioage, path = here("Output", "Figures", "FI_low", "table_bioage.html"))
-render_and_save_table(table_bioage_overall, path = here("Output", "Figures", "FI_low", "table_bioage_overall.html"))
-render_and_save_table(table_biomarkers, path = here("Output", "Figures", "FI_low", "table_biomarkers.html")) %>%
+render_and_save_table(table_bioage, path = here("Output", "Figures", params$hearing_var, "table_bioage.html"))
+render_and_save_table(table_bioage_overall, path = here("Output", "Figures", params$hearing_var, "table_bioage_overall.html"))
+render_and_save_table(table_biomarkers, path = here("Output", "Figures", params$hearing_var, "table_biomarkers.html")) %>%
   scroll_box(width = "100%", height = "400px")
-render_and_save_table(table_biomarkers_overall, path = here("Output", "Figures", "FI_low", "table_biomarkers_overall.html"))
+render_and_save_table(table_biomarkers_overall, path = here("Output", "Figures", params$hearing_var, "table_biomarkers_overall.html"))
 ```
 
 ## Confounders table
@@ -2306,7 +2308,7 @@ render_and_save_table(table_biomarkers_overall, path = here("Output", "Figures",
 ### Build table and recode values
 
 ```{r}
-build_confounder_table <- function(data, y = "FI_low") {
+build_confounder_table <- function(data, y = params$hearing_var) {
   variables = c("Gender", "Smoking", "Race", "Education")
   
   data <- data %>%
@@ -2376,7 +2378,7 @@ table_confounders <- table_confounders %>%
 ### Save table
 
 ```{r}
-render_and_save_table(table_confounders, path = here("Output", "Figures", "FI_low", "table_confounders.html"))
+render_and_save_table(table_confounders, path = here("Output", "Figures", params$hearing_var, "table_confounders.html"))
 ```
 
 ## Rate of aging panel
@@ -2387,7 +2389,7 @@ render_and_save_table(table_confounders, path = here("Output", "Figures", "FI_lo
 p0 <- ggplot() +
   geom_point(
     data = df,
-    aes(age, FI_low),
+    aes(age, .data[[params$hearing_var]]),
     alpha = 0.1,
     size = 0.5,
     shape = 1,
@@ -2436,7 +2438,7 @@ p0 <- ggplot() +
 p1 <- ggplot() +
   geom_point(
     data = df,
-    aes(age, FI_low),
+    aes(age, .data[[params$hearing_var]]),
     alpha = 0.1,
     size = 0.5,
     shape = 1,
@@ -2495,7 +2497,7 @@ p2 <- ggplot() +
   ) +
   geom_point(
     data = df,
-    aes(age, FI_low),
+    aes(age, .data[[params$hearing_var]]),
     alpha = 0.1,
     size = 0.5,
     shape = 1,
@@ -2790,7 +2792,7 @@ p <- plot_grid(
 
 sameplot(
   p,
-  file = here("Output", "Figures", "FI_low", "age_rate_panel.png"),
+  file = here("Output", "Figures", params$hearing_var, "age_rate_panel.png"),
   width = params$double_column,
   height = 3,
   res = 600,
@@ -2906,7 +2908,7 @@ p <- df_summary_bioage %>%
 
 sameplot(
   p,
-  file = here("Output", "Figures", "FI_low", "bioage_panel.png"),
+  file = here("Output", "Figures", params$hearing_var, "bioage_panel.png"),
   width = params$single_column,
   height = 2.15,
   res = 600,
@@ -3040,7 +3042,7 @@ p1 <- df_summary_biomarkers %>%
 
 sameplot(
   p1,
-  file = here("Output", "Figures", "FI_low", "biomarkers_biomarkers_panel.png"),
+  file = here("Output", "Figures", params$hearing_var, "biomarkers_biomarkers_panel.png"),
   width = 2.5,
   height = 3,
   res = 600,
@@ -3177,7 +3179,7 @@ p2 <- df_summary_biomarkers %>% filter(
 
 sameplot(
   p2,
-  file = here("Output", "Figures", "FI_low", "biomarkers_v_phenoage.png"),
+  file = here("Output", "Figures", params$hearing_var, "biomarkers_v_phenoage.png"),
   width = 3,
   height = 4,
   res = 600,
@@ -3202,7 +3204,7 @@ p <- ggarrange(
 
 sameplot(
    p,
-  file = here("Output", "Figures", "FI_low", "biomarkers_fig_panel.png"),
+  file = here("Output", "Figures", params$hearing_var, "biomarkers_fig_panel.png"),
   width = params$double_column,
   height = 4,
   res = 600,
@@ -3318,7 +3320,7 @@ p <- df_summary_biomarkers_overall %>%
 
 sameplot(
    p,
-  file = here("Output", "Figures", "FI_low", "biomarkers_panel.png"),
+  file = here("Output", "Figures", params$hearing_var, "biomarkers_panel.png"),
   width = params$single_column,
   height = 2.15,
   res = 600,
