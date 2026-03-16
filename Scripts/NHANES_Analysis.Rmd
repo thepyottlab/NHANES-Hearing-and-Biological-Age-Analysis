@@ -412,121 +412,8 @@ df <- make_repeated_folds(
 )
 ```
 
-### Optional tests
 
-
-## Repeated k-fold modeling
-
-### Repeated k-fold validation function per age group
-
-```{r fun_CV}
-cross_validation <- function(data,
-                             formulas,
-                             k,
-                             repeats,
-                             discrete = FALSE,
-                             keep_models = FALSE,
-                             confounder_analysis = FALSE) {
-  age_groups = c("20-30", "30-40", "40-50", "50-60", "60-70", if (isFALSE(params$telolength)) "70+" else NULL) # initialize age groups to stratify by explicitly
-  fold_columns <- paste0("fold_r", 1:repeats) # initialize names of repeat columns to iterate over
-  confounders <- confounder_vars # initialize vector of confounders
-  
-  names_of_predictors <- unique(unlist(lapply(formulas, extract_predictors))) # save names of all predictor columns to select for the pred vs obs dataset
-  
-  results <- data.frame() # initialize empty dataframe
-  models <- list() # intialize list of models
-  pred_vs_obs <- data.frame() # intialize df with fitted vs predicted
-  
-  for (formula in formulas) {
-    for (r in fold_columns) {
-      for (f in 1:k) {
-        train <- data %>% filter(.data[[r]] != f) # set training data
-        test  <- data %>% filter(.data[[r]] == f) # set testing data
-        
-        if (discrete) {
-          mod <- bam(
-            as.formula(formula),
-            data = train,
-            family = gaussian(),
-            method = "fREML",
-            discrete = TRUE
-          ) # fit GAM
-        } else {
-          mod <- bam(
-            as.formula(formula),
-            data = train,
-            family = gaussian(),
-            method = "REML",
-            discrete = FALSE
-          ) # fit GAM
-        }
-        if (isTRUE(confounder_analysis)) {
-          predictors =   c("full",
-                           paste0("no_", confounder_interactions),
-                           "full_with_phenoage")[which(formulas == formula)]
-        } else if (isFALSE(confounder_analysis)) {
-          predictors = paste(extract_predictors(formula), collapse = ", ") # extract predictors from formula
-        }
-        
-        rep = as.numeric(sub(".*fold_r(\\d+).*", "\\1", r)) # extract repetition number only
-        
-        if (keep_models) {
-          model_id <- paste0(predictors, "_r", rep, "_f", f)
-          models[[model_id]] <- mod # wrap model into a list to keep the models separated, attach it to the list of models, and name the model according to predictors, repeat, and fold
-        }
-        
-        # calculate performance per age group
-        for (age_group in age_groups) {
-          test_subset <- test[test$age_group == age_group, ]# subset testing data for age group
-          train_subset <- train[train$age_group == age_group, ] # subset training data for age group
-          
-          pred <- predict(mod, newdata = test_subset, type = "response") # use GAM to predict responses in current age group
-          
-          results <- bind_rows(
-            results,
-            tibble(
-              predictors = predictors,
-              age_group = age_group,
-              r = rep,
-              k = f,
-              n_train = nrow(train_subset),
-              n_test = nrow(test_subset),
-              mse = mean((test_subset[[params$hearing_var]] - pred)^2) # calculate squared difference between predicted vs real in this age group
-            )
-          )
-          
-          pred_vs_obs <- bind_rows(
-            pred_vs_obs,
-            test_subset %>%
-              mutate(
-                predictors = predictors,
-                age_group = age_group,
-                k = f,
-                r = rep,
-                predicted = pred,
-              ) %>%
-              select(
-                predictors,
-                r,
-                k,
-                age_group,
-                all_of(names_of_predictors),
-                all_of(params$hearing_var),
-                predicted
-              ) # add predictions used to calculate MSE to a dataframe
-          )
-        }
-      }
-    }
-  }
-  
-  return(list(
-    results = results,
-    cv_models = models,
-    predictions = pred_vs_obs
-  )) # return models, dataframe with results, and a fitted vs predicted dataframe
-}
-```
+## Formula building
 
 ### Formula builder function
 
@@ -684,7 +571,7 @@ extract_predictors <- function(formula, collapse = "") {
 }
 ```
 
-### Generate formulas
+### Generate formulas bioage
 
 ```{r build_formulas}
 formula_list_bioage <- formula_generator(
@@ -705,6 +592,20 @@ formula_list_bioage <- formula_generator(
   confounders = confounder_interactions
 )
 
+as.data.frame(cbind(Formulas = unlist(formula_list_bioage))) %>% kable("html", caption = "Bioage Formulas") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+```
+
+### Generate formulas biomarkers
+
+```{r}
 formula_list_biomarkers <- formula_generator(
   data = df,
   k = params$global_k,
@@ -733,16 +634,6 @@ formula_list_biomarkers <- formula_generator(
   confounders = confounder_interactions
 )
 
-as.data.frame(cbind(Formulas = unlist(formula_list_bioage))) %>% kable("html", caption = "Bioage Formulas") %>%
-  kable_styling(
-    bootstrap_options = c("striped", "hover"),
-    full_width = FALSE,
-    position = "left",
-    font_size = 12,
-    fixed_thead = TRUE
-  ) %>%
-  scroll_box(width = "100%", height = "400px")
-
 as.data.frame(cbind(Formulas = unlist(formula_list_biomarkers))) %>% kable("html", caption = "Biomarker Formulas") %>%
   kable_styling(
     bootstrap_options = c("striped", "hover"),
@@ -752,6 +643,136 @@ as.data.frame(cbind(Formulas = unlist(formula_list_biomarkers))) %>% kable("html
     fixed_thead = TRUE
   ) %>%
   scroll_box(width = "100%", height = "400px")
+```
+
+### Generate formulas confounders
+
+```{r}
+if (isFALSE(params$telolength)) {
+formula_list_confounders <- formula_generator(
+  data = df,
+  k = params$global_k,
+  auto_limit_k = TRUE,
+  equal_wiggliness = TRUE,
+  formulas = c("age", "age, phenoage"),
+  confounders = confounder_interactions,
+  stepdown = TRUE
+)
+}
+```
+
+
+## Repeated k-fold modeling
+
+### Repeated k-fold validation function per age group
+
+```{r fun_CV}
+cross_validation <- function(data,
+                             formulas,
+                             k,
+                             repeats,
+                             discrete = FALSE,
+                             keep_models = FALSE,
+                             confounder_analysis = FALSE) {
+  age_groups = c("20-30", "30-40", "40-50", "50-60", "60-70", if (isFALSE(params$telolength)) "70+" else NULL) # initialize age groups to stratify by explicitly
+  fold_columns <- paste0("fold_r", 1:repeats) # initialize names of repeat columns to iterate over
+  confounders <- confounder_vars # initialize vector of confounders
+  
+  names_of_predictors <- unique(unlist(lapply(formulas, extract_predictors))) # save names of all predictor columns to select for the pred vs obs dataset
+  
+  results <- data.frame() # initialize empty dataframe
+  models <- list() # intialize list of models
+  pred_vs_obs <- data.frame() # intialize df with fitted vs predicted
+  
+  for (formula in formulas) {
+    for (r in fold_columns) {
+      for (f in 1:k) {
+        train <- data %>% filter(.data[[r]] != f) # set training data
+        test  <- data %>% filter(.data[[r]] == f) # set testing data
+        
+        if (discrete) {
+          mod <- bam(
+            as.formula(formula),
+            data = train,
+            family = gaussian(),
+            method = "fREML",
+            discrete = TRUE
+          ) # fit GAM
+        } else {
+          mod <- bam(
+            as.formula(formula),
+            data = train,
+            family = gaussian(),
+            method = "REML",
+            discrete = FALSE
+          ) # fit GAM
+        }
+        if (isTRUE(confounder_analysis)) {
+          predictors =   c("full",
+                           paste0("no_", confounder_interactions),
+                           "full_with_phenoage")[which(formulas == formula)]
+        } else if (isFALSE(confounder_analysis)) {
+          predictors = paste(extract_predictors(formula), collapse = ", ") # extract predictors from formula
+        }
+        
+        rep = as.numeric(sub(".*fold_r(\\d+).*", "\\1", r)) # extract repetition number only
+        
+        if (keep_models) {
+          model_id <- paste0(predictors, "_r", rep, "_f", f)
+          models[[model_id]] <- mod # wrap model into a list to keep the models separated, attach it to the list of models, and name the model according to predictors, repeat, and fold
+        }
+        
+        # calculate performance per age group
+        for (age_group in age_groups) {
+          test_subset <- test[test$age_group == age_group, ]# subset testing data for age group
+          train_subset <- train[train$age_group == age_group, ] # subset training data for age group
+          
+          pred <- predict(mod, newdata = test_subset, type = "response") # use GAM to predict responses in current age group
+          
+          results <- bind_rows(
+            results,
+            tibble(
+              predictors = predictors,
+              age_group = age_group,
+              r = rep,
+              k = f,
+              n_train = nrow(train_subset),
+              n_test = nrow(test_subset),
+              mse = mean((test_subset[[params$hearing_var]] - pred)^2) # calculate squared difference between predicted vs real in this age group
+            )
+          )
+          
+          pred_vs_obs <- bind_rows(
+            pred_vs_obs,
+            test_subset %>%
+              mutate(
+                predictors = predictors,
+                age_group = age_group,
+                k = f,
+                r = rep,
+                predicted = pred,
+              ) %>%
+              select(
+                predictors,
+                r,
+                k,
+                age_group,
+                all_of(names_of_predictors),
+                all_of(params$hearing_var),
+                predicted
+              ) # add predictions used to calculate MSE to a dataframe
+          )
+        }
+      }
+    }
+  }
+  
+  return(list(
+    results = results,
+    cv_models = models,
+    predictions = pred_vs_obs
+  )) # return models, dataframe with results, and a fitted vs predicted dataframe
+}
 ```
 
 ### Generate model path function
@@ -779,9 +800,9 @@ generate_model_path <- function(output_type) {
 }
 ```
 
-
 ### Model bioage
 
+#### Bioage K-fold CV
 With k = 40 discrete = FALSE takes 6759s With k = 50 discrete = FALSE takes
 13506s
 
@@ -800,13 +821,19 @@ system.time({
     )
   }
 })
+```
 
+#### Store bioage modeling results
+
+```{r}
 if (isTRUE(params$store_model_results)) {
-  saveRDS(output_bioage, generate_model_path("bioage"))
+  saveRDS(output_bioage, generate_model_path("bioage"), compress = "xz")
 }
 ```
 
 ### Model biomarkers
+
+#### Biomarkers K-fold CV
 
 With k = 40 discrete = FALSE takes 52564s WIth k = 50 discrete = FALSE takes
 110443s
@@ -827,14 +854,18 @@ if (isFALSE(params$telolength)) {
       )
     }
   })
-  
+```
+
+#### Store bioage modeling results
+
+```{r}
   if (isTRUE(params$store_model_results)) {
-    saveRDS(output_biomarkers, generate_model_path("biomarkers"))
+    saveRDS(output_biomarkers, generate_model_path("biomarkers"), compress = "xz")
   }
 }
 ```
 
-### Fit full model
+#### Fit full biomarker model
 
 ```{r fit_full_biomark_m}
 if (isFALSE(params$telolength)) {
@@ -869,7 +900,69 @@ fit_full_model(fit = FALSE)
 }
 ```
 
-## Assess Aging Rate
+### Model confounders
+
+#### Confounders K-fold CV
+
+```{r}
+if (isFALSE(params$telolength)) {
+  system.time({
+    output_confounders <- if (isTRUE(params$load_model_results) && file.exists(generate_model_path("confounders"))) {
+      readRDS(generate_model_path("confounders"))
+    } else {
+      cross_validation(
+        df,
+        formula_list_confounders,
+        k = 10,
+        repeats = 10,
+        discrete = TRUE,
+        confounder_analysis = TRUE
+      )
+    }
+  })
+}
+
+```
+
+#### Store confounders modeling results
+
+```{r}
+if (isFALSE(params$telolength)) {
+    if (isTRUE(params$store_model_results)) {
+    saveRDS(output_confounders, generate_model_path("confounders"), compress = "xz")
+  }
+}
+```
+
+#### Build confounder named step-down models
+
+```{r}
+if (isFALSE(params$telolength)) {
+for (formula in formula_list_confounders) {
+  output_confounders$models <- append(output_confounders$models, list(
+      bam(
+        as.formula(formula),
+        data = df,
+        family = gaussian(),
+        method = "REML",
+        discrete = FALSE,
+        confounder_analysis = TRUE
+      )
+  ))
+}
+
+names(output_confounders$models) <-
+  c(
+    "full",
+    paste0("no_",confounder_interactions),
+    "full_with_phenoage"
+  )
+
+output_confounders$results
+}
+```
+
+## Modeling age rate
 
 ### Build GAM and Linear Age Models in a List
 
@@ -919,77 +1012,6 @@ output_age_rate$models <- append(output_age_rate$models, list(
 
 set.seed = 1
 k.check(output_age_rate$models$smooth)
-```
-
-## Assess Confounders
-
-### Generate formulas
-
-```{r}
-if (isFALSE(params$telolength)) {
-formula_list_confounders <- formula_generator(
-  data = df,
-  k = params$global_k,
-  auto_limit_k = TRUE,
-  equal_wiggliness = TRUE,
-  formulas = c("age", "age, phenoage"),
-  confounders = confounder_interactions,
-  stepdown = TRUE
-)
-}
-```
-
-### K-fold CV of confounder models
-
-```{r}
-if (isFALSE(params$telolength)) {
-  system.time({
-    output_confounders <- if (isTRUE(params$load_model_results) && file.exists(generate_model_path("biomarkers"))) {
-      readRDS(generate_model_path("confounders"))
-    } else {
-      cross_validation(
-        df,
-        formula_list_confounders,
-        k = 10,
-        repeats = 10,
-        discrete = TRUE,
-        confounder_analysis = TRUE
-      )
-    }
-  })
-  
-  if (isTRUE(params$store_model_results)) {
-    saveRDS(output_confounders, generate_model_path("confounders"))
-  }
-}
-```
-
-### Build confounder models
-
-```{r}
-if (isFALSE(params$telolength)) {
-for (formula in formula_list_confounders) {
-  output_confounders$models <- append(output_confounders$models, list(
-      bam(
-        as.formula(formula),
-        data = df,
-        family = gaussian(),
-        method = "REML",
-        discrete = FALSE,
-        confounder_analysis = TRUE
-      )
-  ))
-}
-
-names(output_confounders$models) <-
-  c(
-    "full",
-    paste0("no_",confounder_interactions),
-    "full_with_phenoage"
-  )
-
-output_confounders$results
-}
 ```
 
 ## Optional tests
