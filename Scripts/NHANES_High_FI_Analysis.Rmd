@@ -3184,3 +3184,1272 @@ sameplot(
   save = params$save_figures
 ) 
 ```
+
+## Additional Plots
+
+### Simplified Rate of Aging
+
+```{r}
+p0 <- ggplot() +
+  geom_point(
+    data = df,
+    aes(age, FI_high),
+    alpha = 0.1,
+    size = 0.5,
+    shape = 1,
+    stroke = 0.25,
+    color = "grey30"
+  ) +
+  geom_line(
+    data = output_age_rate$predictions$linear,
+    aes(x = age, y = estimate),
+    linewidth = 0.6,
+    alpha = 1
+  ) +
+      geom_ribbon(
+    data = output_age_rate$predictions$linear,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    ),
+    alpha = 0.15
+  ) +
+  scale_y_continuous(breaks = c(0, 30, 60, 90)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-10, 100), xlim = c(20, 82)) +
+  labs(y = "High Fletcher Index<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL)</span>") +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_blank(),
+    axis.title.y = element_markdown("sans", size = 9, lineheight = 1.1),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p1 <- ggplot() +
+  geom_point(
+    data = df,
+    aes(age, FI_high),
+    alpha = 0.1,
+    size = 0.5,
+    shape = 1,
+    stroke = 0.25,
+    color = "grey30"
+  ) +
+  geom_line(
+    data = output_age_rate$predictions$quadratic,
+    aes(x = age, y = estimate),
+    linewidth = 0.6,
+    alpha = 1
+  ) +
+      geom_ribbon(
+    data = output_age_rate$predictions$quadratic,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    ),
+    alpha = 0.15
+  ) +
+  scale_y_continuous(breaks = c(0, 30, 60, 90)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-10, 100), xlim = c(20, 82)) +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p2 <- ggplot() +
+    geom_rect(
+    data = pwc_age_rate_boundaries,
+    aes(
+      xmin = x_min,
+      xmax = x_max,
+      ymin = -Inf,
+      ymax = Inf
+    ),
+    alpha = 0.125,
+    fill = "#ff0000"
+  ) +
+  geom_point(
+    data = df,
+    aes(age, FI_high),
+    alpha = 0.1,
+    size = 0.5,
+    shape = 1,
+    stroke = 0.25,
+    color = "grey30"
+  ) +
+  geom_ribbon(
+    data = output_age_rate$predictions$smooth,
+    aes(
+      x = age,
+      ymin = ci_lower + coef(output_age_rate$models$smooth)["(Intercept)"],
+      ymax = ci_upper + coef(output_age_rate$models$smooth)["(Intercept)"]
+    ),
+    alpha = 0.15
+  ) +
+  geom_line(
+    data = output_age_rate$predictions$smooth,
+    aes(
+      x = age,
+      y = estimate + coef(output_age_rate$models$smooth)["(Intercept)"]
+    ),
+    linewidth = 0.6
+  ) +
+  scale_y_continuous(breaks = c(0, 30, 60, 90)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-10, 100), xlim = c(20, 82)) +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 1,
+      b = 0,
+      l = 0,
+      unit = "pt"
+    )
+  )
+
+p3 <- ggplot() +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+  geom_line(
+    data = output_age_rate$predictions$linear_derivative,
+    aes(
+      x = age,
+      y = derivative
+    ),
+    linewidth = 0.6
+  ) +
+    geom_ribbon(
+    data = output_age_rate$predictions$linear_derivative,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    ),
+    alpha = 0.15
+  ) +
+  scale_y_continuous(breaks = c(0, 1, 2)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
+  labs(x = "Age<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Rate of HL<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL/Year)</span>") +
+  theme_few() +
+theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_markdown("sans", size = 9, lineheight = 1.1),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 0,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p4 <- ggplot() +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+  geom_line(
+    data = output_age_rate$predictions$quadratic_derivative,
+    aes(
+      x = age,
+      y = derivative
+    ),
+    linewidth = 0.6
+  ) +
+    geom_ribbon(
+    data = output_age_rate$predictions$quadratic_derivative,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    ),
+    alpha = 0.15
+  ) +
+  scale_y_continuous(breaks = c(0, 1, 2)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
+  labs(x = "Age<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Rate of HL<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL/Year)</span>") +
+  theme_few() +
+theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 0,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p5 <- ggplot() +
+    geom_rect(
+    data = pwc_age_rate_boundaries,
+    aes(
+      xmin = x_min,
+      xmax = x_max,
+      ymin = -Inf,
+      ymax = Inf
+    ),
+    alpha = 0.125,
+    fill = "#ff0000"
+  ) +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+  geom_ribbon(
+    data = output_age_rate$predictions$derivative_smooth,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    ),
+    alpha = 0.15
+  ) +
+  geom_line(
+    data = output_age_rate$predictions$derivative_smooth,
+    aes(
+      x = age,
+      y = derivative
+    ),
+    linewidth = 0.6
+  ) +
+  scale_y_continuous(breaks = c(0, 1, 2)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
+  labs(x = "Age<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Nonlinear Deviation Rate of HL<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL/Year)</span>") +
+  theme_few() +
+theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 0,
+      r = 1,
+      b = 0,
+      l = 0,
+      unit = "pt"
+    )
+  )
+
+p <- align_plots(p0, p1, p2, p3, p4, p5, align = 'hv')
+
+p <- 
+  plot_grid(
+    plot_grid(p[[1]], NULL, p[[2]], NULL, p[[3]],
+      labels = c("A", "", "B", "", "C"),
+      nrow = 1, rel_widths = c(1, -0.01, 1, -0.01, 1),
+      label_x = 0.04, label_y = 1.02
+    ),
+    NULL,
+    plot_grid(p[[4]], NULL, p[[5]], NULL, p[[6]],
+      labels = c("D", "", "E", "", "F"),
+      nrow = 1, rel_widths = c(1, -0.01, 1, -0.01, 1),
+      label_x = 0.04, label_y = 1.02
+    ),
+    ncol = 1, rel_heights = c(1, -0.15, 1)
+  )
+
+sameplot(
+  p,
+  file = here("Output", "Figures", "FI_high", "Extras", "simplified_age_rate_panel.png"),
+  width = params$double_column * 1.8,
+  height = 3 * 1.8,
+  scaling = 1.8,
+  res = 600,
+  save = params$save_figures
+) 
+```
+
+### Blank rate of aging
+
+```{r}
+p0 <- ggplot() +
+  geom_point(
+    data = df,
+    aes(age, FI_high),
+    alpha = 0.1,
+    size = 0.5,
+    shape = 1,
+    stroke = 0.25,
+    color = "grey30"
+  ) +
+  scale_y_continuous(breaks = c(0, 30, 60, 90)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-10, 100), xlim = c(20, 82)) +
+  labs(y = "High Fletcher Index<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL)</span>") +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_blank(),
+    axis.title.y = element_markdown("sans", size = 9, lineheight = 1.1),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p1 <- ggplot() +
+  geom_point(
+    data = df,
+    aes(age, FI_high),
+    alpha = 0.1,
+    size = 0.5,
+    shape = 1,
+    stroke = 0.25,
+    color = "grey30"
+  ) +
+  scale_y_continuous(breaks = c(0, 30, 60, 90)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-10, 100), xlim = c(20, 82)) +
+  labs(y = "High Fletcher Index<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL)</span>") +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p2 <- ggplot() +
+  geom_point(
+    data = df,
+    aes(age, FI_high),
+    alpha = 0.1,
+    size = 0.5,
+    shape = 1,
+    stroke = 0.25,
+    color = "grey30"
+  ) +
+  scale_y_continuous(breaks = c(0, 30, 60, 90)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-10, 100), xlim = c(20, 82)) +
+  labs(y = "High Fletcher Index<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL)</span>") +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 1,
+      b = 0,
+      l = 0,
+      unit = "pt"
+    )
+  )
+
+p3 <- ggplot() +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+  geom_line(
+    data = output_age_rate$predictions$linear_derivative,
+    aes(x = age, y = derivative),
+    linewidth = 0.6,
+    color = "white"
+  ) +
+  scale_y_continuous(breaks = c(0, 1, 2)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
+  labs(x = "Age<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Rate of HL<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL/Year)</span>") +
+  theme_few() +
+theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_markdown("sans", size = 9, lineheight = 1.1),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 0,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p4 <- ggplot() +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +  
+  geom_line(
+    data = output_age_rate$predictions$linear_derivative,
+    aes(x = age, y = derivative),
+    linewidth = 0.6,
+    color = "white"
+  ) +
+  scale_y_continuous(breaks = c(0, 1, 2)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
+  labs(x = "Age<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Rate of HL<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL/Year)</span>") +
+  theme_few() +
+theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 0,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p5 <- ggplot() +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+    geom_line(
+    data = output_age_rate$predictions$linear_derivative,
+    aes(x = age, y = derivative),
+    linewidth = 0.6,
+    color = "white"
+  ) +
+  scale_y_continuous(breaks = c(0, 1, 2)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
+  labs(x = "Age<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Rate of HL<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL/Year)</span>") +
+  theme_few() +
+theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 0,
+      r = 1,
+      b = 0,
+      l = 0,
+      unit = "pt"
+    )
+  )
+
+p <- align_plots(p0, p1, p2, p3, p4, p5, align = 'hv')
+
+p <- 
+  plot_grid(
+    plot_grid(p[[1]], NULL, p[[2]], NULL, p[[3]],
+      labels = c("A", "", "B", "", "C"),
+      nrow = 1, rel_widths = c(1, -0.01, 1, -0.01, 1),
+      label_x = 0.04, label_y = 1.02
+    ),
+    NULL,
+    plot_grid(p[[4]], NULL, p[[5]], NULL, p[[6]],
+      labels = c("D", "", "E", "", "F"),
+      nrow = 1, rel_widths = c(1, -0.01, 1, -0.01, 1),
+      label_x = 0.04, label_y = 1.02
+    ),
+    ncol = 1, rel_heights = c(1, -0.15, 1)
+  )
+
+sameplot(
+  p,
+  file = here("Output", "Figures", "FI_high", "Extras", "blank_age_rate_panel.png"),
+  width = params$double_column * 1.8,
+  height = 3 * 1.8,
+  scaling = 1.8,
+  res = 600,
+  save = params$save_figures
+) 
+```
+
+### Plot PhenoAge Only
+
+```{r plot_bioage, warning=FALSE}
+p <- df_summary_bioage %>% filter(
+  predictors %in% c("age", "age, phenoage")
+) %>%
+  ggplot(aes(x = age_group, y = mean_delta_mse))  +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+  geom_ribbon(
+    aes(
+      fill = predictors,
+      group = predictors,
+      ymin = ci_low_delta_mse,
+      ymax = ci_high_delta_mse
+    ),
+    alpha = 0.15,
+    show.legend = FALSE
+  ) +
+  geom_line(
+    aes(color = predictors, group = predictors),
+    linewidth = 0.7,
+    alpha = 0.75,
+    show.legend = TRUE
+  ) +
+  geom_point(
+    aes(color = predictors),
+    size = 1.25,
+    alpha = 1,
+    show.legend = TRUE
+  ) +
+  scale_color_manual(
+    values = c(
+      "age" = "#000000",
+      "age, phenoage" = "#CB2027"
+    ),
+    labels = c("Age", "Age + PhenoAge")
+  ) +
+  scale_fill_manual(
+    values = c(
+      "age" = "#8C8C8C",
+      "age, phenoage" = "#F07E6E"
+    ),
+    labels = c("Age","Age + PhenoAge")
+  ) +
+  guides(
+    colour = guide_legend(
+      override.aes = list(size = 1.25),
+      keywidth = unit(0.3, "cm"),
+      keyheight = unit(0.3, "cm"),
+      label.theme = element_markdown(
+        "sans",
+        size = 9,
+        margin = margin(l = 3, t = 1.5, unit = "pt")
+      ),
+    )
+  ) +
+  scale_y_continuous(breaks = seq(0, 8, 2)) +
+  coord_cartesian(ylim = c(-1, 8.5), xlim = c(1.4, 5.6)) +
+  labs(x = "Age Group<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Additional Predictive Capacity<br><span style='font-size:8pt; color:#4D4D4D'>(Δ MSE (dB HL)<sup>2</sup>)</span>") +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_markdown("sans", size = 9, lineheight = 1.1),
+    legend.title              = element_blank(),
+    legend.background         = element_rect(fill = "transparent", color = NA),
+    legend.box.background     = element_rect(fill = "transparent", color = NA),
+    legend.key                = element_rect(fill = "transparent"),
+    legend.position           = "inside",
+    legend.position.inside    = c(0.215, 0.82),
+    legend.key.spacing.y      = unit(1, "pt"),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 1,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  ) + geom_text(
+    data = . %>%
+      filter(p_adj != "ns"),
+    aes(
+      x = age_group,
+      y = ci_high_delta_mse + 0.25,
+      label = signif,
+      color = predictors
+    ),
+    manual = TRUE,
+    size = 14 / (14 / 5)
+  )
+
+sameplot(
+  p,
+  file = here("Output", "Figures", "FI_high", "Extras", "phenoage_only_bioage_panel.png"),
+  width = params$single_column * 1.8,
+  height = 2.15 * 1.8,
+  scaling = 1.8,
+  res = 600,
+  save = params$save_figures
+) 
+```
+
+### Rate of aging gender
+
+#### Calculate gender GAM
+
+```{r}
+gam_gender <- gam(
+  FI_high ~ s(age, k = 10) + s(gender, age, bs = 'sz', k = 10),
+  data = df,
+  method = "REML",
+  family = gaussian()
+)
+
+build_interaction_predictions <- function(df, model, continuous_predictor, factor_predictor) {
+  as.data.frame(confint(
+    emmeans(
+      model,
+      as.formula(paste("~", continuous_predictor, "+", factor_predictor)),
+      at = setNames(list(seq(
+        min(df[[continuous_predictor]]), max(df[[continuous_predictor]]), by = 1
+      )), continuous_predictor)
+      ,
+      type = "response",
+      data = df
+    ),
+    adjust = "mvt"
+  )) %>%
+    rename("estimate" = emmean,
+           "ci_lower" = lower.CL,
+           "ci_upper" = upper.CL)
+}
+
+
+
+build_parametric_derivative_predictions <- function(df, model, predictor) {
+  data.frame(confint(
+    emtrends(
+      model,
+      as.formula(paste("~", predictor)),
+      var = predictor,
+      at = setNames(list(seq(
+        min(df[[predictor]]), max(df[[predictor]]), by = 1
+      )), predictor),
+      data = df
+    ),
+    adjust = "mvt"
+  )) %>%
+    rename(
+      "derivative" = !!paste0(predictor, ".trend"),
+      "ci_lower" = lower.CL,
+      "ci_upper" = upper.CL
+    )
+}
+     
+gender_predictions <- as.data.frame(confint(
+    emmeans(
+      gam_gender,
+      as.formula(paste("~ age + gender")),
+      at = setNames(list(seq(
+        min(df[["age"]]), max(df[["age"]]), by = 1
+      )), "age"),
+      type = "response",
+      data = df
+    ),
+    adjust = "mvt"
+  )) %>%
+    rename("estimate" = emmean,
+           "ci_lower" = lower.CL,
+           "ci_upper" = upper.CL)    
+
+gender_predictions_der <-  data.frame(confint(
+    emtrends(
+      gam_gender,
+      as.formula(paste("~ age + gender")),
+      var = "age",
+      at = setNames(list(seq(
+        min(df[["age"]]), max(df[["age"]]), by = 1
+      )), "age"),
+      data = df
+    ),
+    adjust = "mvt"
+  )) %>%
+    rename(
+      "derivative" = !!paste0("age", ".trend"),
+      "ci_lower" = lower.CL,
+      "ci_upper" = upper.CL
+    )
+```
+
+#### Plot rate of aging gender
+
+```{r}
+p0 <- ggplot() +
+  geom_point(
+    data = df,
+    aes(age, FI_high),
+    alpha = 0.1,
+    size = 0.5,
+    shape = 1,
+    stroke = 0.25,
+    color = "grey30"
+  ) +
+  geom_line(
+    data = output_age_rate$predictions$linear,
+    aes(x = age, y = estimate),
+    linewidth = 0.6,
+    alpha = 1
+  ) +
+      geom_ribbon(
+    data = output_age_rate$predictions$linear,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    ),
+    alpha = 0.15
+  ) +
+  scale_y_continuous(breaks = c(0, 30, 60, 90)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-10, 100), xlim = c(20, 82)) +
+  labs(y = "High Fletcher Index<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL)</span>") +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_blank(),
+    axis.title.y = element_markdown("sans", size = 9, lineheight = 1.1),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p1 <- ggplot() +
+  geom_point(
+    data = df,
+    aes(age, FI_high),
+    alpha = 0.1,
+    size = 0.5,
+    shape = 1,
+    stroke = 0.25,
+    color = "grey30"
+  ) +
+  geom_line(
+    data = output_age_rate$predictions$quadratic,
+    aes(x = age, y = estimate),
+    linewidth = 0.6,
+    alpha = 1
+  ) +
+      geom_ribbon(
+    data = output_age_rate$predictions$quadratic,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    ),
+    alpha = 0.15
+  ) +
+  scale_y_continuous(breaks = c(0, 30, 60, 90)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-10, 100), xlim = c(20, 82)) +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p2 <- ggplot() +
+  geom_point(
+    data = df,
+    aes(age, FI_high),
+    alpha = 0.1,
+    size = 0.5,
+    shape = 1,
+    stroke = 0.25,
+    color = "grey30"
+  ) +
+  geom_ribbon(
+    data = gender_predictions,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper,
+      fill = gender
+    ),
+    alpha = 0.15,
+    show.legend = FALSE
+  ) +
+  geom_line(
+    data = gender_predictions,
+    aes(
+      x = age,
+      y = estimate,
+      color = gender
+    ),
+    linewidth = 0.6,
+    show.legend = FALSE
+  ) +
+  scale_color_manual(values = c("1" = "#2986cc", "2" = "#c90076")) +
+  scale_fill_manual(values = c("1" = "#6fa8dc", "2" = "#d5a6bd")) +
+  scale_y_continuous(breaks = c(0, 30, 60, 90)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-10, 100), xlim = c(20, 82)) +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 1,
+      b = 0,
+      l = 0,
+      unit = "pt"
+    )
+  )
+
+p3 <- ggplot() +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+  geom_line(
+    data = output_age_rate$predictions$linear_derivative,
+    aes(
+      x = age,
+      y = derivative
+    ),
+    linewidth = 0.6
+  ) +
+    geom_ribbon(
+    data = output_age_rate$predictions$linear_derivative,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    ),
+    alpha = 0.15
+  ) +
+  scale_y_continuous(breaks = c(0, 1, 2)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
+  labs(x = "Age<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Rate of HL<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL/Year)</span>") +
+  theme_few() +
+theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_markdown("sans", size = 9, lineheight = 1.1),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 0,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p4 <- ggplot() +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+  geom_line(
+    data = output_age_rate$predictions$quadratic_derivative,
+    aes(
+      x = age,
+      y = derivative
+    ),
+    linewidth = 0.6
+  ) +
+    geom_ribbon(
+    data = output_age_rate$predictions$quadratic_derivative,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    ),
+    alpha = 0.15
+  ) +
+  scale_y_continuous(breaks = c(0, 1, 2)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
+  labs(x = "Age<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Rate of HL<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL/Year)</span>") +
+  theme_few() +
+theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 0,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+p5 <- ggplot() +
+  geom_hline(
+    yintercept = 0,
+    linetype = "22",
+    color = "grey20",
+    linewidth = 0.2
+  )  +
+  geom_ribbon(
+    data = gender_predictions_der,
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper,
+      fill = gender
+    ),
+    alpha = 0.15,
+    show.legend = FALSE
+  ) +
+  geom_line(
+    data = gender_predictions_der,
+    aes(
+      x = age,
+      y = derivative,
+      color = gender
+    ),
+    linewidth = 0.6,
+    show.legend = FALSE
+  ) +
+  scale_color_manual(values = c("1" = "#2986cc", "2" = "#c90076")) +
+  scale_fill_manual(values = c("1" = "#6fa8dc", "2" = "#d5a6bd")) +
+  scale_y_continuous(breaks = c(0, 1, 2)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
+  labs(x = "Age<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Nonlinear Deviation Rate of HL<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL/Year)</span>") +
+  theme_few() +
+theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_blank(),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 0,
+      r = 1,
+      b = 0,
+      l = 0,
+      unit = "pt"
+    )
+  )
+
+p <- align_plots(p0, p1, p2, p3, p4, p5, align = 'hv')
+
+p <- 
+  plot_grid(
+    plot_grid(p[[1]], NULL, p[[2]], NULL, p[[3]],
+      labels = c("A", "", "B", "", "C"),
+      nrow = 1, rel_widths = c(1, -0.01, 1, -0.01, 1),
+      label_x = 0.04, label_y = 1.02
+    ),
+    NULL,
+    plot_grid(p[[4]], NULL, p[[5]], NULL, p[[6]],
+      labels = c("D", "", "E", "", "F"),
+      nrow = 1, rel_widths = c(1, -0.01, 1, -0.01, 1),
+      label_x = 0.04, label_y = 1.02
+    ),
+    ncol = 1, rel_heights = c(1, -0.15, 1)
+  )
+
+sameplot(
+  p,
+  file = here("Output", "Figures", "FI_high", "Extras", "simplified_age_rate_panel_gender.png"),
+  width = params$double_column * 1.8,
+  height = 3 * 1.8,
+  scaling = 1.8,
+  res = 600,
+  save = params$save_figures
+) 
+```
+
+### Plot aging means with and without confounders
+
+#### Plot aging mean without confounders
+
+```{r}
+p0 <- ggplot() +
+  geom_point(
+    data = df,
+    aes(age, FI_high),
+    alpha = 0.1,
+    size = 0.5,
+    shape = 1,
+    stroke = 0.25,
+    color = "grey30"
+  ) +
+  geom_line(
+    data = output_age_rate$predictions$smooth,
+    aes(x = age, y = estimate),
+    linewidth = 0.6,
+    alpha = 1,
+    color = "grey80"
+  ) +
+    geom_line(
+    data = df %>%
+  group_by(age) %>%
+  summarize(
+    FI_high = mean(FI_high),
+    .groups = "drop"
+  ),
+    aes(x = age, y = FI_high),
+    linewidth = 0.6,
+    alpha = 1
+  ) +
+  scale_y_continuous(breaks = c(0, 30, 60, 90)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-10, 100), xlim = c(20, 82)) +
+  labs(y = "High Fletcher Index<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL)</span>") +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_markdown("sans", size = 9, lineheight = 1.1),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+sameplot(
+  p0,
+  file = here("Output", "Figures", "FI_high", "Extras", "age_rate_mean.png"),
+  width = params$single_column,
+  height = 3,
+  res = 600,
+  save = params$save_figures
+) 
+```
+
+#### Plot aging mean per gender
+
+```{r}
+p0 <- ggplot() +
+  geom_point(
+    data = df,
+    aes(age, FI_high),
+    alpha = 0.1,
+    size = 0.5,
+    shape = 1,
+    stroke = 0.25,
+    color = "grey30"
+  ) +
+  geom_line(
+    data = gender_predictions,
+    aes(
+      x = age,
+      y = estimate,
+      color = gender
+    ),
+    linewidth = 0.6,
+    show.legend = FALSE
+  ) +
+    geom_line(
+    data = df %>%
+  group_by(age, gender) %>%
+  summarize(
+    FI_high = mean(FI_high),
+    .groups = "drop"
+  ),
+    aes(x = age, y = FI_high, color = gender),
+    linewidth = 0.6,
+    alpha = 1
+  ) +
+  scale_y_continuous(breaks = c(0, 30, 60, 90)) +
+  scale_x_continuous(breaks = seq(20, 80, 10)) +
+  coord_cartesian(ylim = c(-10, 100), xlim = c(20, 82)) +
+    scale_color_manual(values = c("1" = "#2986cc", "2" = "#c90076"), labels = c("1" = "Male",
+                                                                                "2" = "Female")) +
+  scale_fill_manual(values = c("1" = "#6fa8dc", "2" = "#d5a6bd"), labels = c("1" = "Male",
+                                                                                "2" = "Female")) +
+  labs(y = "High Fletcher Index<br><span style='font-size:8pt; color:#4D4D4D'>(dB HL)</span>") +
+  theme_few() +
+  theme(
+    axis.text.x = element_markdown("sans", size = 8),
+    axis.text.y = element_markdown("sans", size = 8),
+    axis.title.x = element_markdown("sans", size = 9, lineheight = 1.1),
+    axis.title.y = element_markdown("sans", size = 9, lineheight = 1.1),
+    panel.border = element_part_rect(
+      colour = "grey30",
+      side = "lb",
+      linewidth = 0.5
+    ),
+    plot.margin = margin(
+      t = 1,
+      r = 0,
+      b = 0,
+      l = 1,
+      unit = "pt"
+    )
+  )
+
+sameplot(
+  p0,
+  file = here("Output", "Figures", "FI_high", "Extras", "age_rate_mean.png"),
+  width = params$single_column,
+  height = 3,
+  res = 600,
+  save = params$save_figures
+) 
+```
+
+

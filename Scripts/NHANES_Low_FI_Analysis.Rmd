@@ -24,6 +24,11 @@ editor_options:
   chunk_output_type: inline
   
 params:
+  hearing_var:
+    label: "Hearing variable (predictor)"
+    value: "FI_high"
+    input: select
+    choices: ["FI_high", "FI_low"]
   save_figures:
     label: "Save figures"
     value: FALSE
@@ -38,7 +43,7 @@ params:
     value: FALSE
   global_k:
     label: "K (n BAM base functions)"
-    value: 20
+    value: 3
     input: numeric
   global_discrete: 
     label: "Discretize BAM (much faster but slightly worse fitting)"
@@ -287,7 +292,7 @@ df <- df_raw %>%
     phenoage,
     hd_log,
     telolength,
-    FI_low,
+    all_of(params$hearing_var),
     albumin_gL,
     alp,
     bun,
@@ -393,7 +398,13 @@ df <- make_repeated_folds(
 ### Repeated k-fold validation function per age group
 
 ```{r fun_CV}
-cross_validation <- function(data, formulas, k, repeats, discrete = FALSE, keep_models = TRUE) {
+cross_validation <- function(data,
+                             formulas,
+                             k,
+                             repeats,
+                             discrete = FALSE,
+                             keep_models = TRUE,
+                             confounder_analysis = FALSE) {
   age_groups = c("20-30", "30-40", "40-50", "50-60", "60-70", "70+") # initialize age groups to stratify by explicitly
   fold_columns <- paste0("fold_r", 1:repeats) # initialize names of repeat columns to iterate over
   confounders <- confounder_vars # initialize vector of confounders
@@ -427,8 +438,13 @@ cross_validation <- function(data, formulas, k, repeats, discrete = FALSE, keep_
             discrete = FALSE
           ) # fit GAM
         }
-        
-        predictors =   paste(extract_predictors(formula), collapse = ", ") # extract predictors from formula
+        if (isTRUE(confounder_analysis)) {
+          predictors =   c("full",
+                           paste0("no_", confounder_interactions),
+                           "full_with_phenoage")[which(formulas == formula)]
+        } else if (isFALSE(confounder_analysis)) {
+          predictors = paste(extract_predictors(formula), collapse = ", ") # extract predictors from formula
+        }
         
         rep = as.numeric(sub(".*fold_r(\\d+).*", "\\1", r)) # extract repetition number only
         
@@ -453,7 +469,7 @@ cross_validation <- function(data, formulas, k, repeats, discrete = FALSE, keep_
               k = f,
               n_train = nrow(train_subset),
               n_test = nrow(test_subset),
-              mse = mean((test_subset$FI_low - pred) ^ 2) # calculate squared difference between predicted vs real in this age group
+              mse = mean((test_subset[[params$hearing_var]] - pred)^2) # calculate squared difference between predicted vs real in this age group
             )
           )
           
@@ -473,7 +489,7 @@ cross_validation <- function(data, formulas, k, repeats, discrete = FALSE, keep_
                 k,
                 age_group,
                 all_of(names_of_predictors),
-                FI_low,
+                all_of(params$hearing_var),
                 predicted
               ) # add predictions used to calculate MSE to a dataframe
           )
@@ -587,7 +603,7 @@ formula_generator <- function(data,
                            paste0("s(", predictor, ", k = ", k_formula, ")"))
       }
     }
-    formula_list <- append(formula_list, paste("FI_low ~", paste(unlist(sm_terms), collapse = " + "))) # put predictor terms in formula and separate by +
+    formula_list <- append(formula_list, paste(params$hearing_var, "~", paste(unlist(sm_terms), collapse = " + "))) # put predictor terms in formula and separate by +
     if (isTRUE(stepdown) && formula == "age") {
       for (rep in fold_columns) {
         for (fold in folds) {
@@ -626,7 +642,7 @@ formula_generator <- function(data,
           )
         }
         
-        formula_list <- append(formula_list, paste("FI_low ~", paste(unlist(sm_terms), collapse = " + ")))
+        formula_list <- append(formula_list, paste(params$hearing_var, "~", paste(unlist(sm_terms), collapse = " + ")))
       }
     }
   }
@@ -755,37 +771,25 @@ system.time({
 ```{r fit_full_biomark_m}
 fit_full_model <- function(fit) {
   if (fit) {
-  full_biomarker_model <- 
-    bam(
-      FI_low ~ 
-      s(age, k = params$global_k) + 
-      
-      s(gender, age, bs = 'sz', k = params$global_k, id = 1) + 
-      s(race, age, bs = 'sz', k = params$global_k, id = 2) + 
-      s(smoking, age, bs = 'sz', k = params$global_k, id = 3) + 
-      s(education, age, bs = 'sz', k = params$global_k, id = 4) + 
-      s(gender, race, age, bs = 'sz', k = params$global_k, id = 5) + 
-      
-      s(crp, k = params$global_k) + 
-      s(hba1c, k = params$global_k) + 
-      s(albumin_gL, k = params$global_k) + 
-      s(alp, k = params$global_k) + 
-      s(wbc, k = params$global_k) + 
-      s(glucose, k = params$global_k) + 
-      s(uap, k = params$global_k) + 
-      s(creat, k = params$global_k) + 
-      s(totchol, k = params$global_k) + 
-      s(rdw, k = params$global_k) + 
-      s(lymph, k = params$global_k) + 
-      s(mcv, k = params$global_k) + 
-      s(bun, k = params$global_k) + 
-      s(sbp, k = params$global_k) + 
-      
-      s(phenoage, k = 40), 
-      
-      data = df, method = "REML", discrete = FALSE
+    full_biomarker_model <-
+      bam(
+        as.formula(
+          formula_generator(
+            data = df,
+            k = params$global_k,
+            auto_limit_k = TRUE,
+            equal_wiggliness = TRUE,
+            formulas = c(
+              "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw, lymph, mcv, bun, sbp, phenoage"
+            ),
+            confounders = confounder_interactions
+          )
+        ),
+        data = df,
+        method = "REML",
+        discrete = FALSE
       )
-  
+    
     print(summary(full_biomarker_model))
     
     return(full_biomarker_model)
@@ -870,7 +874,8 @@ system.time({
     formula_list_confounders,
     k = 10,
     repeats = 10,
-    discrete = params$global_discrete,
+    discrete = TRUE,
+    confounder_analysis = TRUE,
     keep_models = FALSE
   )
 })
@@ -886,7 +891,8 @@ for (formula in formula_list_confounders) {
         data = df,
         family = gaussian(),
         method = "REML",
-        discrete = FALSE
+        discrete = FALSE,
+        confounder_analysis = TRUE
       )
   ))
 }
@@ -894,13 +900,11 @@ for (formula in formula_list_confounders) {
 names(output_confounders$models) <-
   c(
     "full",
-    "no_gender",
-    "no_smoking",
-    "no_race",
-    "no_education",
-    "no_gender_race",
+    paste0("no_",confounder_interactions),
     "full_with_phenoage"
   )
+
+output_confounders$results
 ```
 
 ## Optional tests
