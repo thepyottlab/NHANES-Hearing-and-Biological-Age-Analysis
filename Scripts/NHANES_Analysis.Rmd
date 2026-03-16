@@ -30,19 +30,19 @@ params:
     input: select
     choices: ["FI_high", "FI_low"]
   telolength:
-      label: "Analyze telomere length dataset"
-      value: TRUE
+    label: "Analyze telomere length dataset"
+    value: FALSE
+  global_k:
+    label: "K (n BAM base functions)"
+    value: 3
+    input: numeric
+  global_discrete: 
+    label: "Discretize BAM (much faster but slightly worse fitting)"
+    value: TRUE
   confounders:
     label: "List of included confounders (underscore separated)"
     value: "gender_smoking_race_education_gender, race"
     input: text
-  global_k:
-    label: "K (n BAM base functions)"
-    value: 50
-    input: numeric
-  global_discrete: 
-    label: "Discretize BAM (much faster but slightly worse fitting)"
-    value: FALSE
   construct_data:
     label: "Build NHANES dataframe from scratch"
     value: FALSE
@@ -425,7 +425,7 @@ cross_validation <- function(data,
                              k,
                              repeats,
                              discrete = FALSE,
-                             keep_models = TRUE,
+                             keep_models = FALSE,
                              confounder_analysis = FALSE) {
   age_groups = c("20-30", "30-40", "40-50", "50-60", "60-70", if (isFALSE(params$telolength)) "70+" else NULL) # initialize age groups to stratify by explicitly
   fold_columns <- paste0("fold_r", 1:repeats) # initialize names of repeat columns to iterate over
@@ -953,8 +953,7 @@ if (isFALSE(params$telolength)) {
         k = 10,
         repeats = 10,
         discrete = TRUE,
-        confounder_analysis = TRUE,
-        keep_models = params$keep_models
+        confounder_analysis = TRUE
       )
     }
   })
