@@ -14,7 +14,7 @@ Bak/
 *.pptx
 
 # Environment / state
-/Savestates/
+/Models/
 
 # Others
 desktop.ini
