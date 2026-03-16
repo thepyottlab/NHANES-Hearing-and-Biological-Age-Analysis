@@ -53,11 +53,11 @@ params:
     label: "Use difference between chronological and biological age only"
     value: FALSE
   store_model_results:
-    label: "Store large model results"
+    label: "Store model results"
     value: TRUE
   load_model_results:
-    label: "Load large model results and skip refitting"
-    value: FALSE
+    label: "Load model results and skip refitting"
+    value: TRUE
   keep_models:
     label: "Store actual models (very large filesizes and RAM usage with discrete = TRUE)"
     value: FALSE
@@ -3005,7 +3005,7 @@ p <- df_summary_bioage %>%
       "age" = "#8C8C8C",
       "age, hd_log" = "#88BDE6",
       "age, kdm" = "#90CD97",
-      "age, phenoage" = "#F07E6E",
+      "age, phenoage" = "#F07E6E"
     )
   }, labels = if (isTRUE(params$telolength)) {
     c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telolength")
