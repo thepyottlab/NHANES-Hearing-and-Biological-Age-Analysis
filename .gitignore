@@ -13,8 +13,9 @@ Bak/
 # Output
 *.pptx
 
-# Environment / state
+# Environment/state
 /Models/
+/Savestates/
 
 # Others
 desktop.ini
