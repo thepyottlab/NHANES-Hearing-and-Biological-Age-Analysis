@@ -34,25 +34,25 @@ params:
     value: FALSE
   global_k:
     label: "K (n BAM base functions)"
-    value: 5
+    value: 15
     input: numeric
   global_discrete: 
     label: "Discretize BAM (much faster but slightly worse fitting)"
     value: TRUE
   global_folds: 
     label: "Number of folds"
-    value: 5
+    value: 10
     input: numeric
   global_repeats: 
     label: "Number of repeats"
-    value: 5
+    value: 10
     input: numeric
   store_model_results:
     label: "Store model results"
     value: FALSE
   load_model_results:
     label: "Load model results and skip refitting"
-    value: FALSE
+    value: TRUE
   keep_models:
     label: "Store actual models (very large filesizes and RAM usage with discrete = TRUE)"
     value: FALSE
@@ -686,11 +686,9 @@ cross_validation <- function(data,
   fold_columns <- paste0("fold_r", 1:repeats) # initialize names of repeat columns to iterate over
   folds <- k
   
-  results <- data.frame() # initialize empty dataframe
   models <- list() # intialize list of models
-  pred_vs_obs <- data.frame() # intialize df with fitted vs predicted
-  results_list <- list()
-  predicted_list <- list()
+  results_list <- list() # Initialize list for results
+  predicted_list <- list() # Initialize list for predictions
   index_results <- 1L
   index_predicted <- 1L
   
@@ -740,7 +738,7 @@ cross_validation <- function(data,
           ) # fit GAM
         }
         if (isTRUE(confounder_analysis)) {
-          predictors =   confounder_analysis_predictors[which(formulas == formula)]
+          predictors =   predictor_combinations[which(formulas == formula)]
         } else if (isFALSE(confounder_analysis)) {
           predictors = paste(extract_predictors(formula), collapse = ", ") # extract predictors from formula
         }
@@ -783,24 +781,22 @@ cross_validation <- function(data,
       }
     }
   }
-
+  
   results <- bind_rows(results_list)
   results <- results %>%
     mutate(
       predictors = factor(predictors, levels = predictor_combinations),
-      age_group = factor(age_group, levels = age_groups),
-      r = factor(r, levels = 1:length(fold_columns)),
-      k = factor(k, levels = 1:folds)
-    ) # Factorize
+      age_group = factor(age_group, levels = age_groups)
+    ) %>%
+    as.data.frame() # Factorize and convert to dataframe
   
   pred_vs_obs <- bind_rows(predicted_list)
   pred_vs_obs <- pred_vs_obs %>%
     mutate(
       predictors = factor(predictors, levels = predictor_combinations),
-      age_group = factor(age_group, levels = age_groups),
-      r = factor(rep, levels = 1:length(fold_columns)),
-      k = factor(f, levels = 1:folds)
-    ) # Factorize
+      age_group = factor(age_group, levels = age_groups)
+    )  %>%
+    as.data.frame() # Factorize and convert to dataframe
   
   return(list(
     results = results,
@@ -809,7 +805,6 @@ cross_validation <- function(data,
   )) # return models, dataframe with results, and a fitted vs predicted dataframe
 }
 ```
-
 
 ### Generate model path function
 
@@ -857,8 +852,6 @@ system.time({
     )
   }
 })
-
-output_bioage$predictions
 ```
 
 #### Store bioage modeling results
@@ -1510,10 +1503,7 @@ reformat_df <- function(data) {
     mutate(
       delta_mse = mse_age - mse,
       additional_variance = delta_mse / mse_age * 100,
-      fold_repeat_id = interaction(r, k),
-      predictors = factor(predictors),
-      age_group = factor(age_group),
-      r = as.integer(r)
+      fold_repeat_id = factor(interaction(r, k)),
     )
   
   if ("full" %in% data$results$predictors) {
@@ -1675,18 +1665,6 @@ just one age group. We're just assessing performance per age group.
 
 <https://chatgpt.com/share/68da6507-0008-8010-857e-bc6e9b76df58> - see
 interpretation of R² differences
-
-```{r}
-output_confounders$predictions <- output_confounders$predictions %>%
-  mutate(predictors = as.factor(predictors),
-         age_group = as.factor(age_group)
-         )
-
-output_confounders$results <- output_confounders$results %>%
-  mutate(predictors = as.factor(predictors),
-         age_group = as.factor(age_group)
-         )
-```
 
 
 ```{r calculate_descr}
