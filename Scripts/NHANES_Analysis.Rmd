@@ -3,7 +3,7 @@ title: "Predictive Modelling of Hearing Effect of Bioage"
 author: "Landy Qu & Tom Naber"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 
-knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, params = "ask", output_file = here::here("Output", "HTML", "NHANES_FI_high_k=15_discrete=FALSE.html"))})
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, params = "ask", output_file = here::here("Output", "HTML", "NHANES_FI_high_k=15_discrete=TRUE_tidytable.html"))})
   
 output:
   html_document:
@@ -82,7 +82,7 @@ params:
     input: numeric   
   run_optional_chunks:
     label: "Run tests and validations"
-    value: TRUE
+    value: FALSE
 ---
 
 # Set-up & Data import
@@ -455,12 +455,20 @@ formula_generator <- function(data,
   folds =   1:length(fold_columns) # get each unique fold number in folds
   formula_list <- list() # initialize a list to store the compiled formulas in
   
+  DF_store <- tibble(
+    predictor = character(),
+    DF = numeric()
+  )
+  
   for (formula in formulas) {
     predictors <- trimws(unlist(strsplit(formula, ","))) # unlist, split by comma, and get rid of white spaces for the current predictors string
     sm_terms <- list()
     
     # make a term for each predictor
     for (predictor in predictors) {
+      if (predictor %in% DF_store$predictor) {
+        DF <- DF_store$DF[DF_store$predictor == predictor]
+      } else {
       DF_list <- list() # initialize a list to store the DF for each fold in
       
       for (rep in fold_columns) {
@@ -469,6 +477,8 @@ formula_generator <- function(data,
         }
       }
       DF <- min(unlist(DF_list)) - 1 # pick the smallest value in the list and subtract 1 to obtain degrees of freedom
+      DF_store <- bind_rows(DF_store, tibble(predictor = predictor, DF = DF)) # Store in list
+      }
       
       if (max_k) {
         k_formula <- DF
@@ -524,10 +534,19 @@ formula_generator <- function(data,
     }
     formula_list <- append(formula_list, paste(params$hearing_var, "~", paste(unlist(sm_terms), collapse = " + "))) # put predictor terms in formula and separate by +
     if (isTRUE(stepdown) && formula == "age") {
-      for (rep in fold_columns) {
-        for (fold in folds) {
-          DF = length(unique(data[data[[rep]] != fold, ][["age"]])) - 1
+      
+      if ("age" %in% DF_store$predictor) {
+        DF <- DF_store$DF[DF_store$predictor == "age"]
+      } else {
+        DF_list <- list()
+        for (rep in fold_columns) {
+          for (fold in folds) {
+            DF_list = append(DF_list, length(unique(data[data[[rep]] != fold, ][["age"]])))
+          }
         }
+        
+        DF <- min(unlist(DF_list)) - 1
+        DF_store <- bind_rows(DF_store, tibble(predictor = "age", DF = DF)) # Store in list
       }
       if (max_k) {
         k_formula <- DF
@@ -555,6 +574,7 @@ formula_generator <- function(data,
               ", bs = 'sz', k = ",
               k_formula,
               ", id = ",
+              
               j,
               ") "
             )
@@ -758,7 +778,7 @@ cross_validation <- function(data,
           train_subset <- train[train$age_group == age_group, ] # subset training data for age group
           
           pred <- predict(mod, newdata = test_subset, type = "response") # use GAM to predict responses in current age group
-          results_list[[index_results]] <- list(
+          results_list[[index_results]] <- tibble(
             predictors = predictors,
             age_group = age_group,
             r = rep,
@@ -770,6 +790,7 @@ cross_validation <- function(data,
           index_results <- index_results + 1L
           
           predicted_list[[index_predicted]] <- test_subset %>%
+            as_tibble() %>%
             mutate(
               predictors = predictors,
               age_group = age_group,
@@ -789,16 +810,14 @@ cross_validation <- function(data,
     mutate(
       predictors = factor(predictors, levels = predictor_combinations),
       age_group = factor(age_group, levels = age_groups)
-    ) %>%
-    as.data.frame() # Factorize and convert to dataframe
+    ) # Factorize
   
   pred_vs_obs <- bind_rows(predicted_list)
   pred_vs_obs <- pred_vs_obs %>%
     mutate(
       predictors = factor(predictors, levels = predictor_combinations),
       age_group = factor(age_group, levels = age_groups)
-    )  %>%
-    as.data.frame() # Factorize and convert to dataframe
+    ) # Factorize
   
   return(list(
     results = results,
@@ -959,7 +978,6 @@ if (isFALSE(params$telolength)) {
     }
   })
 }
-
 ```
 
 #### Build confounder named step-down models
@@ -1469,7 +1487,7 @@ formula_list_test <- formula_generator(
 )
 
 system.time({
-  output_bioage <- cross_validation(
+  output_test <- cross_validation(
     df,
     formula_list_test,
     k = params$global_folds,
