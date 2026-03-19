@@ -52,7 +52,7 @@ params:
     value: FALSE
   load_model_results:
     label: "Load model results and skip refitting"
-    value: TRUE
+    value: FALSE
   keep_models:
     label: "Store actual models (very large filesizes and RAM usage with discrete = TRUE)"
     value: FALSE
@@ -706,7 +706,6 @@ cross_validation <- function(data,
                              confounder_analysis = FALSE) {
   age_groups = c("20-30", "30-40", "40-50", "50-60", "60-70", if (isFALSE(params$telolength)) "70+" else NULL) # initialize age groups to stratify by explicitly
   fold_columns <- paste0("fold_r", 1:repeats) # initialize names of repeat columns to iterate over
-  folds <- k
   
   models <- list() # intialize list of models
   results_list <- list() # Initialize list for results
@@ -773,16 +772,19 @@ cross_validation <- function(data,
         }
         
         # calculate performance per age group
-        for (age_group in age_groups) {
-          test_subset <- test[test$age_group == age_group, ]# subset testing data for age group
-          train_subset <- train[train$age_group == age_group, ] # subset training data for age group
+        for (age_group_val in age_groups) {
+          test_subset <- test %>%
+            filter(age_group == age_group_val)# subset testing data for age group
+          train_subset <- train %>%
+            filter(age_group == age_group_val) # subset training data for age group
           
           pred <- predict(mod, newdata = test_subset, type = "response") # use GAM to predict responses in current age group
           results_list[[index_results]] <- tibble(
             predictors = predictors,
-            age_group = age_group,
+            age_group = age_group_val,
             r = rep,
             k = f,
+            
             n_train = nrow(train_subset),
             n_test = nrow(test_subset),
             mse = mean((test_subset[[params$hearing_var]] - pred)^2) # calculate squared difference between predicted vs real in this age group
@@ -793,7 +795,7 @@ cross_validation <- function(data,
             as_tibble() %>%
             mutate(
               predictors = predictors,
-              age_group = age_group,
+              age_group = age_group_val,
               r = rep,
               k = f,
               predicted = pred
@@ -882,6 +884,7 @@ if (isTRUE(params$store_model_results)) {
   saveRDS(output_bioage, generate_model_path("bioage"), compress = "xz")
 }
 ```
+
 
 ### Model biomarkers
 
