@@ -1472,8 +1472,8 @@ system.time({
   output_bioage <- cross_validation(
     df,
     formula_list_test,
-    k = 10,
-    repeats = 10,
+    k = params$global_folds,
+    repeats = params$global_repeats,
     discrete = params$global_discrete
   )
 })
