@@ -3,7 +3,7 @@ title: "Predictive Modelling of Hearing Effect of Bioage"
 author: "Landy Qu & Tom Naber"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 
-knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, params = "ask", output_file = here::here("Output", "HTML", "NHANES_FI_low_Analysis_k=25_discrete=TRUE.html"))})
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, params = "ask", output_file = here::here("Output", "HTML", "NHANES_FI_high_k=15_discrete=FALSE.html"))})
   
 output:
   html_document:
@@ -82,7 +82,7 @@ params:
     input: numeric   
   run_optional_chunks:
     label: "Run tests and validations"
-    value: FALSE
+    value: TRUE
 ---
 
 # Set-up & Data import
@@ -90,6 +90,7 @@ params:
 ## Import Packages & Set Flags
 
 ```{r setup, include = FALSE, cache = FALSE}
+start_time <- Sys.time()
 knitr::opts_chunk$set(fig.width = 6.4,
                       fig.height = 4.8,
                       dpi = 600,
@@ -125,6 +126,7 @@ library(ragg) # graphics device
 library(here) # for file access
 library(sameplot) # for plotting
 library(haven) # for importing .xpt
+library(tidytable)
 
 source(here("Scripts", "universal_helpers.R"))
 ```
@@ -450,7 +452,7 @@ formula_generator <- function(data,
                               equal_wiggliness = TRUE,
                               stepdown = FALSE) {
   fold_columns <- grep("^fold_r", names(data), value = TRUE) # initialize the repeat columns with folds
-  folds = sort(unique(unlist(data[fold_columns]), use_name = FALSE)) # get each unique fold number in folds
+  folds =   1:length(fold_columns) # get each unique fold number in folds
   formula_list <- list() # initialize a list to store the compiled formulas in
   
   for (formula in formulas) {
@@ -1582,7 +1584,7 @@ calculate_nb_corrected_cis <- function(data, per_age_group) {
   }
   
   summary_data <- data %>%
-    group_by(across(all_of(grouping_variables))) %>%
+    group_by(all_of(grouping_variables)) %>%
     summarize(
       r = length(unique(r)),
       k = length(unique(k)),
@@ -1700,19 +1702,21 @@ calculate_RMSE_R2 <- function(summary_data,
       predictions %>%
         left_join(sample_sizes, by = c(grouping_variables, "r", "k")) %>%
         left_join(mean_hearing_var_df, by = c("predictors", "r", "k")) %>%
-        group_by(across(all_of(
+        group_by(all_of(
           grouping_variables
-        ))) %>%
+        )) %>%
         summarize(
           n_predictions = n(),
           mean_n_train = round(mean(n_train), 1),
           mean_n_test = round(mean(n_test), 1),
           sse = sum((.data[[params$hearing_var]] - predicted) ^ 2),
           sst = sum((.data[[params$hearing_var]] - median(mean_hearing_var)) ^ 2),
-          r2  = 1 - sse / sst,
-          rmse = sqrt(sse / n_predictions),
           .groups = "drop"
-        ) %>% select(-sse, -sst),
+        )
+      %>% mutate(
+          r2  = 1 - sse / sst,
+          rmse = sqrt(sse / n_predictions))
+      %>% select(-sse, -sst),
       by = c(grouping_variables)
     )
   
@@ -1791,6 +1795,7 @@ df_summary_confounders_overall <- calculate_RMSE_R2(
 )
 }
 ```
+
 
 ### Calculate RMSE CIs
 
@@ -2088,8 +2093,9 @@ pwc_age_rate_boundaries <- pwc_age_rate %>%
   summarise(
     x_min = first(age),
     x_max = last(age),
-    `Significantly non-linear age ranges` = paste0(x_min, "–", x_max),
-    .groups = "drop"
+    .groups = "drop") %>%
+  mutate(
+    `Significantly non-linear age ranges` = paste0(x_min, "–", x_max)
   ) %>%
   filter(significant)
 
@@ -2118,7 +2124,7 @@ dependence, we correlate MSE of each metric over the same fold.
 test_correlation <- function(data, grouping_variables, exclusions = NULL) {
   data <- data %>%
     filter(!predictors %in% exclusions) %>%
-    group_by(across(all_of(grouping_variables)), r, k) %>%
+    group_by(all_of(grouping_variables), r, k) %>%
     summarize(
       mse = weighted.mean(mse, w = n_test),
       delta_mse = weighted.mean(delta_mse, w = n_test),
@@ -2448,18 +2454,23 @@ df_summary_bioage_overall <- add_n_age_groups(df, df_summary_bioage_overall, per
 if (isFALSE(params$telolength)) {
 df_summary_biomarkers <- add_n_age_groups(df, df_summary_biomarkers, per_age_group = TRUE)
 df_summary_biomarkers_overall <- add_n_age_groups(df, df_summary_biomarkers_overall, per_age_group = FALSE)
+
+df_summary_confounders <- add_n_age_groups(df, df_summary_confounders, per_age_group = TRUE)
+df_summary_confounders_overall <- add_n_age_groups(df, df_summary_confounders_overall, per_age_group = FALSE)
 }
 ```
 
 ## Confounder model comparison
 
 ```{r}
+if (isFALSE(params$telolength)) {
 anova(output_confounders$models$full, output_confounders$models$full_with_phenoage)
 anova(output_confounders$models$full, output_confounders$models$no_gender)
 anova(output_confounders$models$full, output_confounders$models$no_smoking)
 anova(output_confounders$models$full, output_confounders$models$no_race)
 anova(output_confounders$models$full, output_confounders$models$no_education)
 anova(output_confounders$models$full, output_confounders$models$`no_gender, race`)
+}
 ```
 
 # Visualization
@@ -2761,7 +2772,8 @@ build_confounder_table <- function(data, y = params$hearing_var) {
 
 bind_rows(lapply(variables, function(variable)
   data %>%
-    group_by(age_group, level = .data[[variable]]) %>%
+    mutate(level = .data[[variable]]) %>%
+    group_by(age_group, level) %>%
     summarise(
       mean = mean(.data[[y]], na.rm = TRUE),
       sd   = sd(.data[[y]],   na.rm = TRUE),
@@ -4188,6 +4200,7 @@ sameplot(
 ### Plot Delta mse confounders
 
 ```{r plot_confounders, warning=FALSE}
+if (isFALSE(params$telolength)) {
 p <- df_summary_confounders %>%
   ggplot(aes(x = age_group, y = mean_delta_mse))  +
   geom_hline(
@@ -4318,10 +4331,6 @@ sameplot(
   file = here(
     "Output",
     "Figures",
-    if (isTRUE(params$telolength))
-      paste0(params$hearing_var, "_telolength")
-    else
-      params$hearing_var,
     "confounder_panel.png"
   ),
   width = params$single_column,
@@ -4329,11 +4338,13 @@ sameplot(
   res = 600,
   save = params$save_figures
 ) 
+}
 ```
 
 ### Plot additional variance confounders
 
 ```{r plot_confounders_var, warning=FALSE}
+if (isFALSE(params$telolength)) {
 p <- df_summary_confounders %>%
   ggplot(aes(x = age_group, y = mean_additional_variance))  +
   geom_hline(
@@ -4464,10 +4475,6 @@ sameplot(
   file = here(
     "Output",
     "Figures",
-    if (isTRUE(params$telolength))
-      paste0(params$hearing_var, "_telolength")
-    else
-      params$hearing_var,
     "confounder_panel_var.png"
   ),
   width = params$single_column,
@@ -4475,6 +4482,7 @@ sameplot(
   res = 600,
   save = params$save_figures
 ) 
+}
 ```
 
 
@@ -5523,3 +5531,12 @@ sameplot(
 ) 
 }
 ```
+
+#### End time chunk
+
+```{r}
+end_time <- Sys.time()
+runtime <- end_time - start_time
+cat("Total runtime:", format(runtime), "\n")
+```
+
