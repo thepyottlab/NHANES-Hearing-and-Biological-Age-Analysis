@@ -2797,7 +2797,7 @@ bind_rows(lapply(variables, function(variable)
       sd   = sd(.data[[y]],   na.rm = TRUE),
       .groups = "drop"
     ) %>%
-    mutate(variable = variable, .before = 1)
+    mutate(variable = factor(variable, levels = c("Gender", "Smoking", "Race", "Education")), .before = 1)
 ))
 }
 
