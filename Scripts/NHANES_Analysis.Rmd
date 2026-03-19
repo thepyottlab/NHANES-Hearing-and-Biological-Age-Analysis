@@ -4632,47 +4632,6 @@ gam_gender <- bam(
   family = gaussian()
 )
 
-build_interaction_predictions <- function(df, model, continuous_predictor, factor_predictor) {
-  as.data.frame(confint(
-    emmeans(
-      model,
-      as.formula(paste("~", continuous_predictor, "+", factor_predictor)),
-      at = setNames(list(seq(
-        min(df[[continuous_predictor]]), max(df[[continuous_predictor]]), by = 1
-      )), continuous_predictor)
-      ,
-      type = "response",
-      data = df
-    ),
-    adjust = "mvt"
-  )) %>%
-    rename("estimate" = emmean,
-           "ci_lower" = lower.CL,
-           "ci_upper" = upper.CL)
-}
-
-
-
-build_parametric_derivative_predictions <- function(df, model, predictor) {
-  data.frame(confint(
-    emtrends(
-      model,
-      as.formula(paste("~", predictor)),
-      var = predictor,
-      at = setNames(list(seq(
-        min(df[[predictor]]), max(df[[predictor]]), by = 1
-      )), predictor),
-      data = df
-    ),
-    adjust = "mvt"
-  )) %>%
-    rename(
-      "derivative" = !!paste0(predictor, ".trend"),
-      "ci_lower" = lower.CL,
-      "ci_upper" = upper.CL
-    )
-}
-     
 gender_predictions <- as.data.frame(confint(
     emmeans(
       gam_gender,
