@@ -3,7 +3,7 @@ title: "Predictive Modelling of Hearing Effect of Bioage"
 author: "Landy Qu & Tom Naber"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 
-knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, params = "ask", output_file = here::here("Output", "HTML", "NHANES_FI_high_k=15_discrete=TRUE_tidytable.html"))})
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, params = "ask", output_file = here::here("Output", "HTML", "NHANES_FI_high_k=50_discrete=TRUE.html"))})
   
 output:
   html_document:
