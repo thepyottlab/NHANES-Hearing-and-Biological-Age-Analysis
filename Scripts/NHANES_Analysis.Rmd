@@ -3,7 +3,18 @@ title: "Predictive Modelling of Hearing Effect of Bioage"
 author: "Landy Qu & Tom Naber"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 
-knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, params = "ask", output_file = here::here("Output", "HTML", "NHANES_FI_high_k=50_discrete=TRUE.html"))})
+knit: (function(inputFile, encoding) { 
+      source(here::here('Scripts','rmd_param_knitter.R')); 
+      filename_constructor <- function(params, inputFile) {
+        parts <- c(
+          params$hearing_var,
+          paste0("K=", params$global_k),
+          if (params$global_discrete) "discrete" else NULL,
+          if (params$telolength) "telolength" else NULL,
+          paste0(params$global_repeats, "r×", params$global_folds, "f")
+        );
+        here::here("Output", "HTML", paste(parts, collapse = "_")) };
+      smart_knitter(inputFile, out_path = filename_constructor, auto_close = FALSE) })
   
 output:
   html_document:
@@ -32,13 +43,15 @@ params:
   telolength:
     label: "Analyze telomere length dataset"
     value: FALSE
+    input: checkbox
   global_k:
     label: "K (n BAM base functions)"
     value: 15
     input: numeric
   global_discrete: 
     label: "Discretize BAM (much faster but slightly worse fitting)"
-    value: TRUE
+    value: FALSE
+    input: checkbox
   global_folds: 
     label: "Number of folds"
     value: 10
@@ -50,12 +63,15 @@ params:
   store_model_results:
     label: "Store model results"
     value: FALSE
+    input: checkbox
   load_model_results:
     label: "Load model results and skip refitting"
     value: FALSE
+    input: checkbox
   keep_models:
     label: "Store actual models (very large filesizes and RAM usage with discrete = TRUE)"
     value: FALSE
+    input: checkbox
   confounders:
     label: "List of included confounders (underscore separated)"
     value: "gender_smoking_race_education_gender, race"
@@ -63,15 +79,19 @@ params:
   construct_data:
     label: "Build NHANES dataframe from scratch"
     value: FALSE
+    input: checkbox
   use_kwon_bioage:
     label: "Use bioages calculated by Kwon"
     value: FALSE
+    input: checkbox
   use_advance_bioages:
     label: "Use difference between chronological and biological age only"
     value: FALSE
+    input: checkbox
   save_figures:
     label: "Save figures"
     value: FALSE
+    input: checkbox
   single_column_width:
     label: "Set width of single column figure (inches)"
     value: 3.19
@@ -83,6 +103,7 @@ params:
   run_optional_chunks:
     label: "Run tests and validations"
     value: FALSE
+    input: checkbox
 ---
 
 # Set-up & Data import
@@ -5516,7 +5537,7 @@ sameplot(
 
 ```{r}
 end_time <- Sys.time()
-runtime <- end_time - start_time
+runtime <- round(end_time - start_time, 2)
 cat("Total runtime:", format(runtime), "\n")
 ```
 
