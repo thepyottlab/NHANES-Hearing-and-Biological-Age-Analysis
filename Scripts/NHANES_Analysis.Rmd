@@ -20,7 +20,7 @@ knit:
       here::here("Output", "HTML", paste(parts, collapse = "_"));
     };
   
-    smart_knitter(inputFile, out_path = filename_constructor, auto_close = FALSE, launch_in_browser = FALSE);
+    smart_knitter(inputFile, out_path = filename_constructor);
   })
   
 output:
