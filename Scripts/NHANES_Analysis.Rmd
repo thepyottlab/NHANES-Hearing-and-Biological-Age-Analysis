@@ -3,18 +3,25 @@ title: "Predictive Modelling of Hearing Effect of Bioage"
 author: "Landy Qu & Tom Naber"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 
-knit: (function(inputFile, encoding) { 
-      source(here::here('Scripts','rmd_param_knitter.R')); 
-      filename_constructor <- function(params, inputFile) {
-        parts <- c(
-          params$hearing_var,
-          paste0("K=", params$global_k),
-          if (params$global_discrete) "discrete" else NULL,
-          if (params$telolength) "telolength" else NULL,
-          paste0(params$global_repeats, "r×", params$global_folds, "f")
-        );
-        here::here("Output", "HTML", paste(parts, collapse = "_")) };
-      smart_knitter(inputFile, out_path = filename_constructor, auto_close = FALSE) })
+knit: 
+  (function(inputFile, encoding) { 
+    source(here::here('Scripts','rmd_param_knitter.R'));
+  
+    filename_constructor <- function(params, inputFile) {
+      parts <- c(
+        params$hearing_var,
+        paste0("k=", params$global_k),
+        if (params$global_discrete) "discrete" else NULL,
+        if (params$telolength) "telolength" else NULL,
+        paste0(params$global_repeats, "r×", params$global_folds, "f"),
+        if (params$run_optional_chunks) "incl_optional" else NULL
+      );
+      
+      here::here("Output", "HTML", paste(parts, collapse = "_"));
+    };
+  
+    smart_knitter(inputFile, out_path = filename_constructor, auto_close = FALSE, launch_in_browser = FALSE);
+  })
   
 output:
   html_document:
@@ -46,7 +53,7 @@ params:
     input: checkbox
   global_k:
     label: "K (n BAM base functions)"
-    value: 15
+    value: 50
     input: numeric
   global_discrete: 
     label: "Discretize BAM (much faster but slightly worse fitting)"
@@ -66,7 +73,7 @@ params:
     input: checkbox
   load_model_results:
     label: "Load model results and skip refitting"
-    value: FALSE
+    value: TRUE
     input: checkbox
   keep_models:
     label: "Store actual models (very large filesizes and RAM usage with discrete = TRUE)"
@@ -1841,7 +1848,7 @@ df_summary_confounders_overall <- calculate_RMSE_R2(
 
 ### Calculate RMSE CIs
 
-```{r}
+```{r calc_RMSE_CI}
 compute_rmse_CI <- function(data, summary_data, n_boot, per_age_group = FALSE, confounders = FALSE) {
   ref_var <- if (isTRUE(confounders)) "full" else "age"
   
@@ -3434,12 +3441,7 @@ sameplot(
 
 ### Advance bioage plot
 
-```{r}
-df %>%
-  group_by(age_group) %>%
-  summarize(
-    sd_phenoage_advance = sd(phenoage_advance)
-  ) 
+```{r }
 p <- df %>%
   ggplot(aes(x = age, y = phenoage_advance)) +
     ggridges::geom_density_ridges(aes(x = phenoage_advance, y = age_group))+
