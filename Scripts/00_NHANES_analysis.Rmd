@@ -32,6 +32,7 @@ output:
     df_ppi_print: paged
     highlight: tango
     self_contained: true
+    mode: selfcontained
     fig_width: 7
     fig_height: 4
     code_folding: hide
@@ -140,9 +141,9 @@ options(contrasts = c("contr.sum", "contr.poly"),
 
 run_module <- function(path) {
   if (isTRUE(getOption("knitr.in.progress"))) {
-    cat(knitr::knit_child(path, envir = environment(), quiet = TRUE))
+    cat(knitr::knit_child(path, quiet = TRUE))
   } else {
-    invisible(knitr::knit_child(path, envir = environment(), quiet = TRUE))
+    invisible(knitr::knit_child(path, quiet = TRUE))
   }
 }
 ```
