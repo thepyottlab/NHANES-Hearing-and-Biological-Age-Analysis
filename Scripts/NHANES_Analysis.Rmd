@@ -43,74 +43,91 @@ editor_options:
   
 params:
   hearing_var:
-    label: "Hearing predictor" # predictor variable
+    label: "Hearing predictor variable"
     value: "FI_high"
     input: select
     choices: ["FI_high", "FI_low"]
+    help: "Set predictor variable"
   telolength:
-    label: "Analyze telomere length" # use telolength dataset
-    value: FALSE
+    label: "Analyze telomere length"
     input: checkbox
+    value: FALSE
+    help: "Check to use telolength dataset with smaller N"
   global_k:
-    label: "K (n BAM base functions)" # decides GAM wiggliness
+    label: "K (n BAM base functions)"
     value: 50
     input: numeric
+    help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   global_discrete: 
-    label: "Discretize BAM" # speeds up fitting but performs slightly worse
+    label: "Discretize BAM"
     value: FALSE
     input: checkbox
+    help: "Check to speed up fitting but create larger models that perform a little worse"
   global_folds: 
-    label: "Number of folds" 
+    label: "Number of folds"
     value: 10
     input: numeric
+    help: "Set fold number"
   global_repeats: 
     label: "Number of repeats"
     value: 10
     input: numeric
+    help: "Set repeat number"
   store_model_results:
     label: "Store model results"
     value: FALSE
     input: checkbox
+    help: "Set to save large model results locally for fast reloading"
   load_model_results:
-    label: "Load model results" # skips refitting if model results are present
+    label: "Load model results"
     value: TRUE
     input: checkbox
+    help: "Set to skip refitting of k-fold validation if model results are present"
   keep_models:
-    label: "Store models" # huge filesizes especially with discrete = TRUE
+    label: "Store models"
     value: FALSE
     input: checkbox
+    help: "Set to store models, creating large files and filling memory if discrete = TRUE"
   confounders:
-    label: "Included confounders (underscore separated)"
+    label: "Included confounders"
     value: "gender_smoking_race_education_gender, race"
     input: text
+    help: "Set confounder factor variables and interaction to be included in analysis separated by underscore"
   construct_data:
-    label: "Build NHANES dataframe" # imports data from scratch
+    label: "Build NHANES dataframe"
     value: FALSE
     input: checkbox
+    help: "Set to import NHANES data from online website and build dataframe from scratch"
   use_advance_bioages:
-    label: "Use bioage advance" # use difference between bioage and age to reduce concurvity
+    label: "Use bioage advance"
     value: FALSE
     input: checkbox
+    help: "Set to use difference between bioage and age to reduce concurvity but worsen fitting"
   use_kwon_bioage:
-    label: "Use Kwon bioage" # use bioages calculate by Kwon instead of Landy
+    label: "Use Kwon bioage"
     value: FALSE
     input: checkbox
+    help: "Set to use bioages calculated by Kwon instead of by hand"
   run_optional_chunks:
-    label: "Run tests and validations" # takes a long time extra
+    label: "Run tests and validations"
     value: FALSE
     input: checkbox
+    help: "Set to run tests and validations, which can take a long time to compute"
   save_figures:
     label: "Save figures"
     value: FALSE
     input: checkbox
+    help: "Set to store figures and overwrite old figures"
   single_column_width:
-    label: "Single column figure width (inches)"
+    label: "Single column figure width"
     value: 3.19
     input: numeric
+    help: "Set single column figure width in inches"
   double_column_width:
-    label: "Double column figure width (inches)"
+    label: "Double column figure width"
     value: 6.96
     input: numeric   
+    help: "Set double column figure width in inches"
 ---
 
 # Set-up & Data import
@@ -118,7 +135,6 @@ params:
 ## Import Packages & Set Flags
 
 ```{r setup, include = FALSE, cache = FALSE}
-start_time <- Sys.time()
 knitr::opts_chunk$set(fig.width = 6.4,
                       fig.height = 4.8,
                       dpi = 600,
@@ -132,20 +148,20 @@ knitr::opts_knit$set(root.dir = here::here())
 options(contrasts = c("contr.sum", "contr.poly"))
 
 library(mgcv) # used to train model
-library(MASS) 
+#library(MASS) 
 library(tidyverse) # for general data operations
 library(ggpubr) # for ggarrange()
 library(ggthemes) # for theme_few()
 library(ggtext) # for element_markdown()
 library(kableExtra) # for pretty tables
-library(splines)
-library(ggh4x)
-library(afex)
+#library(splines)
+library(ggh4x) # for element_rect()
+#library(afex)
 library(emmeans) # for pairwise comparisons
-library(car)
-library(correctR)
-library(flextable)
-library(officer)
+#library(car)
+#library(correctR)
+#library(flextable)
+#library(officer)
 library(matrixStats) # used for weighted variance
 library(gratia) # used for derivative coefficients
 library(cowplot) # for combined plots 
@@ -154,7 +170,7 @@ library(ragg) # graphics device
 library(here) # for file access
 library(sameplot) # for plotting
 library(haven) # for importing .xpt
-library(tidytable)
+library(tidytable) # for fast data loading
 
 source(here("Scripts", "universal_helpers.R"))
 ```
@@ -2524,9 +2540,11 @@ anova(output_confounders$models$full, output_confounders$models$`no_gender, race
 
 # Visualization
 
-## Descriptive Tables
+## Tables
 
-### Format table
+#### Descriptives table
+
+#### Format table
 
 Round R² and delta RMSE, rename variables, set p values to bold and to " <
 0.001" when very small.
@@ -2611,7 +2629,7 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-### Order, Filter, and Rename Tables
+#### Order, Filter, and Rename Tables
 
 ```{r order_table}
 rename_bioage_table <- function(bioage_table) {
@@ -2746,7 +2764,7 @@ table_confounders_overall <- rename_confounder_table(table_confounders_overall)
 }
 ```
 
-### Render table
+#### Render table
 
 ```{r store_tables}
 render_and_save_table <- function(table, path) {
@@ -2784,9 +2802,9 @@ render_and_save_table(table_confounders_overall, path = here("Output", "Figures"
 }
 ```
 
-## Confounders table
+### Confounders table
 
-### Build table and recode values
+#### Build table and recode values
 
 ```{r build_conf_table}
 build_confounder_table <- function(data, y = params$hearing_var) {
@@ -2837,7 +2855,7 @@ table_confounders_descriptive <- build_confounder_table(df)
 }
 ```
 
-### Pivot table and merge mean and standard deviation
+#### Pivot table and merge mean and standard deviation
 
 ```{r pivot_conf_table}
 if (isFALSE(params$telolength)) {
@@ -2848,7 +2866,7 @@ table_confounders_descriptive <- table_confounders_descriptive %>%
 }
 ```
 
-### Format table
+#### Format table
 
 ```{r format_Conf_table}
 if (isFALSE(params$telolength)) {
@@ -2863,7 +2881,7 @@ table_confounders_descriptive <- table_confounders_descriptive %>%
 }
 ```
 
-### Save table
+#### Save table
 
 ```{r store_conf_table}
 if (isFALSE(params$telolength)) {
@@ -2871,9 +2889,11 @@ render_and_save_table(table_confounders_descriptive, path = here("Output", "Figu
 }
 ```
 
-## Rate of aging panel
+## Figures
 
-### Plot Rate of Aging
+### Rate of aging panel
+
+#### Plot Rate of Aging
 
 ```{r plot_aging, warning=FALSE}
 p0 <- ggplot() +
@@ -3290,9 +3310,9 @@ sameplot(
 ) 
 ```
 
-## Bioage panel
+### Bioage panel
 
-### Plot Delta mse
+#### Plot Delta mse
 
 ```{r plot_bioage, warning=FALSE}
 p <- df_summary_bioage %>%
@@ -3437,9 +3457,9 @@ sameplot(
 ```
 
 
-## Supplemental Plots
+### Supplemental Plots
 
-### Advance bioage plot
+#### Advance bioage plot
 
 ```{r }
 p <- df %>%
@@ -3526,8 +3546,7 @@ sameplot(
 ) 
 ```
 
-
-### Biomarkers supplemental plots
+#### Biomarkers supplemental plots
 
 ```{r plot_biomarker_all, warning=FALSE}
 if (isFALSE(params$telolength)) {
@@ -3644,9 +3663,9 @@ sameplot(
 }
 ```
 
-## Additional Plots
+### Additional Plots
 
-### Simplified Rate of Aging
+#### Simplified Rate of Aging
 
 ```{r plot_age_rate_simple}
 if (isFALSE(params$telolength)) {
@@ -3993,7 +4012,7 @@ sameplot(
 }
 ```
 
-### Blank rate of aging
+#### Blank rate of aging
 
 ```{r plot_blank_age_rate}
 if (isFALSE(params$telolength)) {
@@ -4239,9 +4258,10 @@ sameplot(
 ) 
 }
 ```
-## Confounders panel
 
-### Plot Delta mse confounders
+### Confounders panel
+
+#### Plot Delta mse confounders
 
 ```{r plot_confounders, warning=FALSE}
 if (isFALSE(params$telolength)) {
@@ -4385,7 +4405,7 @@ sameplot(
 }
 ```
 
-### Plot additional variance confounders
+#### Plot additional variance confounders
 
 ```{r plot_confounders_var, warning=FALSE}
 if (isFALSE(params$telolength)) {
@@ -4529,8 +4549,7 @@ sameplot(
 }
 ```
 
-
-### Plot PhenoAge Only
+#### Plot PhenoAge Only
 
 ```{r plot_phenoage_only, warning=FALSE}
 if (isFALSE(params$telolength)) {
@@ -4645,9 +4664,9 @@ sameplot(
 }
 ```
 
-### Rate of aging gender
+#### Rate of aging gender
 
-#### Calculate gender GAM
+##### Calculate gender GAM
 
 ```{r calc_gender_GAM}
 if (isFALSE(params$telolength)) {
@@ -4694,7 +4713,7 @@ gender_predictions_der <-  data.frame(confint(
 }
 ```
 
-#### Plot rate of aging gender
+##### Plot rate of aging gender
 
 ```{r plot_age_rate_gender}
 if (isFALSE(params$telolength)) {
@@ -5031,9 +5050,9 @@ sameplot(
 }
 ```
 
-### Plot aging means with and without confounders
+#### Plot aging means with and without confounders
 
-#### Plot aging mean without confounders
+##### Plot aging mean without confounders
 
 ```{r plot_aging_mean}
 if (isFALSE(params$telolength)) {
@@ -5100,7 +5119,7 @@ sameplot(
 }
 ```
 
-#### Plot aging mean per gender
+##### Plot aging mean per gender
 
 ```{r plot_gender_aging_mean}
 if (isFALSE(params$telolength)) {
@@ -5174,7 +5193,7 @@ sameplot(
 }
 ```
 
-#### Plot aging mean per race
+##### Plot aging mean per race
 
 ```{r plot_race_aging_mean}
 if (isFALSE(params$telolength)) {
@@ -5233,9 +5252,9 @@ sameplot(
 }
 ```
 
-### Biomarkers
+#### Biomarkers
 
-#### Plot Delta mse Biomarkers (only relevant ones)
+##### Plot Delta mse Biomarkers (only relevant ones)
 
 ```{r plot_biomarkers}
 if (isFALSE(params$telolength)) {
@@ -5369,7 +5388,7 @@ sameplot(
 }
 ```
 
-#### Plot biomarkers together vs biomarkers + phenoage
+##### Plot biomarkers together vs biomarkers + phenoage
 
 ```{r plot_explained_var}
 if (isFALSE(params$telolength)) {
@@ -5507,7 +5526,7 @@ sameplot(
 }
 ```
 
-#### Composite plot
+##### Composite plot
 
 ```{r plot_biomark_panel}
 if (isFALSE(params$telolength)) {
@@ -5534,12 +5553,3 @@ sameplot(
 ) 
 }
 ```
-
-#### End time chunk
-
-```{r}
-end_time <- Sys.time()
-runtime <- round(end_time - start_time, 2)
-cat("Total runtime:", format(runtime), "\n")
-```
-
