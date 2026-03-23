@@ -115,7 +115,7 @@ params:
     help: "Set to run tests and validations, which can take a long time to compute"
   save_figures:
     label: "Save figures"
-    value: FALSE
+    value: TRUE
     input: checkbox
     help: "Set to store figures and overwrite old figures"
   single_column_width:
@@ -147,32 +147,29 @@ knitr::opts_knit$set(root.dir = here::here())
 
 options(contrasts = c("contr.sum", "contr.poly"))
 
-library(mgcv) # used to train model
-#library(MASS) 
-library(tidyverse) # for general data operations
-library(ggpubr) # for ggarrange()
-library(ggthemes) # for theme_few()
-library(ggtext) # for element_markdown()
-library(kableExtra) # for pretty tables
-#library(splines)
-library(ggh4x) # for element_rect()
-#library(afex)
-library(emmeans) # for pairwise comparisons
-#library(car)
-#library(correctR)
-#library(flextable)
-#library(officer)
-library(matrixStats) # used for weighted variance
-library(gratia) # used for derivative coefficients
-library(cowplot) # for combined plots 
-library(data.table) # for speedy dataframes 
+# General
 library(ragg) # graphics device
 library(here) # for file access
-library(sameplot) # for plotting
 library(haven) # for importing .xpt
+
+# Data operations
+library(data.table) # for speedy dataframes 
+library(tidyverse) # for general data operations
 library(tidytable) # for fast data loading
 
-source(here("Scripts", "universal_helpers.R"))
+# Statistics
+library(matrixStats) # used for weighted variance calculation
+library(emmeans) # for pairwise comparisons
+library(mgcv) # used to train model
+
+# Visualization
+library(kableExtra) # for pretty tables
+library(ggthemes) # for theme_few()
+library(ggtext) # for element_markdown()
+library(ggh4x) # for element_rect()
+library(ggpubr) # for ggarrange()
+library(cowplot) # for combined plots 
+library(sameplot) # for plotting consistently
 ```
 
 ## Print params for .md
@@ -5548,7 +5545,6 @@ sameplot(
   width = params$double_column,
   height = 4,
   res = 600,
-  ,
   save = params$save_figures
 ) 
 }
