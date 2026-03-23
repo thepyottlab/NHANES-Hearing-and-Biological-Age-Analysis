@@ -175,18 +175,18 @@ test_correlation <- function(data, grouping_variables, exclusions = NULL) {
   return(p)
 }
 
-test_correlation(df_results_bioage,
+sameplot(test_correlation(df_results_bioage,
                  grouping_variables = "predictors",
-                 exclusions = "age")
+                 exclusions = "age"))
 
-test_correlation(
+sameplot(test_correlation(
   df_results_bioage,
   grouping_variables = c("age_group", "predictors"),
   exclusions = "age"
-)
+))
 
 if (isFALSE(params$telolength)) {
-test_correlation(
+sameplot(test_correlation(
   df_results_biomarkers,
   grouping_variables = "predictors",
   exclusions = c(
@@ -194,10 +194,8 @@ test_correlation(
     "age, phenoage",
     "age, crp, hba1c, albumin_gL",
     "age, crp, hba1c, albumin_gL, phenoage"
-  )
-)
-
-test_correlation(
+  )))
+sameplot(test_correlation(
   df_results_biomarkers,
   grouping_variables = c("age_group", "predictors"),
   exclusions = c(
@@ -205,25 +203,21 @@ test_correlation(
     "age, phenoage",
     "age, crp, hba1c, albumin_gL",
     "age, crp, hba1c, albumin_gL, phenoage"
-  )
-)
+  )))
 
-test_correlation(
+sameplot(test_correlation(
   df_results_confounders,
   grouping_variables = "predictors",
   exclusions = c(
     "full"
-  )
-)
+  )))
 
-test_correlation(
+sameplot(test_correlation(
   df_results_confounders,
   grouping_variables = c("age_group", "predictors"),
   exclusions = c(
     "full"
-  )
-)
-}
+  )))}
 ```
 
 All correlations trend positive. Overall bioage methods have positive
@@ -245,7 +239,7 @@ so we can assume independence and use Hommel.
 
 ### Calculate p-values
 
-Calculate t-statistic according to nadeau bengio, which is` t = m/(√(variance(1/n + n2/n1)))`. m is the difference between the sample mean and
+Calculate t-statistic according to nadeau bengio, which is `t = m/(√(variance(1/n + n2/n1)))`. m is the difference between the sample mean and
 hypothesized population mean. In this case, we've normalized it to age so the
 null hypothesis (the hypothesized population mean) is 0, i.e., there is no
 difference from age only. The variance we already calculated. n is equivalent to

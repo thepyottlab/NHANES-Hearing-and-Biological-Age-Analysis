@@ -12,6 +12,7 @@ library(haven) # for importing .xpt
 library(matrixStats) # used for weighted variance calculation
 library(emmeans) # for pairwise comparisons
 library(mgcv) # used to train model
+library(tidytable) # for fast data loading
 
 # Visualization
 library(kableExtra) # for pretty tables
@@ -25,7 +26,6 @@ library(sameplot) # for plotting consistently
 # Data operations
 library(data.table) # for speedy dataframes 
 library(tidyverse) # for general data operations
-library(tidytable) # for fast data loading
 ```
 
 ## Print params for knitted reports

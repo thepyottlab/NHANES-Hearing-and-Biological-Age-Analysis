@@ -20,7 +20,7 @@ knit:
       here::here("Output", "HTML", paste(parts, collapse = "_"));
     };
   
-    smart_knitter(inputFile, out_path = filename_constructor, auto_close = FALSE);
+    smart_knitter(inputFile, out_path = filename_constructor, auto_close = TRUE);
   })
   
 output:
@@ -32,7 +32,6 @@ output:
     df_ppi_print: paged
     highlight: tango
     self_contained: true
-    mode: selfcontained
     fig_width: 7
     fig_height: 4
     code_folding: hide
@@ -52,7 +51,7 @@ params:
   telolength:
     label: "Analyze telomere length"
     input: checkbox
-    value: FALSE
+    value: TRUE
     help: "Check to use telolength dataset with smaller N"
   global_k:
     label: "K (n BAM base functions)"
@@ -123,7 +122,7 @@ params:
 
 # Set-up
 
-We set graphics device to ragg, set wd to here::here(), set contrasts by default to compare each level to the overall mean as opposed to reference, and import packages. The run_module() function checks if knitting or interactive session is in progress. If knitting, return markdown output, if interactive, only run code in environment.
+We set graphics device to ragg, set wd to here::here(), set contrasts by default to compare each level to the overall mean as opposed to reference, and import packages. The run_module() function checks if knitting or interactive session is in progress. If knitting, return markdown output, if interactive, only run code in environment and print a time message.
 
 ```{r setup, include = FALSE, cache = FALSE}
 knitr::opts_chunk$set(fig.width = 6.4,
@@ -143,7 +142,8 @@ run_module <- function(path) {
   if (isTRUE(getOption("knitr.in.progress"))) {
     cat(knitr::knit_child(path, quiet = TRUE))
   } else {
-    invisible(knitr::knit_child(path, quiet = TRUE))
+    runtime <- system.time(knitr::knit_child(path, quiet = TRUE))
+    cat(basename(path), "completed in", round(runtime["elapsed"], 2),"s.\n")
   }
 }
 ```

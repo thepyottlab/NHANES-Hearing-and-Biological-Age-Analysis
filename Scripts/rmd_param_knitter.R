@@ -119,13 +119,15 @@ smart_knitter <- function(inputFile,
         
         if (isTRUE(rv$running)) { # if rendering, paste chunk in status
           paste(readLines(status_file, warn = FALSE), collapse = "\n")
+        } else if (!is.null(rv$error)) {                         # <-- new branch
+          paste0("Render failed with error:\n", rv$error)
         } else if (!is.null(rv$done_time) && isTRUE(auto_close)) { # if done and auto_close enabled, paste save info and countdown
           elapsed <- as.numeric(difftime(Sys.time(), rv$done_time))
           
           if (elapsed >= 5) {
             shiny::stopApp()
           } # stop after 5 seconds
-          
+        
           paste0(
             "Rendered in ", rv$runtime, " ", attr(rv$runtime, "units"),
             " and saved to:\n", rv$out, "\nApp will close in ",
@@ -203,8 +205,15 @@ smart_knitter <- function(inputFile,
           rv$running <- FALSE
           rv$runtime <- round(difftime(Sys.time(), rv$start_time), 2)
           rv$done_time <- Sys.time()
+          
+          tryCatch(
+            rv$job$get_result(),
+            error = function(e) {
+              rv$error <- conditionMessage(e)
+            }
+          )
         }
-      }) # check if still rendering every second
+      }) # check if still rendering every second, if crash, save error
       
       shiny::observeEvent(input$exit, {
         shiny::stopApp()
