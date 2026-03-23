@@ -1,0 +1,87 @@
+# Data Preprocessing
+
+## Unpack confounders list
+
+We take the param value for confounders and build one lists with all included interactions with age and one with just the variables
+
+```{r confounder_list}
+confounder_interactions <- trimws(strsplit(params$confounders, "_")[[1]])
+confounder_vars <- confounder_interactions[!grepl(",", confounder_interactions)]
+```
+
+## Remove Unnecessary Columns & Rename
+
+We filter out education level 9 because there are only 2 occurrences. Smoking
+has more than 2 levels but we only need two. Race 1 (Mexican American) and 2
+(other Hispanic) are merged. Income could be added but we'd have to exclude 12,
+13, 77, 99 and missing. 12 is over 20k, 13 is under 20k, 77 is refused and 99 is
+don't know. This would drop the size of the data set by about 20%.
+
+Code levels: **Smoking** 1. Smoker (L1) 2. Non-smoker L2) 7. Refused 9. Don't
+know **Gender** 1. Male (L1) 2. Female (L2) **Race** 1. Mexican/other Hispanic
+(L1) 3. White (L2) 4. Black (L3) 5. Other (L4) **Education** 1. Less than 9th
+grade (L1) 2. 9-11th grade (includes 12th grade with no diploma) (L2) 3. High
+school (L3) 4. Some college or AA degree (L4) 5. College graduate or above 7.
+Refused 9. Don't know
+
+```{r format_df}
+df <- df_raw %>%
+  select(
+    age,
+    all_of(confounder_vars),
+    kdm,
+    phenoage,
+    hd_log,
+    telolength,
+    all_of(params$hearing_var),
+    albumin_gL,
+    alp,
+    bun,
+    creat,
+    crp,
+    glucose,
+    hba1c,
+    lymph,
+    mcv,
+    rdw,
+    sbp,
+    totchol,
+    wbc,
+    uap
+  ) %>%
+  filter(education != 9, smoking %in% c(1, 2)) %>%
+  mutate(
+    gender = factor(gender),
+    smoking = factor(smoking),
+    race = case_when(race == 2 ~ 1, TRUE ~ race),
+    race = factor(race),
+    education = factor(education),
+    phenoage_advance = phenoage-age)
+```
+
+## Optionally only include telolength rows
+
+```{r telolength_only}
+if (isTRUE(params$telolength)) {
+  df <- df %>%
+    filter(
+      !is.na(telolength)
+    )
+}
+```
+
+
+## Prepare age group column
+
+```{r set_age_groups}
+df <- df %>% mutate(
+  age_group = case_when(
+    age >= 20 & age < 30 ~ "20-30",
+    age >= 30 & age < 40 ~ "30-40",
+    age >= 40 & age < 50 ~ "40-50",
+    age >= 50 & age < 60 ~ "50-60",
+    age >= 60 & age < 70 ~ "60-70",
+    isFALSE(params$telolength) & age >= 70 ~ "70+",
+  ), confounders = interaction(gender, smoking)
+)
+```

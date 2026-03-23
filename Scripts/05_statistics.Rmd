@@ -1,0 +1,485 @@
+# Statistics
+
+## Assess Rate of Aging
+
+### Compare Linear vs Quadratic vs Smooth Age Fits
+
+We do a partial F-test to compare a full model with a constrained model, to see if the added term significantly improves fit.
+
+```{r compare_aging_models}
+anova(
+  output_age_rate$models$linear,
+  output_age_rate$models$quadratic
+)
+
+anova(
+  output_age_rate$models$quadratic,
+  output_age_rate$models$smooth
+)
+
+c(linear = sqrt(mean(
+  residuals(output_age_rate$models$linear, type = "response") ^ 2
+)),quadratic = sqrt(mean(
+  residuals(output_age_rate$models$quadratic, type = "response") ^ 2
+)), smooth = sqrt(mean(
+  residuals(output_age_rate$models$smooth, type = "response") ^ 2
+))) %>% kable("html", caption = "RMSE (In-Sample)") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+```
+
+*We see that the quadratic curve fits better than the linear one, so the rate of
+aging is not linear, and the smooth curve fits better than the quadratic one, so there are deviations from a quadratic pattern*
+
+### Assess Where Rate of Aging Differs
+
+By taking the derivative of the full model (with smooth) and subtracting the derivative of the nested quadratic model, we can test against zero to test deviations from a quadratic pattern.
+
+When making a smooth (or linear) model, we
+fit a line to noisy data as best we can, but other lines with different
+coefficients might fit almost as well and be better for some data points then
+for others. Therefore, there is an uncertainty. We can say that, for example,
+the best-guess slope is 5 (5 increase fletcher index per year). But because the
+data is noisy, assuming a normal distribution, we know that the true slope that
+would actually fit the sampling population may be something different within a
+certain range of uncertainty (say, 2), which we can express as a standard error.
+When figuring out the derivative, we inherent this uncertainty. This standard
+error is what we can use to assess the likelihood of the null-hypothesis:
+
+H0: The rate of aging is quadratic, so the GAM derivative minus the quadratic coefficients equals 0. H1: The rate of aging is non-quadratic, so the GAM derivative minus the quadratic coefficients is not 0.
+
+With a p-value of 0.05, we can say that if we randomly sample 100 times from the
+population and the rate of aging IS linear, then 5 times we'll see a significant
+non-zero smooth term.
+
+Depending on the variation/noise in the data, the smooth term derivative needs
+to be larger or smaller compared to 0 to get a p-value of 0.05. If the variation
+in the data is higher, the standard error is higher, and the derivative of the
+smooth term must be higher to get a p-value of 0.05 or lower.
+
+Of course, we want to know at which age ranges we have a non-zero slope, so we
+can either test for each 10 year age group or test for each individual age
+integer with correct pairwise comparison corrections.
+
+A two-tailed p-value can be calculated when we know a z-score, which is
+calculated as sample mean - hypothesized mean divided by the standard error. The
+hypothesized mean is 0. For a two-tailed t-test, we then take `2 * pnorm(abs(z_score), lower.tail = FALSE)`. If we'd want to only know the left
+tail, we'd use `lower.tail = TRUE`.
+
+Because the t-tests are dependent and are likely to be either higher or lower
+when one is higher (because ages are adjacent and the aging rate can be either
+higher or lower), we should use Holm's correction.
+
+To identify significant boundaries, check which pairwise comparisons are
+significant, then check if the previous row was significant, then whenever a row
+is significant but the previous one was, change the value by 1 (using cumsum),
+or if the previous row was not significant but the current one is, also change
+by 1 to identify stretches. Then take the first and last values of the stretches
+to identify boundaries. Only keep the significant stretches.
+
+```{r find_sig_ages}
+pwc_age_rate <- output_age_rate$predictions$derivative_smooth %>%
+  mutate(
+    z_score = derivative_adj / SE,
+    p = 2 * pnorm(abs(z_score), lower.tail = FALSE),
+    p_adj = p.adjust(p, method = "holm"),
+    signif = case_when(
+      p_adj <= 0.001 ~ "***",
+      p_adj <= 0.01 ~ "**",
+      p_adj <= 0.05 ~ "*",
+      TRUE ~ "ns"
+    )) %>%
+  select(age, derivative, ci_lower, ci_upper, derivative_adj, ci_lower_adj, ci_upper_adj, p, p_adj, signif)
+
+pwc_age_rate_boundaries <- pwc_age_rate %>%
+  mutate(significant = (p_adj < 0.05),
+         run = cumsum(significant != lag(significant, default = first(significant)))) %>%
+  group_by(run, significant) %>%
+  summarise(
+    x_min = first(age),
+    x_max = last(age),
+    .groups = "drop") %>%
+  mutate(
+    `Significantly non-linear age ranges` = paste0(x_min, "–", x_max)
+  ) %>%
+  filter(significant)
+
+pwc_age_rate_boundaries %>%
+        select(`Significantly non-linear age ranges`) %>% kable("html", caption = "Boundaries") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+```
+
+## Repeated Nadeau-Bengio Corrected T-Tests
+
+### Check dependence
+
+Holm error correction is the best method to control family-wise error rate when
+comparisons are negatively dependent. However, if tests are either independent
+or positively dependent, we can use Hommel, which has more power. To test
+dependence, we correlate MSE of each metric over the same fold.
+
+```{r assess_cor}
+test_correlation <- function(data, grouping_variables, exclusions = NULL) {
+  data <- data %>%
+    filter(!predictors %in% exclusions) %>%
+    group_by(all_of(grouping_variables), r, k) %>%
+    summarize(
+      mse = weighted.mean(mse, w = n_test),
+      delta_mse = weighted.mean(delta_mse, w = n_test),
+      additional_variance = weighted.mean(additional_variance, w = n_test),
+      n_train = sum(n_train),
+      n_test = sum(n_test),
+      .groups = "drop"
+    ) %>%
+    unite("interaction_column", all_of(grouping_variables), sep = "_") %>%
+    mutate(n = (r - 1) * 10 + k) %>%
+    select(n, interaction_column, delta_mse) %>%
+    pivot_wider(names_from = interaction_column, values_from = delta_mse) %>%
+    select(-n)
+  
+  correlation_df <- as.data.frame(cor(data, use = "pairwise.complete.obs"))
+  
+  eps = 0.2
+  
+  upper_indices <- which(upper.tri(correlation_df), arr.ind = TRUE)
+  
+  df_long <- tibble(
+    row = rownames(correlation_df)[upper_indices[, 1]],
+    col = colnames(correlation_df)[upper_indices[, 2]],
+    values = correlation_df[upper_indices]
+  )
+  
+  p <- ggplot(df_long, aes(values)) +
+      geom_density(alpha = 0.15) +
+      geom_vline(
+        xintercept = c(-eps, eps),
+        colour = "red",
+        linetype = "dashed"
+      ) + theme_few() + labs(title =  paste0("Mean correlation: ", round(
+        mean(correlation_df[upper.tri(correlation_df)], na.rm = TRUE), 2
+      )))
+  
+  return(p)
+}
+
+test_correlation(df_results_bioage,
+                 grouping_variables = "predictors",
+                 exclusions = "age")
+
+test_correlation(
+  df_results_bioage,
+  grouping_variables = c("age_group", "predictors"),
+  exclusions = "age"
+)
+
+if (isFALSE(params$telolength)) {
+test_correlation(
+  df_results_biomarkers,
+  grouping_variables = "predictors",
+  exclusions = c(
+    "age",
+    "age, phenoage",
+    "age, crp, hba1c, albumin_gL",
+    "age, crp, hba1c, albumin_gL, phenoage"
+  )
+)
+
+test_correlation(
+  df_results_biomarkers,
+  grouping_variables = c("age_group", "predictors"),
+  exclusions = c(
+    "age",
+    "age, phenoage",
+    "age, crp, hba1c, albumin_gL",
+    "age, crp, hba1c, albumin_gL, phenoage"
+  )
+)
+
+test_correlation(
+  df_results_confounders,
+  grouping_variables = "predictors",
+  exclusions = c(
+    "full"
+  )
+)
+
+test_correlation(
+  df_results_confounders,
+  grouping_variables = c("age_group", "predictors"),
+  exclusions = c(
+    "full"
+  )
+)
+}
+```
+
+All correlations trend positive. Overall bioage methods have positive
+dependence, so we can use Hommel, for the other comparisons, correlations center
+at 0 and are either mildly positively dependent or independent. There are some
+negative correlations but practically all are between -0.25 and 0.25, so there
+is probably no violation of the positive regression dependency in which it is
+unlikely that an increase in one test statistic would lead to a decrease in
+another. This also makes sense for bioage models. If phenoage works, kdm may
+also work a little, because they are based on the same blood markers. Similarly,
+if we get positive predictive value from one bioage method in one age group, it
+probably positively affects predictive power in another age group. For
+biomarkers, an increase in predictive power of one marker doesn't per se affect
+another. If one of two closely-related biomarkers has higher predictive power,
+it doesn't mean the other one won't. The only way to get a negative outcome is
+to get overfitting, and I don't see in which scenario a higher predictive power
+in one biomarker would increase the odds of overfitting for another biomarker,
+so we can assume independence and use Hommel.
+
+### Calculate p-values
+
+Calculate t-statistic according to nadeau bengio, which is` t = m/(√(variance(1/n + n2/n1)))`. m is the difference between the sample mean and
+hypothesized population mean. In this case, we've normalized it to age so the
+null hypothesis (the hypothesized population mean) is 0, i.e., there is no
+difference from age only. The variance we already calculated. n is equivalent to
+the number of folds times the number of repeats. n2 is the number of
+testing/validation data and n1 the number of training data. We then calculate
+degrees of freedom by taking n - 1. Then we use pt (which automatically
+calculates the critical value) using a one-tailed t-test of the upper tail. This
+is because we're not interested in whether an age + bioage model is different
+from age-only. We only want to know if its better. We then adjust p values with
+Hommel or Holm error correction.
+
+First, the question is, 'Does this bioage/biomarker add predictive value for
+hearing loss in the population while controlling for chronological age?', which
+we test with the overall comparisons. Only if it's significantly different do we
+look at per age-group tests, also to control power. Another option is to ask
+'Might bioage/biomarker only matter for specific age ranges, even if it doesn't
+have an overall predictive effect?', in which case we could consider doing
+pairwise on all, but we'd lose a lot of power and would have to use FDR and
+accept a 5% false discovery rate to salvage it.
+
+The CorrectR library has an implementation of the Nadeau-Bengio corrected t-test
+(with support for repeated k-fold validations), but this makes the false
+assumption that fold sizes are always equal, so there's a small error in
+calculation of the sample mean and variance. The sample mean and variance should
+be weighted by fold size. This gets relevant for age-group delta MSEs, because
+for the 50-60 age group, some folds have a test size of 99 and others of 98.
+That means that some folds weigh 1% more than another. Not correcting for that
+could make the difference between significant or not signficant.
+
+```{r t_test_models}
+nb_corrected_repeated_t_test <- function(summary_data,
+                                         exceptions = NULL,
+                                         exception_include_exclude,
+                                         adjust_method) {
+  if (exception_include_exclude == "include") {
+    summary_data <- summary_data %>%
+      filter(predictors %in% exceptions)
+  } else {
+    summary_data <- summary_data %>%
+      filter(!predictors %in% exceptions)
+  }
+  
+  summary_data <- summary_data %>%
+    mutate(
+      t = mean_delta_mse / (sqrt(
+        s2_delta_mse * (1 / n + sum_n_test / sum_n_train)
+      )),
+      df = n - 1,
+      p = pt(t, df = df, lower.tail = FALSE),
+      p_adj = p.adjust(p, method = adjust_method),
+      signif = case_when(
+        p_adj <= 0.001 ~ "***",
+        p_adj <= 0.01 ~ "**",
+        p_adj <= 0.05 ~ "*",
+        TRUE ~ "ns"
+      )
+    ) %>%
+    select(-t, -df, -p, -s2_delta_mse, -sum_n_test, -sum_n_train, -n)
+  
+  return(summary_data)
+}
+
+pwc_bioage_overall <- nb_corrected_repeated_t_test(
+  df_summary_bioage_overall,
+  exceptions = "age",
+  exception_include_exclude = "exclude",
+  adjust_method = "holm"
+)
+
+pwc_bioage <- nb_corrected_repeated_t_test(
+  df_summary_bioage,
+  exceptions = "age, phenoage",
+  exception_include_exclude = "include",
+  adjust_method = "holm"
+)
+
+if (isFALSE(params$telolength)) {
+pwc_biomarkers_overall <- nb_corrected_repeated_t_test(
+  df_summary_biomarkers_overall,
+  exceptions = c(
+    "age",
+    "age, phenoage",
+    "age, crp, hba1c, albumin_gL",
+    "age, crp, hba1c, albumin_gL, phenoage"
+  ),
+  exception_include_exclude = "exclude",
+  adjust_method = "holm"
+)  %>%
+  arrange(p_adj)
+
+pwc_biomarkers <- nb_corrected_repeated_t_test(
+  df_summary_biomarkers,
+  exceptions = c("age",
+    "age, phenoage",
+    "age, crp, hba1c, albumin_gL",
+    "age, crp, hba1c, albumin_gL, phenoage"),
+  exception_include_exclude = "exclude",
+  adjust_method = "holm"
+)
+
+pwc_confounders_overall <- nb_corrected_repeated_t_test(
+  df_summary_confounders_overall,
+  exceptions = c(
+    "full"
+  ),
+  exception_include_exclude = "exclude",
+  adjust_method = "holm"
+)  %>%
+  arrange(p_adj)
+
+pwc_confounders <- nb_corrected_repeated_t_test(
+  df_summary_confounders,
+  exceptions = c("full", "full_with_phenoage"),
+  exception_include_exclude = "exclude",
+  adjust_method = "holm"
+)
+}
+
+pwc_bioage_overall %>% kable("html", caption = "Overall Bioage Pairwise Comparisons") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+
+if (isFALSE(params$telolength)) {
+pwc_biomarkers_overall %>% kable("html", caption = "Overall Biomarker Pairwise Comparisons") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+  
+pwc_confounders_overall %>% kable("html", caption = "Overall Confounder Pairwise Comparisons") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 12,
+    fixed_thead = TRUE
+  ) %>%
+  scroll_box(width = "100%", height = "400px")
+}
+```
+
+### Add p-values to summary dataframe
+
+```{r add_p_vals}
+import_p_values <- function(summary_data, pwc_data, per_age_group) {
+  if (per_age_group) {
+    grouping_variables <- c("predictors", "age_group")
+  } else {
+    grouping_variables <- c("predictors")
+  }
+  
+  updated_summary_data <- summary_data %>%
+    left_join(pwc_data %>%
+                select(all_of(grouping_variables), p_adj, signif), by = c(grouping_variables)) %>%
+    mutate(
+      p_adj = as.character(p_adj),
+      p_adj = case_when(signif == "ns" ~ "ns", is.na(p_adj) ~ "ns", TRUE ~ p_adj),
+      signif = case_when(is.na(signif) ~ "ns", TRUE ~ signif)
+    )
+  
+  return(updated_summary_data)
+}
+
+df_summary_bioage <- import_p_values(df_summary_bioage, pwc_bioage, per_age_group = TRUE)
+df_summary_bioage_overall <- import_p_values(df_summary_bioage_overall,
+                                             pwc_bioage_overall,
+                                             per_age_group = FALSE)
+
+if (isFALSE(params$telolength)) {
+df_summary_biomarkers <- import_p_values(df_summary_biomarkers, pwc_biomarkers, per_age_group = TRUE)
+df_summary_biomarkers_overall <- import_p_values(df_summary_biomarkers_overall,
+                                                 pwc_biomarkers_overall,
+                                                 per_age_group = FALSE)
+
+df_summary_confounders <- import_p_values(df_summary_confounders, pwc_confounders, per_age_group = TRUE)
+df_summary_confounders_overall <- import_p_values(df_summary_confounders_overall,
+                                                 pwc_confounders_overall,
+                                                 per_age_group = FALSE)
+}
+```
+
+**It doesn't matter whether we use holm or hommel, so perhaps we should use hommel.**
+
+### Add raw Ns to dataframe
+
+```{r add_n}
+add_n_age_groups <- function(data, summary_data, per_age_group) {
+  if (per_age_group) {
+    summary_data <- summary_data %>%
+      rename("n_folds_repeats" = n) %>%
+      left_join(data %>% select(age_group) %>%
+                  group_by(age_group) %>%
+                  summarize(n = n()),
+                by = "age_group")
+  } else {
+    summary_data <- summary_data %>%
+      rename("n_folds_repeats" = n) %>%
+      mutate(n = nrow(data))
+  }
+  
+  return(summary_data)
+}
+
+df_summary_bioage <- add_n_age_groups(df, df_summary_bioage, per_age_group = TRUE)
+df_summary_bioage_overall <- add_n_age_groups(df, df_summary_bioage_overall, per_age_group = FALSE)
+
+if (isFALSE(params$telolength)) {
+df_summary_biomarkers <- add_n_age_groups(df, df_summary_biomarkers, per_age_group = TRUE)
+df_summary_biomarkers_overall <- add_n_age_groups(df, df_summary_biomarkers_overall, per_age_group = FALSE)
+
+df_summary_confounders <- add_n_age_groups(df, df_summary_confounders, per_age_group = TRUE)
+df_summary_confounders_overall <- add_n_age_groups(df, df_summary_confounders_overall, per_age_group = FALSE)
+}
+```
+
+## Confounder model comparison
+
+```{r}
+if (isFALSE(params$telolength)) {
+anova(output_confounders$models$full, output_confounders$models$full_with_phenoage)
+anova(output_confounders$models$full, output_confounders$models$no_gender)
+anova(output_confounders$models$full, output_confounders$models$no_smoking)
+anova(output_confounders$models$full, output_confounders$models$no_race)
+anova(output_confounders$models$full, output_confounders$models$no_education)
+anova(output_confounders$models$full, output_confounders$models$`no_gender, race`)
+}
+```

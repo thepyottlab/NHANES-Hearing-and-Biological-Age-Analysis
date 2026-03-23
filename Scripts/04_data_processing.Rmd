@@ -1,0 +1,506 @@
+# Data Processing
+
+## Process Result Comparison dfs
+
+### Reformat df, Calculate Delta MSE Bioage, and set data types
+
+We flip the sign for confounder analysis `delta_mse` and `additional_variance` when we subtract a variable. 
+
+```{r reformat_df}
+reformat_df <- function(data) {
+  reformatted_data <- data$results %>%
+    left_join(
+      data$results %>%
+        filter(if ("age" %in% data$results$predictors) {
+          predictors == "age"
+        } else {
+          predictors == "full"
+        }) %>%
+        mutate(mse_age = mse) %>%
+        select(-mse, -predictors, -n_train, -n_test),
+      by = c("age_group", "r", "k")
+    ) %>%
+    mutate(
+      delta_mse = mse_age - mse,
+      additional_variance = delta_mse / mse_age * 100,
+      fold_repeat_id = factor(interaction(r, k)),
+    )
+  
+  if ("full" %in% data$results$predictors) {
+    reformatted_data <- reformatted_data %>% rename("mse_full" = mse_age) %>%
+      mutate(
+        delta_mse = case_when(
+          !predictors %in% c("full", "full_with_phenoage") ~ delta_mse * -1,
+          TRUE ~ delta_mse
+        ),
+        additional_variance = case_when(
+          !predictors %in% c("full", "full_with_phenoage") ~ additional_variance * -1,
+          TRUE ~ additional_variance
+        )
+      )
+  }
+  return(reformatted_data)
+}
+
+df_results_bioage <- reformat_df(output_bioage)
+
+if (isFALSE(params$telolength)) {
+  df_results_biomarkers  <- reformat_df(output_biomarkers)
+  df_results_confounders <- reformat_df(output_confounders)
+}
+```
+
+### Calculate CI
+
+For the overall, non-age-group-stratified summary statistics, we first calculate
+mse per fold by weighting the age groups. Then, we calculate the number of
+repeats and folds, the mse of each outcome variable (weighted per number of
+observations, which produces a small difference over unweighted because the
+n_test per fold differs by 1 at most), and the variance of mse `s2_mse`, also
+weighted per n_test, grouped by predictors and possibly age group.
+
+The Nadeau Bengio corrected t-test estimates variance using the training and
+testing dataset sizes, because cross validations are not independent, violating
+the assumption of a paired t-test, inflating type 1 errors (false positives). We
+can use the corrected variance estimate for the confidence intervals too. First,
+we calculate t-crit using degrees of freedom (n-1). The t-test should be
+one-tailed because we only want to know if age + bioage is better than age, not
+if one is worse/different, so then a tcrit of 0.05 is appropriate, but for the
+confidence intervals we want to know whether the true mean is within 95% of the
+sample mean, not just where the true mean would be if it would only be above.
+The variance is used based on `n_train` and `n_test`. It doesn't matter whether
+we use the mean n per fold or the total over all folds because the ratio is the
+same.
+
+In <https://www.jmlr.org/papers/volume6/markatou05a/markatou05a.pdf>, Analysis of
+Variance of Cross-Validation Estimators of the Generalization Error, the authors
+also report the variance estimate as `S² * (1/J + n2/n1)`, where `S2` is the
+variance (squared standard deviation), `J` is the total number of folds, `n2` is the
+validation/test set and `n1` is the training set size. They also show that when `J`
+is appropriate (`10*10`), it provides a good variance estimate. Variance is
+already in squared units, as its just the square of the standard deviation.
+
+```{r calculate_ci}
+calculate_nb_corrected_cis <- function(data, per_age_group) {
+  if (per_age_group) {
+    grouping_variables <- c("predictors", "age_group")
+  } else {
+    grouping_variables <- c("predictors")
+  }
+  
+  if (!per_age_group) {
+    data <- data %>%
+      group_by(predictors, r, k) %>%
+      summarize(
+        mse = weighted.mean(mse, w = n_test),
+        delta_mse = weighted.mean(delta_mse, w = n_test),
+        additional_variance = weighted.mean(additional_variance, w = n_test),
+        n_train = sum(n_train),
+        n_test = sum(n_test),
+        .groups = "drop"
+      )
+  }
+  
+  summary_data <- data %>%
+    group_by(all_of(grouping_variables)) %>%
+    summarize(
+      r = length(unique(r)),
+      k = length(unique(k)),
+      mean_mse = weighted.mean(mse, w = n_test),
+      mean_delta_mse = weighted.mean(delta_mse, w = n_test),
+      mean_additional_variance = weighted.mean(additional_variance, w = n_test),
+      s2_mse = weightedVar(mse, w = n_test),
+      s2_delta_mse = weightedVar(delta_mse, w = n_test),
+      s2_additional_variance = weightedVar(additional_variance, w = n_test),
+      sum_n_train = sum(n_train),
+      sum_n_test = sum(n_test),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      n = r * k,
+      df = n - 1,
+      t_crit = qt(1 - 0.025, df),
+      ci_low_mse = mean_mse - t_crit * (sqrt(s2_mse * (
+        1 / n + sum_n_test / sum_n_train
+      ))),
+      ci_high_mse = mean_mse + t_crit * (sqrt(s2_mse * (
+        1 / n + sum_n_test / sum_n_train
+      ))),
+      ci_low_delta_mse = mean_delta_mse - t_crit * (sqrt(
+        s2_delta_mse * (1 / n + sum_n_test / sum_n_train)
+      )),
+      ci_high_delta_mse = mean_delta_mse + t_crit * (sqrt(
+        s2_delta_mse * (1 / n + sum_n_test / sum_n_train)
+      )),
+      ci_low_additional_variance = mean_additional_variance - t_crit * (sqrt(
+        s2_additional_variance * (1 / n + sum_n_test / sum_n_train)
+      )),
+      ci_high_additional_variance = mean_additional_variance + t_crit * (sqrt(
+        s2_additional_variance * (1 / n + sum_n_test / sum_n_train)
+      ))
+    ) %>% select(-r, -k, -s2_mse, -s2_additional_variance, -df, -t_crit)
+  
+  return(summary_data)
+}
+
+df_summary_bioage <- calculate_nb_corrected_cis(df_results_bioage, per_age_group = TRUE)
+df_summary_bioage_overall <- calculate_nb_corrected_cis(df_results_bioage, per_age_group = FALSE)
+
+if (isFALSE(params$telolength)) {
+df_summary_biomarkers <- calculate_nb_corrected_cis(df_results_biomarkers, per_age_group = TRUE)
+df_summary_biomarkers_overall <- calculate_nb_corrected_cis(df_results_biomarkers, per_age_group = FALSE)
+
+df_summary_confounders <- calculate_nb_corrected_cis(df_results_confounders, per_age_group = TRUE)
+df_summary_confounders_overall <- calculate_nb_corrected_cis(df_results_confounders, per_age_group = FALSE)
+}
+```
+
+### Calculate R2 and RMSE
+
+**Calculating descriptives**: First we import `n_train` and `n_test` from the
+results dataframe per fold, either grouped or not grouped by `age_group`. If
+grouped by `age_group`, we can import directly because the results dataframe is
+already binned by age group. Then, we import the mean Fletcher Index from the
+whole prediction dataset for each model/set of predictors, repeat, and fold. As
+a sanity check, because each model should have the same folds and repeats, I
+checked whether the mean Fletcher Index is always the same at repeat 1 fold 1
+(it is). The mean FI is then called in the summarize function using median(),
+which gives the same result as mean(), because all predicted/real values within
+a model, fold, and repeat have the same `mean_FI`, as told by the left_join
+function. Thereafter, we group over the 100 (10x10) folds per model to calculate
+the total number of predictions (on the testing data), the mean training data
+size, mean testing data size, R² (using sum of squares), MSE, and RMSE. For
+RMSE, we could either calculate it using `sqrt(mse)` or `sqrt(sse/n_predictions)`.
+It gives the same result.
+
+**Total sum of squares calculation when binning R² per age group**: It's
+imperative that for the age group stratified descriptives, the global mean is
+used. Otherwise it's as if the total sum of squares is calculated within each
+age-bin, which is as if a linear regression is fitted through the mean Fletcher
+Index per age group, explaining a lot of variation while it shouldn't. We want
+to assess the predictive effect on age, so the total sum of squares should be
+calculated by taking the distance from each Fletcher Index within an age group
+to the global mean. Of course, the models are trained on the whole dataset, not
+just one age group. We're just assessing performance per age group.
+
+<https://chatgpt.com/share/68da6507-0008-8010-857e-bc6e9b76df58> - see
+interpretation of R² differences
+
+
+```{r calculate_descr}
+calculate_RMSE_R2 <- function(summary_data,
+                              results_data,
+                              predictions,
+                              per_age_group) {
+  if (per_age_group) {
+    grouping_variables <- c("predictors", "age_group")
+  } else {
+    grouping_variables <- c("predictors")
+  }
+  
+  if (!per_age_group) {
+    results_data <- results_data %>%
+      group_by(predictors, r, k) %>%
+      summarize(
+        n_train = sum(n_train),
+        n_test = sum(n_test),
+        .groups = "drop"
+      )
+  }
+  
+  sample_sizes <- results_data %>%
+    select(all_of(grouping_variables), r, k, n_train, n_test)
+  
+  mean_hearing_var_df <- predictions %>%
+    group_by(predictors, k, r) %>%
+    summarize(mean_hearing_var = mean(.data[[params$hearing_var]]), .groups = "drop")
+  
+  updated_summary_data <- summary_data %>%
+    left_join(
+      predictions %>%
+        left_join(sample_sizes, by = c(grouping_variables, "r", "k")) %>%
+        left_join(mean_hearing_var_df, by = c("predictors", "r", "k")) %>%
+        group_by(all_of(
+          grouping_variables
+        )) %>%
+        summarize(
+          n_predictions = n(),
+          mean_n_train = round(mean(n_train), 1),
+          mean_n_test = round(mean(n_test), 1),
+          sse = sum((.data[[params$hearing_var]] - predicted) ^ 2),
+          sst = sum((.data[[params$hearing_var]] - median(mean_hearing_var)) ^ 2),
+          .groups = "drop"
+        )
+      %>% mutate(
+          r2  = 1 - sse / sst,
+          rmse = sqrt(sse / n_predictions))
+      %>% select(-sse, -sst),
+      by = c(grouping_variables)
+    )
+  
+  if (per_age_group) {
+    updated_summary_data <- updated_summary_data %>%
+      left_join(
+        updated_summary_data %>%
+          filter(if ("age" %in% summary_data$predictors) {
+            predictors == "age"
+          } else {
+            predictors == "full"
+          }) %>%
+          mutate(rmse_age = rmse) %>%
+          select(age_group, rmse_age),
+        by = c("age_group")
+      ) %>%
+      mutate(delta_rmse = rmse_age - rmse) %>%
+      select(-rmse_age)
+  } else {
+    updated_summary_data <- updated_summary_data %>% cross_join(
+      updated_summary_data %>%
+     filter(if ("age" %in% summary_data$predictors) {
+            predictors == "age"
+          } else {
+            predictors == "full"
+          }) %>%
+        mutate(rmse_age = rmse) %>%
+        select(rmse_age)
+    ) %>%
+      mutate(delta_rmse = rmse_age - rmse) %>%
+      select(-rmse_age)
+  }
+  
+  return(updated_summary_data)
+}
+
+df_summary_bioage <- calculate_RMSE_R2(df_summary_bioage,
+                                       df_results_bioage,
+                                       output_bioage$predictions,
+                                       per_age_group = TRUE)
+
+df_summary_bioage_overall <- calculate_RMSE_R2(
+  df_summary_bioage_overall,
+  df_results_bioage,
+  output_bioage$predictions,
+  per_age_group = FALSE
+)
+
+if (isFALSE(params$telolength)) {
+  df_summary_biomarkers <- calculate_RMSE_R2(
+  df_summary_biomarkers,
+  df_results_biomarkers,
+  output_biomarkers$predictions,
+  per_age_group = TRUE
+)
+
+df_summary_biomarkers_overall <- calculate_RMSE_R2(
+  df_summary_biomarkers_overall,
+  df_results_biomarkers,
+  output_biomarkers$predictions,
+  per_age_group = FALSE
+)
+
+  df_summary_confounders <- calculate_RMSE_R2(
+  df_summary_confounders,
+  df_results_confounders,
+  output_confounders$predictions,
+  per_age_group = TRUE
+)
+
+df_summary_confounders_overall <- calculate_RMSE_R2(
+  df_summary_confounders_overall,
+  df_results_confounders,
+  output_confounders$predictions,
+  per_age_group = FALSE
+)
+}
+```
+
+
+### Calculate RMSE CIs
+
+```{r calc_RMSE_CI}
+compute_rmse_CI <- function(data, summary_data, n_boot, per_age_group = FALSE, confounders = FALSE) {
+  ref_var <- if (isTRUE(confounders)) "full" else "age"
+  
+  predictor_list <- setdiff(unique(data$predictors), ref_var)
+  
+  ci_df <- data.frame()
+  
+  if (isTRUE(per_age_group)) {
+    for (predictor in predictor_list) {
+      for (age_bin in unique(data$age_group)) {
+        subset_ref <- data %>%
+          filter(predictors == ref_var, age_group == age_bin) %>%
+          select(all_of(params$hearing_var), predicted)
+        
+        subset <- data %>%
+          filter(predictors == predictor, age_group == age_bin) %>%
+          select(all_of(params$hearing_var), predicted)
+        
+        length <- nrow(subset)
+        
+        rmses <- replicate(n_boot, {
+          i <- sample(length, replace = TRUE)
+          c(sqrt(mean((
+            subset[[params$hearing_var]][i] - subset[["predicted"]][i]
+          )^2)), sqrt(mean((subset_ref[[params$hearing_var]][i] - subset_ref[["predicted"]][i])^2
+          )))
+        })
+        
+        ci_lower <- quantile(rmses[1, ], 0.025)
+        ci_upper <- quantile(rmses[1, ], 0.975)
+        
+        delta_ci_lower <- quantile(rmses[2, ] - rmses[1, ], 0.025)
+        delta_ci_upper <- quantile(rmses[2, ] - rmses[1, ], 0.975)
+        
+        ci_subset <- data.frame(
+          ci_low_rmse = ci_lower,
+          ci_high_rmse = ci_upper,
+          ci_low_delta_rmse = delta_ci_lower,
+          ci_high_delta_rmse = delta_ci_upper,
+          predictors = predictor,
+          age_group = age_bin
+        )
+        ci_df <- rbind(ci_df, ci_subset)
+      }
+    }
+  } else {
+    for (predictor in predictor_list) {
+      subset_ref <- data %>%
+        filter(predictors == ref_var) %>%
+        select(all_of(params$hearing_var), predicted)
+      
+      subset <- data %>%
+        filter(predictors == predictor) %>%
+        select(all_of(params$hearing_var), predicted)
+      
+      length <- nrow(subset)
+      
+      rmses <- replicate(n_boot, {
+        i <- sample(length, replace = TRUE)
+        c(sqrt(mean((
+          subset[[params$hearing_var]][i] - subset[["predicted"]][i]
+        )^2)), sqrt(mean((
+          subset_ref[[params$hearing_var]][i] - subset_ref[["predicted"]][i]
+        )^2)))
+      })
+      
+      ci_lower <- quantile(rmses[1, ], 0.025)
+      ci_upper <- quantile(rmses[1, ], 0.975)
+      
+      delta_ci_lower <- quantile(rmses[2, ] - rmses[1, ], 0.025)
+      delta_ci_upper <- quantile(rmses[2, ] - rmses[1, ], 0.975)
+      
+      ci_subset <- data.frame(
+        ci_low_rmse = ci_lower,
+        ci_high_rmse = ci_upper,
+        ci_low_delta_rmse = delta_ci_lower,
+        ci_high_delta_rmse = delta_ci_upper,
+        predictors = predictor
+      )
+      ci_df <- rbind(ci_df, ci_subset)
+    }
+  }
+  
+  return(ci_df)
+}
+
+test <- compute_rmse_CI(output_bioage$predictions, n_boot = 500, per_age_group = FALSE, confounders = FALSE)
+```
+
+
+## Build predictions dataframe age rate
+
+We sample 1 point for each age and predict the FI using the smooth-only
+model and generate simultaneous confidence intervals. We could ask for a single
+point and ask where the true mean would be with 95% certainty, but if we'd apply
+that to all 60 points, there's a large chance that somewhere we get a false
+positive. With the simultaneous interval or with multivariate t distribution error correction, we can say that we're 95% sure that the ENTIRE derivative in the true population that was sampled from (all people
+on earth, assuming NHANES is representative) is within the band. It's
+essentially a multiple comparisons test for confidence intervals.
+
+To calculate the quadratic derivative, we can either calculate the slope at each
+point manually with
+
+`coef(m)["age"] + 2 * coef(m)["I(age^2)"] * seq(min(df$age), max(df$age), 1)}`
+
+Or we use emtrends to calculate the slope at each point. The result is the same.
+However, using emtrends we can calculate simultaneous intervals with "mvt". Emtrends also works with smooth terms.
+
+```{r predict_aging}
+build_parametric_predictions <- function(df, model, predictor) {
+  as.data.frame(confint(
+    emmeans(
+      model,
+      as.formula(paste("~", predictor)),
+      at = setNames(list(seq(
+        min(df[[predictor]]), max(df[[predictor]]), by = 1
+      )), predictor)
+      ,
+      type = "response",
+      data = df
+    ),
+    adjust = "mvt"
+  )) %>%
+    rename("estimate" = emmean,
+           "ci_lower" = lower.CL,
+           "ci_upper" = upper.CL)
+}
+
+build_parametric_derivative_predictions <- function(df, model, predictor) {
+  data.frame(confint(
+    emtrends(
+      model,
+      as.formula(paste("~", predictor)),
+      var = predictor,
+      at = setNames(list(seq(
+        min(df[[predictor]]), max(df[[predictor]]), by = 1
+      )), predictor),
+      data = df
+    ),
+    adjust = "mvt"
+  )) %>%
+    rename(
+      "derivative" = !!paste0(predictor, ".trend"),
+      "ci_lower" = lower.CL,
+      "ci_upper" = upper.CL
+    )
+}
+
+output_age_rate$predictions <- append(output_age_rate$predictions,
+                                      list(linear = build_parametric_predictions(df, output_age_rate$models$linear, "age")))
+
+output_age_rate$predictions <- append(output_age_rate$predictions,
+                                      list(quadratic = build_parametric_predictions(df, output_age_rate$models$quadratic, "age")))
+
+output_age_rate$predictions <- append(
+  output_age_rate$predictions,
+  list(linear_derivative = build_parametric_derivative_predictions(df, output_age_rate$models$linear, "age"))
+)
+
+output_age_rate$predictions <- append(
+  output_age_rate$predictions,
+  list(
+    quadratic_derivative = build_parametric_derivative_predictions(df, output_age_rate$models$quadratic, "age")
+  )
+)
+
+output_age_rate$predictions <- append(output_age_rate$predictions,
+                                      list(
+                                        smooth =
+build_parametric_predictions(
+        df, output_age_rate$models$smooth, "age")))
+
+output_age_rate$predictions <- append(
+  output_age_rate$predictions,
+  list(
+    derivative_smooth =
+      build_parametric_derivative_predictions(
+        df, output_age_rate$models$smooth, "age") %>%
+      mutate(
+        derivative_adj = derivative - output_age_rate$predictions$quadratic_derivative$derivative,
+        ci_lower_adj = ci_lower - output_age_rate$predictions$quadratic_derivative$derivative,
+        ci_upper_adj = ci_upper - output_age_rate$predictions$quadratic_derivative$derivative
+      )
+  )
+)
+```
