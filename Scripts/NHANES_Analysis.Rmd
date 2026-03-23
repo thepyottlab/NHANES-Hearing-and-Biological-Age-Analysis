@@ -43,24 +43,24 @@ editor_options:
   
 params:
   hearing_var:
-    label: "Hearing variable (predictor)"
+    label: "Hearing predictor" # predictor variable
     value: "FI_high"
     input: select
     choices: ["FI_high", "FI_low"]
   telolength:
-    label: "Analyze telomere length dataset"
+    label: "Analyze telomere length" # use telolength dataset
     value: FALSE
     input: checkbox
   global_k:
-    label: "K (n BAM base functions)"
+    label: "K (n BAM base functions)" # decides GAM wiggliness
     value: 50
     input: numeric
   global_discrete: 
-    label: "Discretize BAM (much faster but slightly worse fitting)"
+    label: "Discretize BAM" # speeds up fitting but performs slightly worse
     value: FALSE
     input: checkbox
   global_folds: 
-    label: "Number of folds"
+    label: "Number of folds" 
     value: 10
     input: numeric
   global_repeats: 
@@ -72,27 +72,31 @@ params:
     value: FALSE
     input: checkbox
   load_model_results:
-    label: "Load model results and skip refitting"
+    label: "Load model results" # skips refitting if model results are present
     value: TRUE
     input: checkbox
   keep_models:
-    label: "Store actual models (very large filesizes and RAM usage with discrete = TRUE)"
+    label: "Store models" # huge filesizes especially with discrete = TRUE
     value: FALSE
     input: checkbox
   confounders:
-    label: "List of included confounders (underscore separated)"
+    label: "Included confounders (underscore separated)"
     value: "gender_smoking_race_education_gender, race"
     input: text
   construct_data:
-    label: "Build NHANES dataframe from scratch"
-    value: FALSE
-    input: checkbox
-  use_kwon_bioage:
-    label: "Use bioages calculated by Kwon"
+    label: "Build NHANES dataframe" # imports data from scratch
     value: FALSE
     input: checkbox
   use_advance_bioages:
-    label: "Use difference between chronological and biological age only"
+    label: "Use bioage advance" # use difference between bioage and age to reduce concurvity
+    value: FALSE
+    input: checkbox
+  use_kwon_bioage:
+    label: "Use Kwon bioage" # use bioages calculate by Kwon instead of Landy
+    value: FALSE
+    input: checkbox
+  run_optional_chunks:
+    label: "Run tests and validations" # takes a long time extra
     value: FALSE
     input: checkbox
   save_figures:
@@ -100,17 +104,13 @@ params:
     value: FALSE
     input: checkbox
   single_column_width:
-    label: "Set width of single column figure (inches)"
+    label: "Single column figure width (inches)"
     value: 3.19
     input: numeric
   double_column_width:
-    label: "Set width of double column figure (inches)"
+    label: "Double column figure width (inches)"
     value: 6.96
     input: numeric   
-  run_optional_chunks:
-    label: "Run tests and validations"
-    value: FALSE
-    input: checkbox
 ---
 
 # Set-up & Data import
