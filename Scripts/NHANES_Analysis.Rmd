@@ -134,6 +134,8 @@ params:
 
 ## Import Packages & Set Flags
 
+We set graphics device to ragg, set wd to here::here(), set contrasts by default to compare each level to the overall mean as opposed to reference, and import packages.
+
 ```{r setup, include = FALSE, cache = FALSE}
 knitr::opts_chunk$set(fig.width = 6.4,
                       fig.height = 4.8,
@@ -172,7 +174,7 @@ library(cowplot) # for combined plots
 library(sameplot) # for plotting consistently
 ```
 
-## Print params for .md
+## Print params for knitted reports
 
 ```{r print_params}
 kable(as.data.frame(unclass(params)))
@@ -215,106 +217,6 @@ if (isTRUE(params$construct_data)) {
   df_raw <- import_nhanes_data(here("Data", "Raw data"))
 } else {
   df_raw <- read.csv(here("Data", "dataset_bioage.csv"))
-}
-```
-
-### Insert Kwon data
-
-If `use_kwon_bioage` is `TRUE`, load NHANES4 (cloned from Kwon's GitHub), ensure
-sampleIDs that are in BOTH Kwon's data and in the raw data are retained, then
-select only the columns in NHANES4 and remove bioage measures if they're in the
-raw_data file (either composed from scratch or from Landy).
-
-```{r load_kwon_data}
-load_kwon_data <- function() {
-  library(BioAge)
-  
-  #HD using NHANES (separate training for men and women)
-  hd = hd_nhanes(
-    biomarkers = c(
-      "albumin",
-      "alp",
-      "lncrp",
-      "totchol",
-      "lncreat",
-      "hba1c",
-      "sbp",
-      "bun",
-      "uap",
-      "lymph",
-      "mcv",
-      "wbc"
-    )
-  )
-  
-  #KDM bioage using NHANES (separate training for men and women)
-  kdm = kdm_nhanes(
-    biomarkers = c(
-      "albumin",
-      "alp",
-      "lncrp",
-      "totchol",
-      "lncreat",
-      "hba1c",
-      "sbp",
-      "bun",
-      "uap",
-      "lymph",
-      "mcv",
-      "wbc"
-    )
-  )
-  
-  #phenoage using NHANES
-  phenoage = phenoage_nhanes(
-    biomarkers = c(
-      "albumin_gL",
-      "alp",
-      "lncrp",
-      "totchol",
-      "lncreat_umol",
-      "hba1c",
-      "sbp",
-      "bun",
-      "uap",
-      "lymph",
-      "mcv",
-      "wbc"
-    )
-  )
-  
-  merge(hd$data, kdm$data) %>% merge(., phenoage$data)
-}
-
-if (isTRUE(params$use_kwon_bioage)) {
-  NHANES4 <- load_kwon_data()
-  df_raw <- df_raw %>%
-    select(-any_of(c("hd", "hd_log", "kdm", "phenoage")))
-  
-  df_raw <- df_raw %>% filter(sampleID %in% NHANES4$sampleID) %>% arrange(sampleID) %>% relocate(sampleID, .before = 1)
-  NHANES4 <- NHANES4 %>% filter(sampleID %in% df_raw$sampleID) %>% arrange(sampleID)
-  
-  df_raw <- df_raw %>%
-    left_join(NHANES4 %>% select(any_of(c(
-      "sampleID", setdiff(names(NHANES4), names(df_raw))
-    ))), by = "sampleID")
-}
-```
-
-## Use advance versions
-
-Replaces phenoage/kdm with 'advance' versions, which are the difference between
-age and the bioage measured.
-
-```{r advance_bioage}
-if (isTRUE(params$use_kwon_bioage) && isTRUE(params$use_advance_bioages)) {
-  df_raw <- df_raw %>%
-    rename("phenoage_bak" = phenoage,
-           "kdm_bak" = kdm) %>%
-    mutate(phenoage = phenoage_advance,
-           kdm = kdm_advance)
-} else if (isFALSE(params$use_kwon_bioage) && isTRUE(params$use_advance_bioages)) {
-  stop("Set use_kwon_bioage to TRUE when using use_advance_bioages")
 }
 ```
 
