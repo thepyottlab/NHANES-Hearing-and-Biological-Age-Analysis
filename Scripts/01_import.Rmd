@@ -20,11 +20,11 @@ library(ggtext) # for element_markdown()
 library(ggh4x) # for element_rect()
 library(ggridges) # for geom_density_ridges()
 library(ggpubr) # for ggarrange()
-library(cowplot) # for combined plots 
+library(cowplot) # for combined plots
 library(sameplot) # for plotting consistently
 
 # Data operations
-library(data.table) # for speedy dataframes 
+library(data.table) # for speedy dataframes
 library(tidyverse) # for general data operations
 library(tidytable) # for fast data loading
 ```
@@ -50,18 +50,21 @@ import_nhanes_data <- function(path) {
     full.names = TRUE,
     ignore.case = TRUE
   )
-  
-  meta <- data.table(file  = files,
-                     year = str_extract(tools::file_path_sans_ext(basename(files)), "\\d{4}-\\d{4}$"))
-  
+
+  meta <- data.table(
+    file = files,
+    year = str_extract(tools::file_path_sans_ext(basename(files)), "\\d{4}-\\d{4}$")
+  )
+
   meta[, dt := lapply(file, \(f) as.data.table(read_xpt(f)))]
   by_year <- split(meta$dt, meta$year)
-  
+
   as.data.frame(rbindlist(
     lapply(by_year, \(dts)
-           Reduce(\(x, y) merge(
-             x, y, by = "SEQN", all = TRUE
-           ), dts)),
+    Reduce(\(x, y) merge(
+      x, y,
+      by = "SEQN", all = TRUE
+    ), dts)),
     fill = TRUE,
     use.names = TRUE,
     idcol = "year"

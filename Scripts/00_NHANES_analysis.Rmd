@@ -131,18 +131,22 @@ params:
 We set graphics device to ragg, set wd to here::here(), set contrasts by default to compare each level to the overall mean as opposed to reference, and import packages. The run_module() function checks if knitting or interactive session is in progress. If knitting, return markdown output, if interactive, only run code in environment and print a time message.
 
 ```{r setup, include = FALSE, cache = FALSE}
-knitr::opts_chunk$set(fig.width = 6.4,
-                      fig.height = 4.8,
-                      dpi = 600,
-                      fig.retina = 1,
-                      out.width = "100%",
-                      out.height = "100%",
-                      dev = "ragg_png")
+knitr::opts_chunk$set(
+  fig.width = 6.4,
+  fig.height = 4.8,
+  dpi = 600,
+  fig.retina = 1,
+  out.width = "100%",
+  out.height = "100%",
+  dev = "ragg_png"
+)
 
 knitr::opts_knit$set(root.dir = here::here())
 
-options(contrasts = c("contr.sum", "contr.poly"),
-        knitr.duplicate.label = "allow")
+options(
+  contrasts = c("contr.sum", "contr.poly"),
+  knitr.duplicate.label = "allow"
+)
 
 run_module <- function(path) {
   if (isTRUE(getOption("knitr.in.progress"))) {

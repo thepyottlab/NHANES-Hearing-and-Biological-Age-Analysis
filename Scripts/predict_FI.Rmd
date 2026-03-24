@@ -6,13 +6,15 @@ output: html_document
 # Import data and packages
 
 ```{r setup, include = FALSE, cache = FALSE}
-knitr::opts_chunk$set(fig.width = 6.4,
-                      fig.height = 4.8,
-                      dpi = 600,
-                      fig.retina = 1,
-                      out.width = "100%",
-                      out.height = "100%",
-                      dev = "ragg_png")
+knitr::opts_chunk$set(
+  fig.width = 6.4,
+  fig.height = 4.8,
+  dpi = 600,
+  fig.retina = 1,
+  out.width = "100%",
+  out.height = "100%",
+  dev = "ragg_png"
+)
 
 knitr::opts_knit$set(root.dir = here::here())
 
@@ -61,35 +63,35 @@ df <- df_raw %>%
     smoking = factor(smoking),
     race = case_when(race == 2 ~ 1, TRUE ~ race),
     race = factor(race),
-    education = factor(education)) %>%
-    mutate(
-      gender = dplyr::recode(gender, "1" = "Male", "2" = "Female"),
-      smoking = dplyr::recode(smoking, "1" = "Smoker", "2" = "Non-smoker"),
-      race = dplyr::recode(
-        race,
-        "1" = "Hispanic",
-        "3" = "White",
-        "4" = "Black",
-        "5" = "Other"
-      ),
-      education = dplyr::recode(
-        education,
-        "1" = "< 9th grade",
-        "2" = "9-11th grade",
-        "3" = "High school",
-        "4" = "Some college or AA degree",
-        "5" = "College graduate or higher"
-      )
+    education = factor(education)
+  ) %>%
+  mutate(
+    gender = dplyr::recode(gender, "1" = "Male", "2" = "Female"),
+    smoking = dplyr::recode(smoking, "1" = "Smoker", "2" = "Non-smoker"),
+    race = dplyr::recode(
+      race,
+      "1" = "Hispanic",
+      "3" = "White",
+      "4" = "Black",
+      "5" = "Other"
+    ),
+    education = dplyr::recode(
+      education,
+      "1" = "< 9th grade",
+      "2" = "9-11th grade",
+      "3" = "High school",
+      "4" = "Some college or AA degree",
+      "5" = "College graduate or higher"
     )
-
+  )
 ```
 
 # Fit models
 
 ```{r}
-m_fi_high <- bam(FI_high ~ s(age, k = 50) + s(gender, age, bs = 'sz', k = 50, id = 1) + s(race, age, bs = 'sz', k = 50, id = 2) + s(smoking, age, bs = 'sz', k = 50, id = 3) + s(education, age, bs = 'sz', k = 50, id = 4) + s(gender, race, age, bs = 'sz', k = 50, id = 5), discrete = TRUE, method = "fREML", data = df)
+m_fi_high <- bam(FI_high ~ s(age, k = 50) + s(gender, age, bs = "sz", k = 50, id = 1) + s(race, age, bs = "sz", k = 50, id = 2) + s(smoking, age, bs = "sz", k = 50, id = 3) + s(education, age, bs = "sz", k = 50, id = 4) + s(gender, race, age, bs = "sz", k = 50, id = 5), discrete = TRUE, method = "fREML", data = df)
 
-m_fi_low <- bam(FI_low ~ s(age, k = 50) + s(gender, age, bs = 'sz', k = 50, id = 1) + s(race, age, bs = 'sz', k = 50, id = 2) + s(smoking, age, bs = 'sz', k = 50, id = 3) + s(education, age, bs = 'sz', k = 50, id = 4) + s(gender, race, age, bs = 'sz', k = 50, id = 5), discrete = TRUE, method = "fREML", data = df)
+m_fi_low <- bam(FI_low ~ s(age, k = 50) + s(gender, age, bs = "sz", k = 50, id = 1) + s(race, age, bs = "sz", k = 50, id = 2) + s(smoking, age, bs = "sz", k = 50, id = 3) + s(education, age, bs = "sz", k = 50, id = 4) + s(gender, race, age, bs = "sz", k = 50, id = 5), discrete = TRUE, method = "fREML", data = df)
 ```
 
 # Make prediction dataframe
@@ -160,12 +162,12 @@ plot_predictions <- function(response_variable, group_variable) {
       plot.title = element_text(size = 9),
       legend.position = "inside",
       legend.justification = c(0, 1),
-      legend.title              = element_blank(),
-      legend.background         = element_rect(fill = "transparent", color = NA),
-      legend.box.background     = element_rect(fill = "transparent", color = NA),
-      legend.key                = element_rect(fill = "transparent"),
+      legend.title = element_blank(),
+      legend.background = element_rect(fill = "transparent", color = NA),
+      legend.box.background = element_rect(fill = "transparent", color = NA),
+      legend.key = element_rect(fill = "transparent"),
       legend.position.inside = c(-0.03, 1.05),
-      legend.key.spacing.y      = unit(-5, "pt")
+      legend.key.spacing.y = unit(-5, "pt")
     )
 }
 
@@ -181,6 +183,3 @@ p8 <- plot_predictions("FI_low", "education")
 p <- plot_grid(p1, p2, p5, p6, p3, p4, p7, p8, ncol = 4, nrow = 2, align = "hv")
 sameplot(p, height = 7, width = 12, res = 150)
 ```
-
-
-

@@ -25,9 +25,10 @@ reformat_df <- function(data) {
       additional_variance = delta_mse / mse_age * 100,
       fold_repeat_id = factor(interaction(r, k)),
     )
-  
+
   if ("full" %in% data$results$predictors) {
-    reformatted_data <- reformatted_data %>% rename("mse_full" = mse_age) %>%
+    reformatted_data <- reformatted_data %>%
+      rename("mse_full" = mse_age) %>%
       mutate(
         delta_mse = case_when(
           !predictors %in% c("full", "full_with_phenoage") ~ delta_mse * -1,
@@ -45,7 +46,7 @@ reformat_df <- function(data) {
 df_results_bioage <- reformat_df(output_bioage)
 
 if (isFALSE(params$telolength)) {
-  df_results_biomarkers  <- reformat_df(output_biomarkers)
+  df_results_biomarkers <- reformat_df(output_biomarkers)
   df_results_confounders <- reformat_df(output_confounders)
 }
 ```
@@ -76,17 +77,19 @@ build_parametric_predictions <- function(df, model, predictor) {
       model,
       as.formula(paste("~", predictor)),
       at = setNames(list(seq(
-        min(df[[predictor]]), max(df[[predictor]]), by = 1
-      )), predictor)
-      ,
+        min(df[[predictor]]), max(df[[predictor]]),
+        by = 1
+      )), predictor),
       type = "response",
       data = df
     ),
     adjust = "mvt"
   )) %>%
-    rename("estimate" = emmean,
-           "ci_lower" = lower.CL,
-           "ci_upper" = upper.CL)
+    rename(
+      "estimate" = emmean,
+      "ci_lower" = lower.CL,
+      "ci_upper" = upper.CL
+    )
 }
 
 build_parametric_derivative_predictions <- function(df, model, predictor) {
@@ -96,7 +99,8 @@ build_parametric_derivative_predictions <- function(df, model, predictor) {
       as.formula(paste("~", predictor)),
       var = predictor,
       at = setNames(list(seq(
-        min(df[[predictor]]), max(df[[predictor]]), by = 1
+        min(df[[predictor]]), max(df[[predictor]]),
+        by = 1
       )), predictor),
       data = df
     ),
@@ -109,11 +113,15 @@ build_parametric_derivative_predictions <- function(df, model, predictor) {
     )
 }
 
-output_age_rate$predictions <- append(output_age_rate$predictions,
-                                      list(linear = build_parametric_predictions(df, output_age_rate$models$linear, "age")))
+output_age_rate$predictions <- append(
+  output_age_rate$predictions,
+  list(linear = build_parametric_predictions(df, output_age_rate$models$linear, "age"))
+)
 
-output_age_rate$predictions <- append(output_age_rate$predictions,
-                                      list(quadratic = build_parametric_predictions(df, output_age_rate$models$quadratic, "age")))
+output_age_rate$predictions <- append(
+  output_age_rate$predictions,
+  list(quadratic = build_parametric_predictions(df, output_age_rate$models$quadratic, "age"))
+)
 
 output_age_rate$predictions <- append(
   output_age_rate$predictions,
@@ -127,23 +135,28 @@ output_age_rate$predictions <- append(
   )
 )
 
-output_age_rate$predictions <- append(output_age_rate$predictions,
-                                      list(
-                                        smooth =
-build_parametric_predictions(
-        df, output_age_rate$models$smooth, "age")))
+output_age_rate$predictions <- append(
+  output_age_rate$predictions,
+  list(
+    smooth =
+      build_parametric_predictions(
+        df, output_age_rate$models$smooth, "age"
+      )
+  )
+)
 
 output_age_rate$predictions <- append(
   output_age_rate$predictions,
   list(
     derivative_smooth =
       build_parametric_derivative_predictions(
-        df, output_age_rate$models$smooth, "age") %>%
-      mutate(
-        derivative_adj = derivative - output_age_rate$predictions$quadratic_derivative$derivative,
-        ci_lower_adj = ci_lower - output_age_rate$predictions$quadratic_derivative$derivative,
-        ci_upper_adj = ci_upper - output_age_rate$predictions$quadratic_derivative$derivative
-      )
+        df, output_age_rate$models$smooth, "age"
+      ) %>%
+        mutate(
+          derivative_adj = derivative - output_age_rate$predictions$quadratic_derivative$derivative,
+          ci_lower_adj = ci_lower - output_age_rate$predictions$quadratic_derivative$derivative,
+          ci_upper_adj = ci_upper - output_age_rate$predictions$quadratic_derivative$derivative
+        )
   )
 )
 ```

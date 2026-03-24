@@ -13,8 +13,10 @@ Round R² and delta RMSE, rename variables, set p values to bold and to " <
 format_table <- function(summary_data, per_age_group) {
   if (per_age_group) {
     table <- summary_data %>%
-      mutate(r2 = round(r2, 3),
-             delta_rmse = round(delta_rmse, 2)) %>%
+      mutate(
+        r2 = round(r2, 3),
+        delta_rmse = round(delta_rmse, 2)
+      ) %>%
       rename(
         "Predictors" = predictors,
         "Age" = age_group,
@@ -27,7 +29,7 @@ format_table <- function(summary_data, per_age_group) {
           signif == "***" ~
             cell_spec("< 0.001", "html", bold = TRUE),
           suppressWarnings(!is.na(as.numeric(`p (vs age)`)) &
-                             as.numeric(`p (vs age)`) < 0.05) &
+            as.numeric(`p (vs age)`) < 0.05) &
             `p (vs age)` != "< 0.001" ~
             cell_spec(suppressWarnings(round(
               as.numeric(`p (vs age)`), 3
@@ -42,8 +44,10 @@ format_table <- function(summary_data, per_age_group) {
       select(Predictors, Age, n, `R²`, `∆RMSE (vs age, dB HL)`, `p (vs age)`)
   } else {
     table <- summary_data %>%
-      mutate(r2 = round(r2, 3),
-             delta_rmse = round(delta_rmse, 2)) %>%
+      mutate(
+        r2 = round(r2, 3),
+        delta_rmse = round(delta_rmse, 2)
+      ) %>%
       rename(
         "Predictors" = predictors,
         "∆RMSE (vs age, dB HL)" = delta_rmse,
@@ -55,7 +59,7 @@ format_table <- function(summary_data, per_age_group) {
           signif == "***" ~
             cell_spec("< 0.001", "html", bold = TRUE),
           suppressWarnings(!is.na(as.numeric(`p (vs age)`)) &
-                             as.numeric(`p (vs age)`) < 0.05) &
+            as.numeric(`p (vs age)`) < 0.05) &
             `p (vs age)` != "< 0.001" ~
             cell_spec(suppressWarnings(round(
               as.numeric(`p (vs age)`), 3
@@ -70,9 +74,11 @@ format_table <- function(summary_data, per_age_group) {
       select(Predictors, n, `R²`, `∆RMSE (vs age, dB HL)`, `p (vs age)`)
   }
   table <- table %>%
-    rename("p (vs full model)" = `p (vs age)`,
-           "∆RMSE (vs full model, dB HL)" = `∆RMSE (vs age, dB HL)`,)
-  
+    rename(
+      "p (vs full model)" = `p (vs age)`,
+      "∆RMSE (vs full model, dB HL)" = `∆RMSE (vs age, dB HL)`,
+    )
+
   return(table)
 }
 
@@ -82,7 +88,7 @@ table_bioage_overall <- format_table(df_summary_bioage_overall, per_age_group = 
 if (isFALSE(params$telolength)) {
   table_biomarkers <- format_table(df_summary_biomarkers, per_age_group = TRUE)
   table_biomarkers_overall <- format_table(df_summary_biomarkers_overall, per_age_group = FALSE)
-  
+
   table_confounders <- format_table(df_summary_confounders, per_age_group = TRUE)
   table_confounders_overall <- format_table(df_summary_confounders_overall, per_age_group = FALSE)
 }
@@ -130,7 +136,7 @@ rename_bioage_table <- function(bioage_table) {
       ) %>%
       arrange(Predictors)
   }
-  
+
   return(bioage_table)
 }
 
@@ -138,12 +144,13 @@ rename_biomarker_table <- function(biomarker_table) {
   biomarker_table <- biomarker_table %>%
     filter(!(
       Predictors %in% c(
-      "age",
-      "age, phenoage",
-      "age, crp, hba1c, albumin_gL",
-      "age, crp, hba1c, albumin_gL, phenoage"
+        "age",
+        "age, phenoage",
+        "age, crp, hba1c, albumin_gL",
+        "age, crp, hba1c, albumin_gL, phenoage"
       )
-    )) %>% mutate(
+    )) %>%
+    mutate(
       Predictors = case_when(
         Predictors == "age, rdw" ~ "Age + RDW",
         Predictors == "age, alp" ~ "Age + ALP",
@@ -161,24 +168,24 @@ rename_biomarker_table <- function(biomarker_table) {
         Predictors == "age, creat" ~ "Age + Creat"
       ),
       Predictors = factor(Predictors, levels = c(
-      "Age + SBP",
-      "Age + BUN",
-      "Age + MCV",
-      "Age + Lymphs",
-      "Age + RDW",
-      "Age + TC",
-      "Age + Creat",
-      "Age + UA",
-      "Age + Glc",
-      "Age + WBC",
-      "Age + ALP",
-      "Age + ALB",
-      "Age + HbA1c",
-      "Age + CRP"
-      )
-    )) %>%
+        "Age + SBP",
+        "Age + BUN",
+        "Age + MCV",
+        "Age + Lymphs",
+        "Age + RDW",
+        "Age + TC",
+        "Age + Creat",
+        "Age + UA",
+        "Age + Glc",
+        "Age + WBC",
+        "Age + ALP",
+        "Age + ALB",
+        "Age + HbA1c",
+        "Age + CRP"
+      ))
+    ) %>%
     arrange(Predictors)
-  
+
   return(biomarker_table)
 }
 
@@ -186,9 +193,10 @@ rename_confounder_table <- function(confounders_table) {
   confounders_table <- confounders_table %>%
     filter(!(
       Predictors %in% c(
-      "full"
+        "full"
       )
-    )) %>% mutate(
+    )) %>%
+    mutate(
       Predictors = case_when(
         Predictors == "full_with_phenoage" ~ "Phenoage",
         Predictors == "no_gender" ~ "Gender",
@@ -198,16 +206,16 @@ rename_confounder_table <- function(confounders_table) {
         Predictors == "no_gender, race" ~ "Gender * Race"
       ),
       Predictors = factor(Predictors, levels = c(
-      "Phenoage",
-      "Gender",
-      "Smoking",
-      "Race",
-      "Education",
-      "Gender * Race"
-      )
-    )) %>%
+        "Phenoage",
+        "Gender",
+        "Smoking",
+        "Race",
+        "Education",
+        "Gender * Race"
+      ))
+    ) %>%
     arrange(Predictors)
-  
+
   return(confounders_table)
 }
 
@@ -215,11 +223,11 @@ table_bioage <- rename_bioage_table(table_bioage)
 table_bioage_overall <- rename_bioage_table(table_bioage_overall)
 
 if (isFALSE(params$telolength)) {
-table_biomarkers <- rename_biomarker_table(table_biomarkers)
-table_biomarkers_overall <- rename_biomarker_table(table_biomarkers_overall)
+  table_biomarkers <- rename_biomarker_table(table_biomarkers)
+  table_biomarkers_overall <- rename_biomarker_table(table_biomarkers_overall)
 
-table_confounders <- rename_confounder_table(table_confounders)
-table_confounders_overall <- rename_confounder_table(table_confounders_overall)
+  table_confounders <- rename_confounder_table(table_confounders)
+  table_confounders_overall <- rename_confounder_table(table_confounders_overall)
 }
 ```
 
@@ -239,11 +247,11 @@ render_and_save_table <- function(table, path) {
       position = "center"
     ) %>%
     collapse_rows(columns = 1, valign = "top")
-  
+
   if (isTRUE(params$save_figures)) {
-  save_kable(html_table, path)
+    save_kable(html_table, path)
   }
-  
+
   return(html_table)
 }
 
@@ -251,13 +259,13 @@ render_and_save_table(table_bioage, path = here("Output", "Figures", params$hear
 render_and_save_table(table_bioage_overall, path = here("Output", "Figures", params$hearing_var, "table_bioage_overall.html"))
 
 if (isFALSE(params$telolength)) {
-render_and_save_table(table_biomarkers, path = here("Output", "Figures", params$hearing_var, "table_biomarkers.html")) %>%
-  scroll_box(width = "100%", height = "400px")
-render_and_save_table(table_biomarkers_overall, path = here("Output", "Figures", params$hearing_var, "table_biomarkers_overall.html"))
+  render_and_save_table(table_biomarkers, path = here("Output", "Figures", params$hearing_var, "table_biomarkers.html")) %>%
+    scroll_box(width = "100%", height = "400px")
+  render_and_save_table(table_biomarkers_overall, path = here("Output", "Figures", params$hearing_var, "table_biomarkers_overall.html"))
 
-render_and_save_table(table_confounders, path = here("Output", "Figures", params$hearing_var, "table_confounders.html")) %>%
-  scroll_box(width = "100%", height = "400px")
-render_and_save_table(table_confounders_overall, path = here("Output", "Figures", params$hearing_var, "table_confounders_overall.html"))
+  render_and_save_table(table_confounders, path = here("Output", "Figures", params$hearing_var, "table_confounders.html")) %>%
+    scroll_box(width = "100%", height = "400px")
+  render_and_save_table(table_confounders_overall, path = here("Output", "Figures", params$hearing_var, "table_confounders_overall.html"))
 }
 ```
 
@@ -267,8 +275,8 @@ render_and_save_table(table_confounders_overall, path = here("Output", "Figures"
 
 ```{r build_conf_table}
 build_confounder_table <- function(data, y = params$hearing_var) {
-  variables = c("Gender", "Smoking", "Race", "Education")
-  
+  variables <- c("Gender", "Smoking", "Race", "Education")
+
   data <- data %>%
     mutate(
       gender = dplyr::recode(gender, "1" = "Male", "2" = "Female"),
@@ -295,14 +303,14 @@ build_confounder_table <- function(data, y = params$hearing_var) {
       "Race" = race,
       "Education" = education
     )
-  
-  bind_rows(lapply(variables, function(variable)
+
+  bind_rows(lapply(variables, function(variable) {
     data %>%
       mutate(level = .data[[variable]]) %>%
       group_by(age_group, level) %>%
       summarise(
         mean = mean(.data[[y]], na.rm = TRUE),
-        sd   = sd(.data[[y]], na.rm = TRUE),
+        sd = sd(.data[[y]], na.rm = TRUE),
         .groups = "drop"
       ) %>%
       mutate(
@@ -310,7 +318,8 @@ build_confounder_table <- function(data, y = params$hearing_var) {
           "Gender", "Smoking", "Race", "Education"
         )),
         .before = 1
-      )))
+      )
+  }))
 }
 
 if (isFALSE(params$telolength)) {
@@ -363,10 +372,11 @@ if (isFALSE(params$telolength)) {
 
 ```{r}
 axis_label <- function(label, unit) {
-  paste0(label, "<br><span style='font-size:",
-        p_cfg$text_size_primary,
-        "pt; color:#4D4D4D'>(", unit,")</span>"
-      )
+  paste0(
+    label, "<br><span style='font-size:",
+    p_cfg$text_size_primary,
+    "pt; color:#4D4D4D'>(", unit, ")</span>"
+  )
 }
 ```
 
@@ -378,35 +388,36 @@ axis_label <- function(label, unit) {
 ```{r}
 p_cfg <- function(output_type = c("poster", "paper")) {
   output_type <- match.arg(output_type)
-  
+
   type_cfg <- list(
     poster = list(),
     paper = list(
       figure_dir = here(
         "Output",
         "Figures",
-        if (isTRUE(params$telolength))
+        if (isTRUE(params$telolength)) {
           paste0(params$hearing_var, "_telolength")
-        else
+        } else {
           params$hearing_var
+        }
       ),
       text_size_primary = 8,
       text_size_secondary = 9,
       signif_size = 14
     )
   )
-  
+
   plot_theme <- list(plot_theme = list(
     theme_few(),
     theme(
       axis.text.x = element_markdown("sans", size = type_cfg[[output_type]]$text_size_primary),
       axis.text.y = element_markdown("sans", size = type_cfg[[output_type]]$text_size_primary),
-      strip.text.x              = element_markdown(
+      strip.text.x = element_markdown(
         "sans",
         size = type_cfg[[output_type]]$text_size_secondary,
         lineheight = 1.1
       ),
-      strip.text.y             = element_markdown(
+      strip.text.y = element_markdown(
         "sans",
         size = type_cfg[[output_type]]$text_size_secondary,
         lineheight = 1.1
@@ -421,13 +432,13 @@ p_cfg <- function(output_type = c("poster", "paper")) {
         size = type_cfg[[output_type]]$text_size_secondary,
         lineheight = 1.1
       ),
-      legend.title              = element_blank(),
-      legend.background         = element_rect(fill = "transparent", color = NA),
-      legend.box.background     = element_rect(fill = "transparent", color = NA),
-      legend.key                = element_rect(fill = "transparent"),
-      legend.position           = "inside",
-      legend.justification.inside    = c(0, 1),
-      legend.key.spacing.y      = unit(1, "pt"),
+      legend.title = element_blank(),
+      legend.background = element_rect(fill = "transparent", color = NA),
+      legend.box.background = element_rect(fill = "transparent", color = NA),
+      legend.key = element_rect(fill = "transparent"),
+      legend.position = "inside",
+      legend.justification.inside = c(0, 1),
+      legend.key.spacing.y = unit(1, "pt"),
       panel.border = element_part_rect(
         colour = "grey30",
         side = "lb",
@@ -448,7 +459,7 @@ p_cfg <- function(output_type = c("poster", "paper")) {
       )
     )
   ))
-  
+
   c(plot_theme, type_cfg[[output_type]])
 }
 
@@ -468,12 +479,10 @@ p_cfg <- modifyList(
     age_rate_der_labels = labs(
       x = axis_label("Age", "Years"),
       y = axis_label("Rate of HL", "dB HL/Year")
-      
     ),
     age_rate_diff_labels = labs(
       x = axis_label("Age", "Years"),
       y = axis_label("Deviation Rate of HL", "dB HL/Year")
-      
     ),
     age_rate_scales =
       list(
@@ -494,75 +503,79 @@ p_cfg <- modifyList(
 #### Bioage config
 
 ```{r}
-p_cfg <- modifyList(p_cfg,
-                    list(
-                      bioage_labels = labs(
-                        x = axis_label("Age", "Years"),
-                        y = axis_label("Additional Predictive Capacity", "Δ MSE (dB HL)<sup>2</sup>")
-                      ),
-                      bioage_scales = list(
-                        scale_y_continuous(breaks = seq(0, 8, 2)),
-                        coord_cartesian(ylim = c(-1, 8.5), xlim = c(1.4, 5.6))
-                      ),
-                      bioage_colors = list(
-                        scale_color_manual(values = if (isTRUE(params$telolength)) {
-                          c(
-                            "age" = "#000000",
-                            "age, hd_log" = "#256DAB",
-                            "age, kdm" = "#059748",
-                            "age, phenoage" = "#CB2027",
-                            "age, telolength" = "#7B3A96"
-                          )
-                        } else {
-                          c(
-                            "age" = "#000000",
-                            "age, hd_log" = "#256DAB",
-                            "age, kdm" = "#059748",
-                            "age, phenoage" = "#CB2027"
-                          )
-                        }, labels = if (isTRUE(params$telolength)) {
-                          c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telolength")
-                        } else {
-                          c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
-                        }),
-                        scale_fill_manual(values = if (isTRUE(params$telolength)) {
-                          c(
-                            "age" = "#8C8C8C",
-                            "age, hd_log" = "#88BDE6",
-                            "age, kdm" = "#90CD97",
-                            "age, phenoage" = "#F07E6E",
-                            "age, telolength" = "#B276B2"
-                          )
-                        } else {
-                          c(
-                            "age" = "#8C8C8C",
-                            "age, hd_log" = "#88BDE6",
-                            "age, kdm" = "#90CD97",
-                            "age, phenoage" = "#F07E6E"
-                          )
-                        }, labels = if (isTRUE(params$telolength)) {
-                          c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telolength")
-                        } else {
-                          c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
-                        })
-                      )
-                    ))
+p_cfg <- modifyList(
+  p_cfg,
+  list(
+    bioage_labels = labs(
+      x = axis_label("Age", "Years"),
+      y = axis_label("Additional Predictive Capacity", "Δ MSE (dB HL)<sup>2</sup>")
+    ),
+    bioage_scales = list(
+      scale_y_continuous(breaks = seq(0, 8, 2)),
+      coord_cartesian(ylim = c(-1, 8.5), xlim = c(1.4, 5.6))
+    ),
+    bioage_colors = list(
+      scale_color_manual(values = if (isTRUE(params$telolength)) {
+        c(
+          "age" = "#000000",
+          "age, hd_log" = "#256DAB",
+          "age, kdm" = "#059748",
+          "age, phenoage" = "#CB2027",
+          "age, telolength" = "#7B3A96"
+        )
+      } else {
+        c(
+          "age" = "#000000",
+          "age, hd_log" = "#256DAB",
+          "age, kdm" = "#059748",
+          "age, phenoage" = "#CB2027"
+        )
+      }, labels = if (isTRUE(params$telolength)) {
+        c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telolength")
+      } else {
+        c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
+      }),
+      scale_fill_manual(values = if (isTRUE(params$telolength)) {
+        c(
+          "age" = "#8C8C8C",
+          "age, hd_log" = "#88BDE6",
+          "age, kdm" = "#90CD97",
+          "age, phenoage" = "#F07E6E",
+          "age, telolength" = "#B276B2"
+        )
+      } else {
+        c(
+          "age" = "#8C8C8C",
+          "age, hd_log" = "#88BDE6",
+          "age, kdm" = "#90CD97",
+          "age, phenoage" = "#F07E6E"
+        )
+      }, labels = if (isTRUE(params$telolength)) {
+        c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telolength")
+      } else {
+        c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
+      })
+    )
+  )
+)
 ```
 
 #### Bioage advance config
 
 ```{r}
-p_cfg <- modifyList(p_cfg,
-                    list(
-                      bioage_advance_labels = labs(
-                        x = axis_label("Age Acceleration", "PhenoAge – Age (Years)"),
-                        y = axis_label("Age Group", "Years")
-                      ),
-                      bioage_advance_scales = list(
-                        scale_x_continuous(breaks = seq(-20, 20, 20)),
-                        coord_cartesian(xlim = c(-20, 20), ylim = c(1, 7))
-                      )
-                    ))
+p_cfg <- modifyList(
+  p_cfg,
+  list(
+    bioage_advance_labels = labs(
+      x = axis_label("Age Acceleration", "PhenoAge – Age (Years)"),
+      y = axis_label("Age Group", "Years")
+    ),
+    bioage_advance_scales = list(
+      scale_x_continuous(breaks = seq(-20, 20, 20)),
+      coord_cartesian(xlim = c(-20, 20), ylim = c(1, 7))
+    )
+  )
+)
 ```
 
 #### Biomarkers config
@@ -702,8 +715,10 @@ p0 <- ggplot() +
   p_cfg$age_rate_scales +
   p_cfg$age_rate_labels +
   p_cfg$plot_theme +
-  theme(plot.margin = margin(1, 0, 0, 1, unit = "pt"),
-        axis.title.x = element_blank())
+  theme(
+    plot.margin = margin(1, 0, 0, 1, unit = "pt"),
+    axis.title.x = element_blank()
+  )
 
 p1 <- ggplot() +
   geom_point(
@@ -788,7 +803,7 @@ p3 <- ggplot() +
     linetype = "22",
     color = "grey20",
     linewidth = 0.2
-  )  +
+  ) +
   geom_line(
     data = output_age_rate$predictions$linear_derivative,
     aes(x = age, y = derivative),
@@ -810,7 +825,7 @@ p4 <- ggplot() +
     linetype = "22",
     color = "grey20",
     linewidth = 0.2
-  )  +
+  ) +
   geom_line(
     data = output_age_rate$predictions$quadratic_derivative,
     aes(x = age, y = derivative),
@@ -826,8 +841,10 @@ p4 <- ggplot() +
   coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
   p_cfg$age_rate_der_labels +
   p_cfg$plot_theme +
-  theme(plot.margin = margin(0, 0, 0, 1, unit = "pt"),
-        axis.title.y = element_blank())
+  theme(
+    plot.margin = margin(0, 0, 0, 1, unit = "pt"),
+    axis.title.y = element_blank()
+  )
 
 p5 <- ggplot() +
   geom_rect(
@@ -846,7 +863,7 @@ p5 <- ggplot() +
     linetype = "22",
     color = "grey20",
     linewidth = 0.2
-  )  +
+  ) +
   geom_ribbon(
     data = output_age_rate$predictions$derivative_smooth,
     aes(x = age, ymin = ci_lower, ymax = ci_upper),
@@ -860,8 +877,10 @@ p5 <- ggplot() +
   p_cfg$age_rate_der_scales +
   p_cfg$age_rate_der_labels +
   p_cfg$plot_theme +
-  theme(plot.margin = margin(0, 1, 0, 0, unit = "pt"),
-        axis.title.y = element_blank())
+  theme(
+    plot.margin = margin(0, 1, 0, 0, unit = "pt"),
+    axis.title.y = element_blank()
+  )
 
 p6 <- ggplot() +
   geom_rect(
@@ -880,7 +899,7 @@ p6 <- ggplot() +
     linetype = "22",
     color = "grey20",
     linewidth = 0.2
-  )  +
+  ) +
   geom_ribbon(
     data = output_age_rate$predictions$derivative_smooth,
     aes(x = age, ymin = ci_lower_adj, ymax = ci_upper_adj),
@@ -896,7 +915,7 @@ p6 <- ggplot() +
   p_cfg$plot_theme +
   theme(plot.margin = margin(0, 0, 1, 0, unit = "pt"))
 
-p <- align_plots(p0, p1, p2, p3, p4, p5, p6, align = 'hv')
+p <- align_plots(p0, p1, p2, p3, p4, p5, p6, align = "hv")
 
 p <- plot_grid(
   plot_grid(
@@ -950,7 +969,7 @@ sameplot(
   height = 3,
   res = 600,
   save = params$save_figures
-) 
+)
 ```
 
 ### Bioage panel
@@ -959,13 +978,13 @@ sameplot(
 
 ```{r plot_bioage}
 p <- df_summary_bioage %>%
-  ggplot(aes(x = age_group, y = mean_delta_mse))  +
+  ggplot(aes(x = age_group, y = mean_delta_mse)) +
   geom_hline(
     yintercept = 0,
     linetype = "22",
     color = "grey20",
     linewidth = 0.2
-  )  +
+  ) +
   geom_ribbon(
     aes(
       fill = predictors,
@@ -1011,7 +1030,7 @@ sameplot(
   height = 2.15,
   res = 600,
   save = params$save_figures
-) 
+)
 ```
 
 
@@ -1055,7 +1074,7 @@ sameplot(
   height = 2.15,
   res = 600,
   save = params$save_figures
-) 
+)
 ```
 
 #### Biomarkers supplemental plots
@@ -1070,7 +1089,8 @@ if (isFALSE(params$telolength)) {
         "age, crp, hba1c, albumin_gL",
         "age, crp, hba1c, albumin_gL, phenoage"
       )
-    )) %>% mutate(predictors = factor(
+    )) %>%
+    mutate(predictors = factor(
       predictors,
       levels = c(
         "age, sbp",
@@ -1123,7 +1143,8 @@ if (isFALSE(params$telolength)) {
       lineend = "round",
       linewidth = 0.75,
       show.legend = FALSE
-    ) + geom_text(
+    ) +
+    geom_text(
       data = . %>%
         filter(p_adj != "ns"),
       aes(
@@ -1149,7 +1170,7 @@ if (isFALSE(params$telolength)) {
       ),
       axis.title.x = element_blank()
     )
-  
+
   sameplot(
     p,
     file = here(p_cfg$figure_dir, "biomarkers_panel.png"),
@@ -1167,8 +1188,8 @@ if (isFALSE(params$telolength)) {
 
 ```{r plot_age_rate_simple}
 if (isFALSE(params$telolength)) {
-  p <- align_plots(p0, p1, p2, p3, p4, p5, align = 'hv')
-  
+  p <- align_plots(p0, p1, p2, p3, p4, p5, align = "hv")
+
   p <-
     plot_grid(
       plot_grid(
@@ -1199,7 +1220,7 @@ if (isFALSE(params$telolength)) {
       ncol = 1,
       rel_heights = c(1, -0.15, 1)
     )
-  
+
   sameplot(
     p,
     file = here(
@@ -1233,9 +1254,11 @@ if (isFALSE(params$telolength)) {
     p_cfg$age_rate_scales +
     p_cfg$age_rate_labels +
     p_cfg$plot_theme +
-    theme(plot.margin = margin(1, 0, 0, 1, unit = "pt"),
-          axis.title.x = element_blank())
-  
+    theme(
+      plot.margin = margin(1, 0, 0, 1, unit = "pt"),
+      axis.title.x = element_blank()
+    )
+
   p1 <- ggplot() +
     geom_point(
       data = df,
@@ -1254,7 +1277,7 @@ if (isFALSE(params$telolength)) {
       axis.title.y = element_blank(),
       axis.title.x = element_blank()
     )
-  
+
   p2 <- ggplot() +
     geom_point(
       data = df,
@@ -1273,14 +1296,14 @@ if (isFALSE(params$telolength)) {
       axis.title.y = element_blank(),
       axis.title.x = element_blank()
     )
-  
+
   p3 <- ggplot() +
     geom_hline(
       yintercept = 0,
       linetype = "22",
       color = "grey20",
       linewidth = 0.2
-    )  +
+    ) +
     geom_line(
       data = output_age_rate$predictions$linear_derivative,
       aes(x = age, y = derivative),
@@ -1291,14 +1314,14 @@ if (isFALSE(params$telolength)) {
     p_cfg$age_rate_der_labels +
     p_cfg$plot_theme +
     theme(plot.margin = margin(0, 0, 0, 1, unit = "pt"))
-  
+
   p4 <- ggplot() +
     geom_hline(
       yintercept = 0,
       linetype = "22",
       color = "grey20",
       linewidth = 0.2
-    )  +
+    ) +
     geom_line(
       data = output_age_rate$predictions$quadratic_derivative,
       aes(x = age, y = derivative),
@@ -1310,31 +1333,34 @@ if (isFALSE(params$telolength)) {
     coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
     p_cfg$age_rate_der_labels +
     p_cfg$plot_theme +
-    theme(plot.margin = margin(0, 0, 0, 1, unit = "pt"),
-          axis.title.y = element_blank())
-  
+    theme(
+      plot.margin = margin(0, 0, 0, 1, unit = "pt"),
+      axis.title.y = element_blank()
+    )
+
   p5 <- ggplot() +
     geom_hline(
       yintercept = 0,
       linetype = "22",
       color = "grey20",
       linewidth = 0.2
-    )  +
+    ) +
     geom_line(
       data = output_age_rate$predictions$derivative_smooth,
       aes(x = age, y = derivative),
       linewidth = 0.6,
       color = "white"
-      
     ) +
     p_cfg$age_rate_der_scales +
     p_cfg$age_rate_der_labels +
     p_cfg$plot_theme +
-    theme(plot.margin = margin(0, 1, 0, 0, unit = "pt"),
-          axis.title.y = element_blank())
-  
-  p <- align_plots(p0, p1, p2, p3, p4, p5, align = 'hv')
-  
+    theme(
+      plot.margin = margin(0, 1, 0, 0, unit = "pt"),
+      axis.title.y = element_blank()
+    )
+
+  p <- align_plots(p0, p1, p2, p3, p4, p5, align = "hv")
+
   p <-
     plot_grid(
       plot_grid(
@@ -1365,7 +1391,7 @@ if (isFALSE(params$telolength)) {
       ncol = 1,
       rel_heights = c(1, -0.15, 1)
     )
-  
+
   sameplot(
     p,
     file = here(p_cfg$figure_dir, "Extras", "blank_age_rate_panel.png"),
@@ -1385,13 +1411,13 @@ if (isFALSE(params$telolength)) {
 ```{r plot_confounders, warning=FALSE}
 if (isFALSE(params$telolength)) {
   p <- df_summary_confounders %>%
-    ggplot(aes(x = age_group, y = mean_delta_mse))  +
+    ggplot(aes(x = age_group, y = mean_delta_mse)) +
     geom_hline(
       yintercept = 0,
       linetype = "22",
       color = "grey20",
       linewidth = 0.2
-    )  +
+    ) +
     geom_ribbon(
       aes(
         fill = predictors,
@@ -1413,7 +1439,8 @@ if (isFALSE(params$telolength)) {
       size = 1.25,
       alpha = 1,
       show.legend = TRUE
-    ) + geom_text(
+    ) +
+    geom_text(
       data = . %>%
         filter(p_adj != "ns"),
       aes(
@@ -1429,7 +1456,7 @@ if (isFALSE(params$telolength)) {
     p_cfg$confounders_scales +
     p_cfg$confounders_labels +
     p_cfg$plot_theme
-  
+
   sameplot(
     p,
     file = here(p_cfg$figure_dir, "confounder_panel.png"),
@@ -1446,13 +1473,13 @@ if (isFALSE(params$telolength)) {
 ```{r plot_confounders_var, warning=FALSE}
 if (isFALSE(params$telolength)) {
   p <- df_summary_confounders %>%
-    ggplot(aes(x = age_group, y = mean_additional_variance))  +
+    ggplot(aes(x = age_group, y = mean_additional_variance)) +
     geom_hline(
       yintercept = 0,
       linetype = "22",
       color = "grey20",
       linewidth = 0.2
-    )  +
+    ) +
     geom_ribbon(
       aes(
         fill = predictors,
@@ -1474,7 +1501,8 @@ if (isFALSE(params$telolength)) {
       size = 1.25,
       alpha = 1,
       show.legend = TRUE
-    ) +   geom_text(
+    ) +
+    geom_text(
       data = . %>%
         filter(p_adj != "ns"),
       aes(
@@ -1490,7 +1518,7 @@ if (isFALSE(params$telolength)) {
     p_cfg$confounders_var_scales +
     p_cfg$confounders_labels +
     p_cfg$plot_theme
-  
+
   sameplot(
     p,
     file = here(p_cfg$figure_dir, "confounder_panel_var.png"),
@@ -1506,14 +1534,15 @@ if (isFALSE(params$telolength)) {
 
 ```{r plot_phenoage_only, warning=FALSE}
 if (isFALSE(params$telolength)) {
-  p <- df_summary_bioage %>% filter(predictors %in% c("age", "age, phenoage")) %>%
-    ggplot(aes(x = age_group, y = mean_delta_mse))  +
+  p <- df_summary_bioage %>%
+    filter(predictors %in% c("age", "age, phenoage")) %>%
+    ggplot(aes(x = age_group, y = mean_delta_mse)) +
     geom_hline(
       yintercept = 0,
       linetype = "22",
       color = "grey20",
       linewidth = 0.2
-    )  +
+    ) +
     geom_ribbon(
       aes(
         fill = predictors,
@@ -1552,7 +1581,7 @@ if (isFALSE(params$telolength)) {
     p_cfg$bioage_scales +
     p_cfg$bioage_labels +
     p_cfg$plot_theme
-  
+
   sameplot(
     p,
     file = here(
@@ -1586,30 +1615,34 @@ if (isFALSE(params$telolength)) {
     method = "REML",
     family = gaussian()
   )
-  
+
   gender_predictions <- as.data.frame(confint(
     emmeans(
       gam_gender,
       as.formula(paste("~ age + gender")),
       at = setNames(list(seq(
-        min(df[["age"]]), max(df[["age"]]), by = 1
+        min(df[["age"]]), max(df[["age"]]),
+        by = 1
       )), "age"),
       type = "response",
       data = df
     ),
     adjust = "mvt"
   )) %>%
-    rename("estimate" = emmean,
-           "ci_lower" = lower.CL,
-           "ci_upper" = upper.CL)
-  
-  gender_predictions_der <-  data.frame(confint(
+    rename(
+      "estimate" = emmean,
+      "ci_lower" = lower.CL,
+      "ci_upper" = upper.CL
+    )
+
+  gender_predictions_der <- data.frame(confint(
     emtrends(
       gam_gender,
       as.formula(paste("~ age + gender")),
       var = "age",
       at = setNames(list(seq(
-        min(df[["age"]]), max(df[["age"]]), by = 1
+        min(df[["age"]]), max(df[["age"]]),
+        by = 1
       )), "age"),
       data = df
     ),
@@ -1651,10 +1684,11 @@ if (isFALSE(params$telolength)) {
     p_cfg$age_rate_scales +
     p_cfg$age_rate_labels +
     p_cfg$plot_theme +
-    
-    theme(axis.title.x = element_blank(),
-          plot.margin = margin(1, 0, 0, 1, unit = "pt"))
-  
+    theme(
+      axis.title.x = element_blank(),
+      plot.margin = margin(1, 0, 0, 1, unit = "pt")
+    )
+
   p1 <- ggplot() +
     geom_point(
       data = df,
@@ -1679,13 +1713,12 @@ if (isFALSE(params$telolength)) {
     p_cfg$age_rate_scales +
     p_cfg$age_rate_labels +
     p_cfg$plot_theme +
-    
     theme(
       axis.title.x = element_blank(),
       axis.title.y = element_blank(),
       plot.margin = margin(1, 0, 0, 1, unit = "pt")
     )
-  
+
   p2 <- ggplot() +
     geom_point(
       data = df,
@@ -1717,20 +1750,19 @@ if (isFALSE(params$telolength)) {
     p_cfg$age_rate_scales +
     p_cfg$age_rate_labels +
     p_cfg$plot_theme +
-    
     theme(
       axis.title.x = element_blank(),
       axis.title.y = element_blank(),
       plot.margin = margin(1, 1, 0, 0, unit = "pt")
     )
-  
+
   p3 <- ggplot() +
     geom_hline(
       yintercept = 0,
       linetype = "22",
       color = "grey20",
       linewidth = 0.2
-    )  +
+    ) +
     geom_line(
       data = output_age_rate$predictions$linear_derivative,
       aes(x = age, y = derivative),
@@ -1745,14 +1777,14 @@ if (isFALSE(params$telolength)) {
     p_cfg$age_rate_der_labels +
     p_cfg$plot_theme +
     theme(plot.margin = margin(0, 0, 0, 1, unit = "pt"))
-  
+
   p4 <- ggplot() +
     geom_hline(
       yintercept = 0,
       linetype = "22",
       color = "grey20",
       linewidth = 0.2
-    )  +
+    ) +
     geom_line(
       data = output_age_rate$predictions$quadratic_derivative,
       aes(x = age, y = derivative),
@@ -1766,16 +1798,18 @@ if (isFALSE(params$telolength)) {
     p_cfg$age_rate_der_scales +
     p_cfg$age_rate_der_labels +
     p_cfg$plot_theme +
-    theme(axis.title.y = element_blank(),
-          plot.margin = margin(0, 0, 0, 1, unit = "pt"))
-  
+    theme(
+      axis.title.y = element_blank(),
+      plot.margin = margin(0, 0, 0, 1, unit = "pt")
+    )
+
   p5 <- ggplot() +
     geom_hline(
       yintercept = 0,
       linetype = "22",
       color = "grey20",
       linewidth = 0.2
-    )  +
+    ) +
     geom_ribbon(
       data = gender_predictions_der,
       aes(
@@ -1792,8 +1826,8 @@ if (isFALSE(params$telolength)) {
       aes(x = age, y = derivative, color = gender),
       linewidth = 0.6,
       show.legend = FALSE
-    ) +    p_cfg$age_rate_gender_colors +
-    
+    ) +
+    p_cfg$age_rate_gender_colors +
     p_cfg$age_rate_der_scales +
     p_cfg$age_rate_der_labels +
     p_cfg$plot_theme +
@@ -1806,9 +1840,9 @@ if (isFALSE(params$telolength)) {
       ),
       plot.margin = margin(0, 1, 0, 0, unit = "pt")
     )
-  
-  p <- align_plots(p0, p1, p2, p3, p4, p5, align = 'hv')
-  
+
+  p <- align_plots(p0, p1, p2, p3, p4, p5, align = "hv")
+
   p <-
     plot_grid(
       plot_grid(
@@ -1839,7 +1873,7 @@ if (isFALSE(params$telolength)) {
       ncol = 1,
       rel_heights = c(1, -0.15, 1)
     )
-  
+
   sameplot(
     p,
     file = here(
@@ -1886,10 +1920,11 @@ if (isFALSE(params$telolength)) {
       aes(x = age, y = hearing_var),
       linewidth = 0.6,
       alpha = 1
-    )  +   p_cfg$age_rate_scales +
+    ) +
+    p_cfg$age_rate_scales +
     p_cfg$age_rate_labels +
     p_cfg$plot_theme
-  
+
   sameplot(
     p0,
     file = here(p_cfg$figure_dir, "Extras", "age_rate_mean.png"),
@@ -1929,12 +1964,12 @@ if (isFALSE(params$telolength)) {
       linewidth = 0.6,
       alpha = 1,
       show.legend = FALSE
-      
-    )  +   p_cfg$age_rate_gender_colors +
+    ) +
+    p_cfg$age_rate_gender_colors +
     p_cfg$age_rate_scales +
     p_cfg$age_rate_labels +
     p_cfg$plot_theme
-  
+
   sameplot(
     p0,
     file = here(p_cfg$figure_dir, "Extras", "age_rate_mean.png"),
@@ -1971,7 +2006,7 @@ if (isFALSE(params$telolength)) {
     p_cfg$age_rate_scales +
     p_cfg$age_rate_labels +
     p_cfg$plot_theme
-  
+
   sameplot(
     p0,
     file = here(p_cfg$figure_dir, "Extras", "age_rate_mean_race.png"),
@@ -2004,13 +2039,13 @@ if (isFALSE(params$telolength)) {
         levels = c("age, crp", "age, hba1c", "age, albumin_gL")
       )
     ) %>%
-    ggplot(aes(x = age_group, y = mean_delta_mse))  +
+    ggplot(aes(x = age_group, y = mean_delta_mse)) +
     geom_hline(
       yintercept = 0,
       linetype = "22",
       color = "grey20",
       linewidth = 0.2
-    )  +
+    ) +
     geom_label(
       data = . %>%
         filter(age_group == "20-30"),
@@ -2064,7 +2099,7 @@ if (isFALSE(params$telolength)) {
       )
     ) +
     facet_wrap(
-      ~ predictors,
+      ~predictors,
       ncol = 1,
       nrow = 5,
       labeller = labeller(
@@ -2082,7 +2117,7 @@ if (isFALSE(params$telolength)) {
     coord_cartesian(ylim = c(-1.5, 4), xlim = c(1.4, 5.6)) +
     p_cfg$plot_theme +
     theme(strip.text.x = element_blank())
-  
+
   sameplot(
     p1,
     file = here(p_cfg$figure_dir, "biomarkers_biomarkers_panel.png"),
@@ -2098,13 +2133,14 @@ if (isFALSE(params$telolength)) {
 
 ```{r plot_explained_var, include=FALSE}
 if (isFALSE(params$telolength)) {
-  p2 <- df_summary_biomarkers %>% filter(
-    predictors %in% c(
-      "age, phenoage",
-      "age, crp, hba1c, albumin_gL",
-      "age, crp, hba1c, albumin_gL, phenoage"
-    )
-  ) %>%
+  p2 <- df_summary_biomarkers %>%
+    filter(
+      predictors %in% c(
+        "age, phenoage",
+        "age, crp, hba1c, albumin_gL",
+        "age, crp, hba1c, albumin_gL, phenoage"
+      )
+    ) %>%
     mutate(predictors = factor(
       predictors,
       levels = c(
@@ -2113,13 +2149,13 @@ if (isFALSE(params$telolength)) {
         "age, crp, hba1c, albumin_gL, phenoage"
       )
     )) %>%
-    ggplot(aes(x = age_group, y = mean_delta_mse))  +
+    ggplot(aes(x = age_group, y = mean_delta_mse)) +
     geom_hline(
       yintercept = 0,
       linetype = "22",
       color = "grey20",
       linewidth = 0.2
-    )  +
+    ) +
     geom_ribbon(
       aes(
         fill = predictors,
@@ -2175,7 +2211,6 @@ if (isFALSE(params$telolength)) {
         "age, crp, hba1c, albumin_gL",
         "age, phenoage"
       )
-      
     ) +
     guides(
       colour = guide_legend(
@@ -2193,15 +2228,17 @@ if (isFALSE(params$telolength)) {
     coord_cartesian(ylim = c(-3, 8.5), xlim = c(1.4, 5.6)) +
     labs(x = "Age Group<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>") +
     p_cfg$plot_theme +
-    theme(axis.title.y = element_blank(),
-          plot.margin = margin(
-            t = 1,
-            r = 1,
-            b = 0,
-            l = 0,
-            unit = "pt"
-          ))
-  
+    theme(
+      axis.title.y = element_blank(),
+      plot.margin = margin(
+        t = 1,
+        r = 1,
+        b = 0,
+        l = 0,
+        unit = "pt"
+      )
+    )
+
   sameplot(
     p2,
     file = here(p_cfg$figure_dir, "biomarkers_v_phenoage.png"),
@@ -2228,7 +2265,7 @@ if (isFALSE(params$telolength)) {
     label.y = 1.01,
     align = "v"
   )
-  
+
   sameplot(
     p,
     file = here(p_cfg$figure_dir, "biomarkers_fig_panel.png"),

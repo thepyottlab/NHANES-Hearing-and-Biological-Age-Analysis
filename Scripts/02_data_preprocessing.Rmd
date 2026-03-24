@@ -56,7 +56,8 @@ df <- df_raw %>%
     race = case_when(race == 2 ~ 1, TRUE ~ race),
     race = factor(race),
     education = factor(education),
-    phenoage_advance = phenoage-age)
+    phenoage_advance = phenoage - age
+  )
 ```
 
 ## Optionally only include telolength rows
