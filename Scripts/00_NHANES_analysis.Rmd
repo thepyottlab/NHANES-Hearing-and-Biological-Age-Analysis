@@ -118,7 +118,7 @@ params:
     value: 6.96
     input: numeric   
     help: "Set double column figure width in inches"
-  plot_config:
+  plot_output_type:
     label: "Set plot theme"
     value: "paper"
     input: radio
