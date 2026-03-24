@@ -12,13 +12,13 @@ library(haven) # for importing .xpt
 library(matrixStats) # used for weighted variance calculation
 library(emmeans) # for pairwise comparisons
 library(mgcv) # used to train model
-library(tidytable) # for fast data loading
 
 # Visualization
 library(kableExtra) # for pretty tables
 library(ggthemes) # for theme_few()
 library(ggtext) # for element_markdown()
 library(ggh4x) # for element_rect()
+library(ggridges) # for geom_density_ridges()
 library(ggpubr) # for ggarrange()
 library(cowplot) # for combined plots 
 library(sameplot) # for plotting consistently
@@ -26,7 +26,15 @@ library(sameplot) # for plotting consistently
 # Data operations
 library(data.table) # for speedy dataframes 
 library(tidyverse) # for general data operations
+library(tidytable) # for fast data loading
 ```
+
+## Import helpers
+
+```{r}
+source(here("Scripts", "universal_helpers.R"))
+```
+
 
 ## Print params for knitted reports
 

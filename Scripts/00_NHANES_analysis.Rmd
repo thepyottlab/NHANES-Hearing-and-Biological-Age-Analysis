@@ -51,7 +51,7 @@ params:
   telolength:
     label: "Analyze telomere length"
     input: checkbox
-    value: TRUE
+    value: FALSE
     help: "Check to use telolength dataset with smaller N"
   global_k:
     label: "K (n BAM base functions)"
@@ -118,6 +118,12 @@ params:
     value: 6.96
     input: numeric   
     help: "Set double column figure width in inches"
+  plot_config:
+    label: "Set plot theme"
+    value: "paper"
+    input: radio
+    choices: ["paper", "poster"]
+    help: "Set theme preset to use for plots"
 ---
 
 # Set-up
@@ -143,7 +149,7 @@ run_module <- function(path) {
     cat(knitr::knit_child(path, quiet = TRUE))
   } else {
     runtime <- system.time(knitr::knit_child(path, quiet = TRUE))
-    cat(basename(path), "completed in", round(runtime["elapsed"], 2),"s.\n")
+    cat(basename(path), " completed in ", round(runtime["elapsed"], 1), "s.\n", sep = "")
   }
 }
 ```
