@@ -368,26 +368,13 @@ if (isFALSE(params$telolength)) {
 
 ## Figures
 
-### Axis label maker function
-
-```{r}
-axis_label <- function(label, unit) {
-  paste0(
-    label, "<br><span style='font-size:",
-    p_cfg$text_size_primary,
-    "pt; color:#4D4D4D'>(", unit, ")</span>"
-  )
-}
-```
-
-
 ### Set plot config
 
-#### General config
+#### Set general plot theme
 
 ```{r}
-p_cfg <- function(output_type = c("poster", "paper")) {
-  output_type <- match.arg(output_type)
+p_cfg <- {
+  output_type <- params$plot_output_type
 
   type_cfg <- list(
     poster = list(),
@@ -403,6 +390,7 @@ p_cfg <- function(output_type = c("poster", "paper")) {
       ),
       text_size_primary = 8,
       text_size_secondary = 9,
+      axis_unit_color = "#4D4D4D",
       signif_size = 14
     )
   )
@@ -462,228 +450,159 @@ p_cfg <- function(output_type = c("poster", "paper")) {
 
   c(plot_theme, type_cfg[[output_type]])
 }
-
-p_cfg <- p_cfg(params$plot_output_type)
 ```
 
-#### Age rate config
+#### Set axis scales
 
 ```{r}
 p_cfg <- modifyList(
   p_cfg,
   list(
-    age_rate_labels = labs(
-      x = axis_label("Age", "Years"),
-      y = axis_label("High Fletcher Index", "dB HL")
+    x = list(
+      age = set_axis(p_cfg, "x", "continuous", breaks = seq(20, 80, 10), limits = c(20, 82), label = "Age", unit = "Years"),
+      age_group = set_axis(p_cfg, "x", "discrete", limits = c(1.4, 5.6), label = "Age", unit = "Years"),
+      age_accel = set_axis(p_cfg, "x", "continuous", limits = c(-20, 20), label = "Age Acceleration", unit = "PhenoAge – Age (Years)")
     ),
-    age_rate_der_labels = labs(
-      x = axis_label("Age", "Years"),
-      y = axis_label("Rate of HL", "dB HL/Year")
-    ),
-    age_rate_diff_labels = labs(
-      x = axis_label("Age", "Years"),
-      y = axis_label("Deviation Rate of HL", "dB HL/Year")
-    ),
-    age_rate_scales =
-      list(
-        scale_y_continuous(breaks = c(0, 30, 60, 90)),
-        scale_x_continuous(breaks = seq(20, 80, 10)),
-        coord_cartesian(ylim = c(-10, 100), xlim = c(20, 82))
-      ),
-    age_rate_der_scales =
-      list(
-        scale_y_continuous(breaks = c(0, 1, 2)),
-        scale_x_continuous(breaks = seq(20, 80, 10)),
-        coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82))
-      )
+    y = list(
+      age_group = set_axis(p_cfg, "y", "discrete", limits = c(1, 7), label = "Age", unit = "Years"),
+      hl = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 90, 30), limits = c(-10, 100), label = paste0(if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index"), unit = "dB HL"),
+      hl_rate = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 2, 1), limits = c(-0.5, 2.6), label = "Rate of HL", unit = "dB HL/Year"),
+      hl_diff = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 2, 1), limits = c(-0.5, 2.6), label = "Deviation Rate of HL", unit = "dB HL/Year"),
+      dmse_bioage = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 8, 2), limits = c(-1, 8.5), label = "Additional Predictive Capacity", unit = "Δ MSE (dB HL)<sup>2</sup>"),
+      dmse_biomark = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 2, 1), limits = c(-0.25, 1.5), label = "Additional Predictive Capacity", unit = "Δ MSE (dB HL)<sup>2</sup>"),
+      dmse_conf = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 40, 5), limits = c(-1, 40), label = "Additional Predictive Capacity", unit = "Δ MSE (dB HL)<sup>2</sup>"),
+      dmse_best_biomark = set_axis(p_cfg, "y", "continuous", breaks = c(0, 2), limits = c(-1.5, 4), label = "Additional Predictive Capacity", unit = "Δ MSE (dB HL)<sup>2</sup>"),
+      add_pred_conf = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 14, 2), limits = c(-1, 15), label = "Additional Predictive Capacity", unit = "% Change MSE")
+    )
   )
 )
 ```
 
-#### Bioage config
+#### Set colors
 
 ```{r}
 p_cfg <- modifyList(
   p_cfg,
   list(
-    bioage_labels = labs(
-      x = axis_label("Age", "Years"),
-      y = axis_label("Additional Predictive Capacity", "Δ MSE (dB HL)<sup>2</sup>")
-    ),
-    bioage_scales = list(
-      scale_y_continuous(breaks = seq(0, 8, 2)),
-      coord_cartesian(ylim = c(-1, 8.5), xlim = c(1.4, 5.6))
-    ),
-    bioage_colors = list(
-      scale_color_manual(values = if (isTRUE(params$telolength)) {
-        c(
+    colors = list(
+      bioage = set_colors(
+        colors = c(
           "age" = "#000000",
           "age, hd_log" = "#256DAB",
           "age, kdm" = "#059748",
           "age, phenoage" = "#CB2027",
-          "age, telolength" = "#7B3A96"
-        )
-      } else {
-        c(
-          "age" = "#000000",
-          "age, hd_log" = "#256DAB",
-          "age, kdm" = "#059748",
-          "age, phenoage" = "#CB2027"
-        )
-      }, labels = if (isTRUE(params$telolength)) {
-        c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telolength")
-      } else {
-        c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
-      }),
-      scale_fill_manual(values = if (isTRUE(params$telolength)) {
-        c(
+          "age, telolength" = if (isTRUE(params$telolength)) "#7B3A96" else NULL
+        ),
+        fill_colors = c(
           "age" = "#8C8C8C",
           "age, hd_log" = "#88BDE6",
           "age, kdm" = "#90CD97",
           "age, phenoage" = "#F07E6E",
-          "age, telolength" = "#B276B2"
-        )
-      } else {
-        c(
-          "age" = "#8C8C8C",
-          "age, hd_log" = "#88BDE6",
-          "age, kdm" = "#90CD97",
-          "age, phenoage" = "#F07E6E"
-        )
-      }, labels = if (isTRUE(params$telolength)) {
-        c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telolength")
-      } else {
-        c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
-      })
-    )
-  )
-)
-```
-
-#### Bioage advance config
-
-```{r}
-p_cfg <- modifyList(
-  p_cfg,
-  list(
-    bioage_advance_labels = labs(
-      x = axis_label("Age Acceleration", "PhenoAge – Age (Years)"),
-      y = axis_label("Age Group", "Years")
-    ),
-    bioage_advance_scales = list(
-      scale_x_continuous(breaks = seq(-20, 20, 20)),
-      coord_cartesian(xlim = c(-20, 20), ylim = c(1, 7))
-    )
-  )
-)
-```
-
-#### Biomarkers config
-
-```{r}
-p_cfg <- modifyList(p_cfg, list(
-  biomarker_scales = list(scale_y_continuous(breaks = seq(0, 2, 1)), coord_cartesian(ylim = c(-0.25, 1.5)))
-))
-```
-
-#### Confounders config
-
-```{r}
-p_cfg <- modifyList(
-  p_cfg,
-  list(
-    confounders_scales = list(
-      scale_y_continuous(breaks = seq(0, 40, 5)),
-      coord_cartesian(ylim = c(-1, 40), xlim = c(1.4, 5.6))
-    ),
-    confounders_labels = labs(
-      x = axis_label("Age Group", "Years"),
-      y = axis_label("Additional Predictive Capacity", "Δ MSE (dB HL)<sup>2</sup>")
-    ),
-    confounders_colors = list(
-      scale_color_manual(
-        values =
-          c(
-            "full" = "#000000",
-            "no_gender" = "#059748",
-            "no_smoking" = "#9D722A",
-            "no_race" = "#E5126F",
-            "no_education" = "#DF5C24",
-            "no_gender, race" = "#7B3A96",
-            "full_with_phenoage" = "#256DAB"
-          ),
+          "age, telolength" = if (isTRUE(params$telolength)) "#B276B2" else NULL
+        ),
+        labels = c("age" = "Age", "age, hd_log" = "Age + HD", "age, kdm" = "Age + KDM", "age, phenoage" = "Age + PhenoAge", "age, telolength" = if (isTRUE(params$telolength)) "Age + Telolength" else NULL)
+      ),
+      confounders = set_colors(
+        colors = c(
+          "full" = "#000000",
+          "no_gender" = "#059748",
+          "no_smoking" = "#9D722A",
+          "no_race" = "#E5126F",
+          "no_education" = "#DF5C24",
+          "no_gender, race" = "#7B3A96",
+          "full_with_phenoage" = "#256DAB"
+        ),
+        fill_colors = c(
+          "full" = "#8C8C8C",
+          "no_gender" = "#90CD97",
+          "no_smoking" = "#BFA554",
+          "no_race" = "#F6AAC9",
+          "no_education" = "#FBB258",
+          "no_gender, race" = "#BC99C7",
+          "full_with_phenoage" = "#88BDE6"
+        ),
         labels = c(
-          "Full",
-          "Gender",
-          "Smoking",
-          "Race",
-          "Education",
-          "Gender*Race",
-          "Phenoage"
+          "Full" = "Full",
+          "no_gender" = "Gender",
+          "no_smoking" = "Smoking",
+          "no_race" = "Race",
+          "no_education" = "Education",
+          "no_gender, race" = "Gender*Race",
+          "full_with_phenoage" = "Phenoage"
         )
       ),
-      scale_fill_manual(
-        values =
-          c(
-            "full" = "#8C8C8C",
-            "no_gender" = "#90CD97",
-            "no_smoking" = "#BFA554",
-            "no_race" = "#F6AAC9",
-            "no_education" = "#FBB258",
-            "no_gender, race" = "#BC99C7",
-            "full_with_phenoage" = "#88BDE6"
-          ),
+      phenoage = set_colors(
+        colors = c(
+          "age" = "#000000", "age, phenoage" = "#CB2027"
+        ),
+        fill_colors = c(
+          "age" = "#8C8C8C", "age, phenoage" = "#F07E6E"
+        ),
         labels = c(
-          "Full",
-          "Gender",
-          "Smoking",
-          "Race",
-          "Education",
-          "Gender*Race",
-          "Phenoage"
+          "age" = "Age", "age, phenoage" = "Age + PhenoAge"
+        )
+      ),
+      gender = set_colors(
+        colors = c(
+          "1" = "#2986cc", "2" = "#c90076"
+        ),
+        fill_colors = c(
+          "1" = "#6fa8dc", "2" = "#d5a6bd"
+        ),
+        labels = c("1" = "Male", "2" = "Female")
+      ),
+      race = set_colors(
+        colors = c(
+          "1" = "#E5126F",
+          "3" = "#DF5C24",
+          "4" = "#7B3A96",
+          "5" = "#256DAB"
+        ),
+        fill_colors = c(
+          "1" = "#F6AAC9",
+          "3" = "#FBB258",
+          "4" = "#BC99C7",
+          "5" = "#88BDE6"
+        ),
+        labels = c("1" = "Hispanic", "3" = "White", "4" = "Black", "5" = "Other")
+      ),
+      biomarker_diff = set_colors(
+        colors = c(
+          "age, crp, hba1c, albumin_gL, phenoage" = "#CB2027",
+          "age, crp, hba1c, albumin_gL" = "#059748",
+          "age, phenoage" = "grey65"
+        ),
+        fill_colors = c(
+          "age, crp, hba1c, albumin_gL, phenoage" = "#F07E6E",
+          "age, crp, hba1c, albumin_gL" = "#90CD97",
+          "age, phenoage" = "grey80"
+        ),
+        labels = c(
+          "age, crp, hba1c, albumin_gL, phenoage" = "Age + CRP + HbA1c + ALB + PhenoAge",
+          "age, crp, hba1c, albumin_gL" = "Age + CRP + HbA1c + ALB",
+          "age, phenoage" = "Age + PhenoAge"
+        ),
+        breaks = c(
+          "age, crp, hba1c, albumin_gL, phenoage",
+          "age, crp, hba1c, albumin_gL",
+          "age, phenoage"
+        )
+      ),
+      best_biomarkers = set_colors(
+        colors = c(
+          "age, crp" = "#256DAB",
+          "age, hba1c" = "#E5126F",
+          "age, albumin_gL" = "#DF5C24"
+        ),
+        fill_colors = c(
+          "age, crp" = "#88BDE6",
+          "age, hba1c" = "#F6AAC9",
+          "age, albumin_gL" = "#FBB258"
         )
       )
     )
   )
 )
-```
-
-#### Confounders variance config
-
-```{r}
-p_cfg <- modifyList(p_cfg, list(
-  confounders_var_scales = list(
-    scale_y_continuous(breaks = seq(0, 8, 2)),
-    coord_cartesian(ylim = c(-1, 15), xlim = c(1.4, 5.6))
-  )
-))
-```
-
-#### Phenoage only config
-
-```{r}
-p_cfg <- modifyList(p_cfg, list(phenoage_colors = list(
-  scale_color_manual(
-    values = c("age" = "#000000", "age, phenoage" = "#CB2027"),
-    labels = c("Age", "Age + PhenoAge")
-  ),
-  scale_fill_manual(
-    values = c("age" = "#8C8C8C", "age, phenoage" = "#F07E6E"),
-    labels = c("Age", "Age + PhenoAge")
-  )
-)))
-```
-
-#### Age rate gender config
-
-```{r}
-p_cfg <- modifyList(p_cfg, list(
-  age_rate_gender_colors = list(scale_color_manual(values = c(
-    "1" = "#2986cc", "2" = "#c90076"
-  )), scale_fill_manual(values = c(
-    "1" = "#6fa8dc", "2" = "#d5a6bd"
-  )))
-))
 ```
 
 ### Rate of aging panel
@@ -712,8 +631,7 @@ p0 <- ggplot() +
     aes(x = age, ymin = ci_lower, ymax = ci_upper),
     alpha = 0.15
   ) +
-  p_cfg$age_rate_scales +
-  p_cfg$age_rate_labels +
+  construct_axes(p_cfg$x$age, p_cfg$y$hl) +
   p_cfg$plot_theme +
   theme(
     plot.margin = margin(1, 0, 0, 1, unit = "pt"),
@@ -741,8 +659,7 @@ p1 <- ggplot() +
     aes(x = age, ymin = ci_lower, ymax = ci_upper),
     alpha = 0.15
   ) +
-  p_cfg$age_rate_scales +
-  p_cfg$age_rate_labels +
+  construct_axes(p_cfg$x$age, p_cfg$y$hl) +
   p_cfg$plot_theme +
   theme(
     plot.margin = margin(1, 0, 0, 1, unit = "pt"),
@@ -788,8 +705,7 @@ p2 <- ggplot() +
     ),
     linewidth = 0.6
   ) +
-  p_cfg$age_rate_scales +
-  p_cfg$age_rate_labels +
+  construct_axes(p_cfg$x$age, p_cfg$y$hl) +
   p_cfg$plot_theme +
   theme(
     plot.margin = margin(1, 1, 0, 0, unit = "pt"),
@@ -814,9 +730,8 @@ p3 <- ggplot() +
     aes(x = age, ymin = ci_lower, ymax = ci_upper),
     alpha = 0.15
   ) +
-  p_cfg$age_rate_der_scales +
-  p_cfg$age_rate_der_labels +
   p_cfg$plot_theme +
+  construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
   theme(plot.margin = margin(0, 0, 0, 1, unit = "pt"))
 
 p4 <- ggplot() +
@@ -836,10 +751,7 @@ p4 <- ggplot() +
     aes(x = age, ymin = ci_lower, ymax = ci_upper),
     alpha = 0.15
   ) +
-  scale_y_continuous(breaks = c(0, 1, 2)) +
-  scale_x_continuous(breaks = seq(20, 80, 10)) +
-  coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
-  p_cfg$age_rate_der_labels +
+  construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
   p_cfg$plot_theme +
   theme(
     plot.margin = margin(0, 0, 0, 1, unit = "pt"),
@@ -874,8 +786,7 @@ p5 <- ggplot() +
     aes(x = age, y = derivative),
     linewidth = 0.6
   ) +
-  p_cfg$age_rate_der_scales +
-  p_cfg$age_rate_der_labels +
+  construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
   p_cfg$plot_theme +
   theme(
     plot.margin = margin(0, 1, 0, 0, unit = "pt"),
@@ -910,10 +821,10 @@ p6 <- ggplot() +
     aes(x = age, y = derivative_adj),
     linewidth = 0.6
   ) +
-  p_cfg$age_rate_der_scales +
-  p_cfg$age_rate_diff_labels +
+  construct_axes(p_cfg$x$age, p_cfg$y$hl_diff) +
   p_cfg$plot_theme +
   theme(plot.margin = margin(0, 0, 1, 0, unit = "pt"))
+
 
 p <- align_plots(p0, p1, p2, p3, p4, p5, p6, align = "hv")
 
@@ -1018,9 +929,8 @@ p <- df_summary_bioage %>%
     ),
     size = p_cfg$signif_size / (14 / 5)
   ) +
-  p_cfg$bioage_scales +
-  p_cfg$bioage_colors +
-  p_cfg$bioage_labels +
+  construct_axes(p_cfg$x$age_group, p_cfg$y$dmse_bioage) +
+  p_cfg$colors$bioage +
   p_cfg$plot_theme
 
 sameplot(
@@ -1062,10 +972,9 @@ p <- df %>%
     size = p_cfg$text_size_primary / (14 / 5),
     color = "darkred"
   ) +
-  p_cfg$bioage_advance_scales +
-  p_cfg$bioage_advance_labels +
+  construct_axes(p_cfg$x$age_accel, p_cfg$y$age_group) +
+  p_cfg$colors$bioage +
   p_cfg$plot_theme
-
 
 sameplot(
   p,
@@ -1156,8 +1065,7 @@ if (isFALSE(params$telolength)) {
       size = p_cfg$signif_size / (14 / 5),
       show.legend = FALSE
     ) +
-    p_cfg$biomarker_scales +
-    p_cfg$bioage_labels +
+    construct_axes(p_cfg$y$dmse_biomark) +
     p_cfg$plot_theme +
     theme(
       panel.grid.major.y = element_line(color = "grey95", linewidth = 0.25),
@@ -1251,8 +1159,7 @@ if (isFALSE(params$telolength)) {
       stroke = 0.25,
       color = "grey30"
     ) +
-    p_cfg$age_rate_scales +
-    p_cfg$age_rate_labels +
+    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
     p_cfg$plot_theme +
     theme(
       plot.margin = margin(1, 0, 0, 1, unit = "pt"),
@@ -1269,8 +1176,7 @@ if (isFALSE(params$telolength)) {
       stroke = 0.25,
       color = "grey30"
     ) +
-    p_cfg$age_rate_scales +
-    p_cfg$age_rate_labels +
+    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
     p_cfg$plot_theme +
     theme(
       plot.margin = margin(1, 0, 0, 1, unit = "pt"),
@@ -1288,8 +1194,7 @@ if (isFALSE(params$telolength)) {
       stroke = 0.25,
       color = "grey30"
     ) +
-    p_cfg$age_rate_scales +
-    p_cfg$age_rate_labels +
+    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
     p_cfg$plot_theme +
     theme(
       plot.margin = margin(1, 1, 0, 0, unit = "pt"),
@@ -1310,8 +1215,7 @@ if (isFALSE(params$telolength)) {
       linewidth = 0.6,
       color = "white"
     ) +
-    p_cfg$age_rate_der_scales +
-    p_cfg$age_rate_der_labels +
+    construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
     p_cfg$plot_theme +
     theme(plot.margin = margin(0, 0, 0, 1, unit = "pt"))
 
@@ -1328,10 +1232,7 @@ if (isFALSE(params$telolength)) {
       linewidth = 0.6,
       color = "white"
     ) +
-    scale_y_continuous(breaks = c(0, 1, 2)) +
-    scale_x_continuous(breaks = seq(20, 80, 10)) +
-    coord_cartesian(ylim = c(-0.5, 2.6), xlim = c(20, 82)) +
-    p_cfg$age_rate_der_labels +
+    construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
     p_cfg$plot_theme +
     theme(
       plot.margin = margin(0, 0, 0, 1, unit = "pt"),
@@ -1351,8 +1252,7 @@ if (isFALSE(params$telolength)) {
       linewidth = 0.6,
       color = "white"
     ) +
-    p_cfg$age_rate_der_scales +
-    p_cfg$age_rate_der_labels +
+    construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
     p_cfg$plot_theme +
     theme(
       plot.margin = margin(0, 1, 0, 0, unit = "pt"),
@@ -1452,9 +1352,8 @@ if (isFALSE(params$telolength)) {
       manual = TRUE,
       size = p_cfg$signif_size / (14 / 5)
     ) +
-    p_cfg$confounders_colors +
-    p_cfg$confounders_scales +
-    p_cfg$confounders_labels +
+    construct_axes(p_cfg$x$age_group, p_cfg$y$dmse_conf) +
+    p_cfg$colors$confounders +
     p_cfg$plot_theme
 
   sameplot(
@@ -1514,9 +1413,8 @@ if (isFALSE(params$telolength)) {
       manual = TRUE,
       size = p_cfg$signif_size / (14 / 5)
     ) +
-    p_cfg$confounders_colors +
-    p_cfg$confounders_var_scales +
-    p_cfg$confounders_labels +
+    construct_axes(p_cfg$x$age_group, p_cfg$y$add_pred_conf) +
+    p_cfg$colors$confounders +
     p_cfg$plot_theme
 
   sameplot(
@@ -1577,9 +1475,8 @@ if (isFALSE(params$telolength)) {
       manual = TRUE,
       size = p_cfg$signif_size / (14 / 5)
     ) +
-    p_cfg$phenoage_colors +
-    p_cfg$bioage_scales +
-    p_cfg$bioage_labels +
+    construct_axes(p_cfg$x$age_group, p_cfg$y$dmse_bioage) +
+    p_cfg$colors$phenoage +
     p_cfg$plot_theme
 
   sameplot(
@@ -1681,8 +1578,7 @@ if (isFALSE(params$telolength)) {
       aes(x = age, ymin = ci_lower, ymax = ci_upper),
       alpha = 0.15
     ) +
-    p_cfg$age_rate_scales +
-    p_cfg$age_rate_labels +
+    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
     p_cfg$plot_theme +
     theme(
       axis.title.x = element_blank(),
@@ -1710,8 +1606,7 @@ if (isFALSE(params$telolength)) {
       aes(x = age, ymin = ci_lower, ymax = ci_upper),
       alpha = 0.15
     ) +
-    p_cfg$age_rate_scales +
-    p_cfg$age_rate_labels +
+    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
     p_cfg$plot_theme +
     theme(
       axis.title.x = element_blank(),
@@ -1746,9 +1641,8 @@ if (isFALSE(params$telolength)) {
       linewidth = 0.6,
       show.legend = FALSE
     ) +
-    p_cfg$age_rate_gender_colors +
-    p_cfg$age_rate_scales +
-    p_cfg$age_rate_labels +
+    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
+    p_cfg$colors$gender +
     p_cfg$plot_theme +
     theme(
       axis.title.x = element_blank(),
@@ -1773,8 +1667,7 @@ if (isFALSE(params$telolength)) {
       aes(x = age, ymin = ci_lower, ymax = ci_upper),
       alpha = 0.15
     ) +
-    p_cfg$age_rate_der_scales +
-    p_cfg$age_rate_der_labels +
+    construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
     p_cfg$plot_theme +
     theme(plot.margin = margin(0, 0, 0, 1, unit = "pt"))
 
@@ -1795,8 +1688,7 @@ if (isFALSE(params$telolength)) {
       aes(x = age, ymin = ci_lower, ymax = ci_upper),
       alpha = 0.15
     ) +
-    p_cfg$age_rate_der_scales +
-    p_cfg$age_rate_der_labels +
+    construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
     p_cfg$plot_theme +
     theme(
       axis.title.y = element_blank(),
@@ -1827,9 +1719,8 @@ if (isFALSE(params$telolength)) {
       linewidth = 0.6,
       show.legend = FALSE
     ) +
-    p_cfg$age_rate_gender_colors +
-    p_cfg$age_rate_der_scales +
-    p_cfg$age_rate_der_labels +
+    construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
+    p_cfg$colors$gender +
     p_cfg$plot_theme +
     theme(
       axis.title.y = element_blank(),
@@ -1921,8 +1812,7 @@ if (isFALSE(params$telolength)) {
       linewidth = 0.6,
       alpha = 1
     ) +
-    p_cfg$age_rate_scales +
-    p_cfg$age_rate_labels +
+    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
     p_cfg$plot_theme
 
   sameplot(
@@ -1965,9 +1855,8 @@ if (isFALSE(params$telolength)) {
       alpha = 1,
       show.legend = FALSE
     ) +
-    p_cfg$age_rate_gender_colors +
-    p_cfg$age_rate_scales +
-    p_cfg$age_rate_labels +
+    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
+    p_cfg$colors$gender +
     p_cfg$plot_theme
 
   sameplot(
@@ -2003,8 +1892,8 @@ if (isFALSE(params$telolength)) {
       linewidth = 0.6,
       alpha = 1
     ) +
-    p_cfg$age_rate_scales +
-    p_cfg$age_rate_labels +
+    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
+    p_cfg$colors$race +
     p_cfg$plot_theme
 
   sameplot(
@@ -2084,20 +1973,6 @@ if (isFALSE(params$telolength)) {
       alpha = 1,
       show.legend = FALSE
     ) +
-    scale_color_manual(
-      values = c(
-        "age, crp" = "#256DAB",
-        "age, hba1c" = "#E5126F",
-        "age, albumin_gL" = "#DF5C24"
-      )
-    ) +
-    scale_fill_manual(
-      values = c(
-        "age, crp" = "#88BDE6",
-        "age, hba1c" = "#F6AAC9",
-        "age, albumin_gL" = "#FBB258"
-      )
-    ) +
     facet_wrap(
       ~predictors,
       ncol = 1,
@@ -2105,16 +1980,13 @@ if (isFALSE(params$telolength)) {
       labeller = labeller(
         predictors = c(
           "age, crp" = "Age + CRP",
-          # creatinine in mg/dL
           "age, hba1c" = "Age + HbA1c",
-          # plasma uric acid in mg/dL
           "age, albumin_gL" = "Age + ALB"
         )
       )
-    ) + # in billions per liter
-    labs(x = "Age Group<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>", y = "Additional Predictive Capacity<br><span style='font-size:8pt; color:#4D4D4D'>(Δ MSE (dB HL)<sup>2</sup>)</span>") +
-    scale_y_continuous(breaks = c(0, 2)) +
-    coord_cartesian(ylim = c(-1.5, 4), xlim = c(1.4, 5.6)) +
+    ) +
+    construct_axes(p_cfg$x$age_group, p_cfg$y$dmse_best_biomark) +
+    p_cfg$colors$best_biomarkers +
     p_cfg$plot_theme +
     theme(strip.text.x = element_blank())
 
@@ -2178,65 +2050,12 @@ if (isFALSE(params$telolength)) {
       alpha = 1,
       show.legend = FALSE
     ) +
-    scale_color_manual(
-      values = c(
-        "age, crp, hba1c, albumin_gL, phenoage" = "#CB2027",
-        "age, crp, hba1c, albumin_gL" = "#059748",
-        "age, phenoage" = "grey65"
-      ),
-      labels = c(
-        "Age + CRP + HbA1c + ALB + PhenoAge",
-        "Age + CRP + HbA1c + ALB",
-        "Age + PhenoAge"
-      ),
-      breaks = c(
-        "age, crp, hba1c, albumin_gL, phenoage",
-        "age, crp, hba1c, albumin_gL",
-        "age, phenoage"
-      )
-    ) +
-    scale_fill_manual(
-      values = c(
-        "age, crp, hba1c, albumin_gL, phenoage" = "#F07E6E",
-        "age, crp, hba1c, albumin_gL" = "#90CD97",
-        "age, phenoage" = "grey80"
-      ),
-      labels = c(
-        "Age + CRP + HbA1c + ALB + PhenoAge",
-        "Age + CRP + HbA1c + ALB",
-        "Age + PhenoAge"
-      ),
-      breaks = c(
-        "age, crp, hba1c, albumin_gL, phenoage",
-        "age, crp, hba1c, albumin_gL",
-        "age, phenoage"
-      )
-    ) +
-    guides(
-      colour = guide_legend(
-        override.aes = list(size = 1.25),
-        keywidth = unit(0.3, "cm"),
-        keyheight = unit(0.3, "cm"),
-        label.theme = element_markdown(
-          "sans",
-          size = 8,
-          margin = margin(l = 3, t = 1.5, unit = "pt")
-        ),
-      )
-    ) +
-    scale_y_continuous(breaks = c(0, 2, 4, 6, 8)) +
-    coord_cartesian(ylim = c(-3, 8.5), xlim = c(1.4, 5.6)) +
-    labs(x = "Age Group<br><span style='font-size:8pt; color:#4D4D4D'>(Years)</span>") +
+    construct_axes(p_cfg$x$age_group, p_cfg$y$dmse_bioage) +
+    p_cfg$colors$biomarker_diff +
     p_cfg$plot_theme +
     theme(
       axis.title.y = element_blank(),
-      plot.margin = margin(
-        t = 1,
-        r = 1,
-        b = 0,
-        l = 0,
-        unit = "pt"
-      )
+      plot.margin = margin(1, 1, 0, 0, unit = "pt")
     )
 
   sameplot(
@@ -2270,7 +2089,7 @@ if (isFALSE(params$telolength)) {
     p,
     file = here(p_cfg$figure_dir, "biomarkers_fig_panel.png"),
     width = params$double_column,
-    height = 4,
+    height = 3,
     res = 600,
     save = params$save_figures
   )

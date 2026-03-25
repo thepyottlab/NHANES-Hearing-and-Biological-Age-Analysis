@@ -29,6 +29,13 @@ library(tidyverse) # for general data operations
 library(tidytable) # for fast data loading
 ```
 
+## Import helpers
+
+```{r}
+source(here("Scripts", "helpers.R"))
+```
+
+
 ## Print params for knitted reports
 
 ```{r print_params}
