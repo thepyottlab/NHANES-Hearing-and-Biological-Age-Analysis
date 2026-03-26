@@ -588,10 +588,8 @@ if (isFALSE(params$telolength) && is.null(output_confounders$models)) {
 #### Store confounders modeling results
 
 ```{r store_conf_res}
-if (isFALSE(params$telolength)) {
-  if (isTRUE(params$store_model_results)) {
-    saveRDS(output_confounders, generate_model_path("confounders"), compress = "xz")
-  }
+if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
+  saveRDS(output_confounders, generate_model_path("confounders"), compress = "xz")
 }
 ```
 
@@ -613,37 +611,22 @@ a k of 10 we already get an edf of almost 8, so k = 10 should be sufficient.
 ```{r aging_models}
 output_age_rate <- list(models = list(), predictions = list())
 
-output_age_rate$models <- append(output_age_rate$models, list(
-  linear =
-    gam(
-      reformulate(c("age"), response = params$hearing_var),
-      data = df,
-      method = "REML",
-      family = gaussian()
-    )
-))
+model_age_rate <- function(terms) {
+  gam(
+    reformulate(terms, response = params$hearing_var),
+    data = df,
+    method = "REML",
+    family = gaussian()
+  )
+}
 
 output_age_rate$models <- append(output_age_rate$models, list(
-  quadratic =
-    gam(
-      reformulate(c("age", "I(age^2)"), response = params$hearing_var),
-      data = df,
-      method = "REML",
-      family = gaussian()
-    )
+  linear = model_age_rate("age"),
+  quadratic = model_age_rate(c("age", "I(age^2)")),
+  smooth = model_age_rate(c("age", "I(age^2)", "s(age, k = 10)"))
 ))
 
-output_age_rate$models <- append(output_age_rate$models, list(
-  smooth =
-    gam(
-      reformulate(c("age", "I(age^2)", "s(age, k = 10)"), response = params$hearing_var),
-      data = df,
-      method = "REML",
-      family = gaussian()
-    )
-))
-
-set.seed <- 1
+set.seed(1)
 k.check(output_age_rate$models$smooth)
 ```
 

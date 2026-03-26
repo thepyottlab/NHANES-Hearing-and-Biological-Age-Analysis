@@ -71,92 +71,51 @@ Or we use emtrends to calculate the slope at each point. The result is the same.
 However, using emtrends we can calculate simultaneous intervals with "mvt". Emtrends also works with smooth terms.
 
 ```{r predict_aging}
-build_parametric_predictions <- function(df, model, predictor) {
-  as.data.frame(confint(
-    emmeans(
-      model,
-      as.formula(paste("~", predictor)),
-      at = setNames(list(seq(
-        min(df[[predictor]]), max(df[[predictor]]),
-        by = 1
-      )), predictor),
-      type = "response",
-      data = df
-    ),
-    adjust = "mvt"
-  )) %>%
-    rename(
-      "estimate" = emmean,
-      "ci_lower" = lower.CL,
-      "ci_upper" = upper.CL
-    )
-}
+build_age_rate_predictions <- function(df, model, predictor, type = c("predict", "predict_derivative")) {
+  ages <- setNames(list(seq(min(df[[predictor]]), max(df[[predictor]]), by = 1)), predictor)
+  formula <- as.formula(paste("~", predictor))
 
-build_parametric_derivative_predictions <- function(df, model, predictor) {
-  data.frame(confint(
-    emtrends(
-      model,
-      as.formula(paste("~", predictor)),
-      var = predictor,
-      at = setNames(list(seq(
-        min(df[[predictor]]), max(df[[predictor]]),
-        by = 1
-      )), predictor),
-      data = df
-    ),
-    adjust = "mvt"
-  )) %>%
-    rename(
-      "derivative" = !!paste0(predictor, ".trend"),
-      "ci_lower" = lower.CL,
-      "ci_upper" = upper.CL
-    )
-}
+  if (type == "predict") {
+    em <- emmeans(model, formula, at = ages, type = "response", data = df)
+  } else {
+    em <- emtrends(model, formula, var = predictor, at = ages, data = df)
+  }
 
-output_age_rate$predictions <- append(
-  output_age_rate$predictions,
-  list(linear = build_parametric_predictions(df, output_age_rate$models$linear, "age"))
-)
+  predictions <- tibble(confint(em), adjust = "mvt")
 
-output_age_rate$predictions <- append(
-  output_age_rate$predictions,
-  list(quadratic = build_parametric_predictions(df, output_age_rate$models$quadratic, "age"))
-)
-
-output_age_rate$predictions <- append(
-  output_age_rate$predictions,
-  list(linear_derivative = build_parametric_derivative_predictions(df, output_age_rate$models$linear, "age"))
-)
-
-output_age_rate$predictions <- append(
-  output_age_rate$predictions,
-  list(
-    quadratic_derivative = build_parametric_derivative_predictions(df, output_age_rate$models$quadratic, "age")
-  )
-)
-
-output_age_rate$predictions <- append(
-  output_age_rate$predictions,
-  list(
-    smooth =
-      build_parametric_predictions(
-        df, output_age_rate$models$smooth, "age"
+  if (type == "predict") {
+    predictions <- predictions %>%
+      rename(
+        "estimate" = emmean,
+        "ci_lower" = lower.CL,
+        "ci_upper" = upper.CL
       )
-  )
-)
+  } else {
+    predictions <- predictions %>%
+      rename(
+        "derivative" = !!paste0(predictor, ".trend"),
+        "ci_lower" = lower.CL,
+        "ci_upper" = upper.CL
+      )
+  }
+}
 
 output_age_rate$predictions <- append(
   output_age_rate$predictions,
   list(
-    derivative_smooth =
-      build_parametric_derivative_predictions(
-        df, output_age_rate$models$smooth, "age"
-      ) %>%
-        mutate(
-          derivative_adj = derivative - output_age_rate$predictions$quadratic_derivative$derivative,
-          ci_lower_adj = ci_lower - output_age_rate$predictions$quadratic_derivative$derivative,
-          ci_upper_adj = ci_upper - output_age_rate$predictions$quadratic_derivative$derivative
-        )
+    linear = build_age_rate_predictions(df, output_age_rate$models$linear, "age", type = "predict"),
+    linear_derivative = build_age_rate_predictions(df, output_age_rate$models$linear, "age", type = "predict_derivative"),
+    quadratic = build_age_rate_predictions(df, output_age_rate$models$quadratic, "age", type = "predict"),
+    quadratic_derivative = build_age_rate_predictions(df, output_age_rate$models$quadratic, "age", type = "predict_derivative"),
+    smooth = build_age_rate_predictions(df, output_age_rate$models$smooth, "age", type = "predict"),
+    derivative_smooth = build_age_rate_predictions(df, output_age_rate$models$smooth, "age", type = "predict_derivative")
   )
 )
+
+output_age_rate$predictions$derivative_smooth <- output_age_rate$predictions$derivative_smooth %>%
+  mutate(
+    derivative_adj = derivative - output_age_rate$predictions$quadratic_derivative$derivative,
+    ci_lower_adj = ci_lower - output_age_rate$predictions$quadratic_derivative$derivative,
+    ci_upper_adj = ci_upper - output_age_rate$predictions$quadratic_derivative$derivative
+  )
 ```
