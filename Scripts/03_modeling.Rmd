@@ -337,23 +337,14 @@ cross_validation <- function(data,
         train <- data %>% filter(.data[[r]] != f) # set training data
         test <- data %>% filter(.data[[r]] == f) # set testing data
 
-        if (discrete) {
-          mod <- bam(
-            as.formula(formula),
-            data = train,
-            family = gaussian(),
-            method = "fREML",
-            discrete = TRUE
-          ) # fit GAM
-        } else {
-          mod <- bam(
-            as.formula(formula),
-            data = train,
-            family = gaussian(),
-            method = "REML",
-            discrete = FALSE
-          ) # fit GAM
-        }
+        mod <- bam(
+          as.formula(formula),
+          data = train,
+          family = gaussian(),
+          method = if (isTRUE(discrete)) "fREML" else "REML",
+          discrete = if (isTRUE(discrete)) TRUE else FALSE
+        ) # fit GAM
+
         if (isTRUE(confounder_analysis)) {
           predictors <- predictor_combinations[which(formulas == formula)]
         } else if (isFALSE(confounder_analysis)) {
