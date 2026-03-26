@@ -143,7 +143,10 @@ formula_generator <- function(data,
       } # construct predictor terms
     }
 
-    formula_list <- append(formula_list, paste(params$hearing_var, "~", paste(unlist(sm_terms), collapse = " + "))) # put predictor terms in formula and separate by +
+    formula_list <- append(formula_list, paste(
+      params$hearing_var, "~",
+      paste(unlist(sm_terms), collapse = " + ")
+    )) # put predictor terms in formula and separate by +
 
     if (isTRUE(stepdown) && formula == "age") { # Create confounder stepdown vars
       DF <- DF_store$DF[DF_store$predictor == "age"] # age will already have been created by the previous loop
@@ -160,7 +163,10 @@ formula_generator <- function(data,
           if (isTRUE(equal_wiggliness)) {
             sm_terms <- append(
               sm_terms,
-              paste0("s(age, ", constrained_confounder, ", bs = 'sz', k = ", k_formula, ", id = ", j, ")")
+              paste0(
+                "s(age, ", constrained_confounder, ", bs = 'sz', k = ",
+                k_formula, ", id = ", j, ")"
+              )
             )
           } else {
             sm_terms <- append(
@@ -170,7 +176,10 @@ formula_generator <- function(data,
           }
         }
 
-        formula_list <- append(formula_list, paste(params$hearing_var, "~", paste(unlist(sm_terms), collapse = " + ")))
+        formula_list <- append(formula_list, paste(
+          params$hearing_var, "~",
+          paste(unlist(sm_terms), collapse = " + ")
+        ))
       }
     }
   }
@@ -183,10 +192,8 @@ formula_generator <- function(data,
 
 ```{r fun_extr_pred}
 extract_predictors <- function(formula, collapse = "") {
-  confounders <- confounder_vars
-
   s_terms <- unlist(str_extract_all(formula, "s\\([^\\)]*\\)"))
-  keep <- !str_detect(s_terms, paste0("\\b(", paste(confounders, collapse = "|"), ")\\b"))
+  keep <- !str_detect(s_terms, paste0("\\b(", paste(confounder_vars, collapse = "|"), ")\\b"))
   str_match(s_terms[keep], "^s\\(\\s*([^,\\)\\s]+)")[, 2]
 }
 ```
@@ -297,7 +304,10 @@ cross_validation <- function(data,
                              discrete = FALSE,
                              keep_models = FALSE,
                              confounder_analysis = FALSE) {
-  age_groups <- c("20-30", "30-40", "40-50", "50-60", "60-70", if (isFALSE(params$telolength)) "70+" else NULL) # initialize age groups to stratify by explicitly
+  age_groups <- c(
+    "20-30", "30-40", "40-50", "50-60", "60-70",
+    if (isFALSE(params$telolength)) "70+" else NULL
+  ) # initialize age groups to stratify by explicitly
   fold_columns <- paste0("fold_r", 1:repeats) # initialize names of repeat columns to iterate over
 
   models <- list() # intialize list of models
@@ -445,7 +455,8 @@ With k = 40 discrete = FALSE takes 6759s With k = 50 discrete = FALSE takes
 
 ```{r bioage_cv}
 system.time({
-  output_bioage <- if (isTRUE(params$load_model_results) && file.exists(generate_model_path("bioage"))) {
+  output_bioage <- if (isTRUE(params$load_model_results) &&
+    file.exists(generate_model_path("bioage"))) {
     readRDS(generate_model_path("bioage"))
   } else {
     cross_validation(
@@ -500,9 +511,10 @@ if (isFALSE(params$telolength)) {
 
 ```{r store_biomarkers_cv}
 if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
-    saveRDS(output_biomarkers,
-      generate_model_path("biomarkers"),
-      compress = "xz")
+  saveRDS(output_biomarkers,
+    generate_model_path("biomarkers"),
+    compress = "xz"
+  )
 }
 ```
 
@@ -521,7 +533,8 @@ if (isFALSE(params$telolength)) {
               auto_limit_k = TRUE,
               equal_wiggliness = TRUE,
               formulas = c(
-                "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap, creat, totchol, rdw, lymph, mcv, bun, sbp, phenoage"
+                "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap,
+                creat, totchol, rdw, lymph, mcv, bun, sbp, phenoage"
               ),
               confounders = confounder_interactions
             )
@@ -581,7 +594,10 @@ if (isFALSE(params$telolength) && is.null(output_confounders$models)) {
     ))
   }
 
-  names(output_confounders$models) <- c("full", paste0("no_", confounder_interactions), "full_with_phenoage")
+  names(output_confounders$models) <- c(
+    "full", paste0("no_", confounder_interactions),
+    "full_with_phenoage"
+  )
 }
 ```
 
@@ -755,24 +771,47 @@ confounders actually contribute.
 ```{r compare_added_info}
 if (isTRUE(params$run_optional_chunks)) {
   compare_confounders <- function(df, k) {
-    m0 <- bam(reformulate("s(age, k = k)", response = params$hearing_var), data = df, method = "REML")
+    m0 <- bam(reformulate("s(age, k = k)", response = params$hearing_var),
+      data = df, method = "REML"
+    )
     m1 <- bam(
-      reformulate(c("s(age, k = k)", "s(age, gender, bs = 'sz', k = k)"), response = params$hearing_var),
+      reformulate(
+        c(
+          "s(age, k = k)", "s(age, gender, bs = 'sz', k = k)"
+        ),
+        response = params$hearing_var
+      ),
       data = df,
       method = "REML"
     )
     m2 <- bam(
-      reformulate(c("s(age, k = k)", "s(age, gender, bs = 'sz', k = k)", "s(age, race, bs = 'sz', k = k)"), response = params$hearing_var),
+      reformulate(
+        c(
+          "s(age, k = k)", "s(age, gender, bs = 'sz', k = k)",
+          "s(age, race, bs = 'sz', k = k)"
+        ),
+        response = params$hearing_var
+      ),
       data = df,
       method = "REML"
     )
     m3 <- bam(
-      reformulate(c("s(age, k = k)", "s(age, gender, bs = 'sz', k = k)", "s(age, race, bs = 'sz', k = k)", "s(age, smoking, bs = 'sz', k = k)"), response = params$hearing_var),
+      reformulate(
+        c(
+          "s(age, k = k)", "s(age, gender, bs = 'sz', k = k)",
+          "s(age, race, bs = 'sz', k = k)", "s(age, smoking, bs = 'sz', k = k)"
+        ),
+        response = params$hearing_var
+      ),
       data = df,
       method = "REML"
     )
     m4 <- bam(
-      reformulate(c("s(age, k = k)", "s(age, gender, bs = 'sz', k = k)", "s(age, race, bs = 'sz', k = k)", "s(age, smoking, bs = 'sz', k = k)", "s(age, education, bs = 'sz', k = k)"), response = params$hearing_var),
+      reformulate(c(
+        "s(age, k = k)", "s(age, gender, bs = 'sz', k = k)",
+        "s(age, race, bs = 'sz', k = k)", "s(age, smoking, bs = 'sz', k = k)",
+        "s(age, education, bs = 'sz', k = k)"
+      ), response = params$hearing_var),
       data = df,
       method = "REML"
     )
@@ -868,7 +907,10 @@ if (isTRUE(params$run_optional_chunks)) {
     if (isTRUE(equal_wiggliness)) {
       smooth_terms <- c(
         paste0("s(age, k = ", k, ")"),
-        paste0("s(", "age, ", terms, ", bs = 'sz', k = ", k,", id = ", seq_along(smooth_terms), ")")
+        paste0(
+          "s(", "age, ", terms, ", bs = 'sz', k = ", k, ", id = ",
+          seq_along(smooth_terms), ")"
+        )
       ) # Combine an age term with smooth terms with a unique ID for each
     } else {
       smooth_terms <- c(
@@ -876,7 +918,7 @@ if (isTRUE(params$run_optional_chunks)) {
         paste0("s(", "age, ", terms, ", bs = 'sz', k = ", k, ")")
       ) # Combine an age term with smooth terms
     }
-    
+
     m0 <- bam(
       as.formula(paste0(params$hearing_var, " ~ ", paste(smooth_terms, collapse = " + "))),
       data = df,

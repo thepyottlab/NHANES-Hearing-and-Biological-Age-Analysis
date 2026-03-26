@@ -33,12 +33,8 @@ is appropriate (`10*10`), it provides a good variance estimate. Variance is
 already in squared units, as its just the square of the standard deviation.
 
 ```{r calculate_ci}
-calculate_nb_corrected_cis <- function(data, per_age_group) {
-  if (per_age_group) {
-    grouping_variables <- c("predictors", "age_group")
-  } else {
-    grouping_variables <- c("predictors")
-  }
+calculate_nb_cis <- function(data, per_age_group) {
+  grouping_variables <- if (isTRUE(per_age_group)) c("predictors", "age_group") else c("predictors")
 
   if (!per_age_group) {
     data <- data %>%
@@ -96,15 +92,15 @@ calculate_nb_corrected_cis <- function(data, per_age_group) {
   return(summary_data)
 }
 
-df_summary_bioage <- calculate_nb_corrected_cis(df_results_bioage, per_age_group = TRUE)
-df_summary_bioage_overall <- calculate_nb_corrected_cis(df_results_bioage, per_age_group = FALSE)
+df_summary_bioage <- calculate_nb_cis(df_results_bioage, per_age_group = TRUE)
+df_summary_bioage_overall <- calculate_nb_cis(df_results_bioage, per_age_group = FALSE)
 
 if (isFALSE(params$telolength)) {
-  df_summary_biomarkers <- calculate_nb_corrected_cis(df_results_biomarkers, per_age_group = TRUE)
-  df_summary_biomarkers_overall <- calculate_nb_corrected_cis(df_results_biomarkers, per_age_group = FALSE)
+  df_summary_biomarkers <- calculate_nb_cis(df_results_biomarkers, per_age_group = TRUE)
+  df_summary_biomarkers_overall <- calculate_nb_cis(df_results_biomarkers, per_age_group = FALSE)
 
-  df_summary_confounders <- calculate_nb_corrected_cis(df_results_confounders, per_age_group = TRUE)
-  df_summary_confounders_overall <- calculate_nb_corrected_cis(df_results_confounders, per_age_group = FALSE)
+  df_summary_confounders <- calculate_nb_cis(df_results_confounders, per_age_group = TRUE)
+  df_summary_confounders_overall <- calculate_nb_cis(df_results_confounders, per_age_group = FALSE)
 }
 ```
 
@@ -145,11 +141,7 @@ calculate_RMSE_R2 <- function(summary_data,
                               results_data,
                               predictions,
                               per_age_group) {
-  if (per_age_group) {
-    grouping_variables <- c("predictors", "age_group")
-  } else {
-    grouping_variables <- c("predictors")
-  }
+  grouping_variables <- if (isTRUE(per_age_group)) c("predictors", "age_group") else c("predictors")
 
   if (!per_age_group) {
     results_data <- results_data %>%
@@ -192,17 +184,16 @@ calculate_RMSE_R2 <- function(summary_data,
       by = c(grouping_variables)
     )
 
+  age_rmse_data <- updated_summary_data %>%
+    filter(
+      predictors == if ("age" %in% summary_data$predictors) "age" else "full"
+    ) %>%
+    mutate(rmse_age = rmse)
+
   if (per_age_group) {
     updated_summary_data <- updated_summary_data %>%
       left_join(
-        updated_summary_data %>%
-          filter(if ("age" %in% summary_data$predictors) {
-            predictors == "age"
-          } else {
-            predictors == "full"
-          }) %>%
-          mutate(rmse_age = rmse) %>%
-          select(age_group, rmse_age),
+        age_rmse_data %>% select(age_group, rmse_age),
         by = c("age_group")
       ) %>%
       mutate(delta_rmse = rmse_age - rmse) %>%
@@ -210,13 +201,7 @@ calculate_RMSE_R2 <- function(summary_data,
   } else {
     updated_summary_data <- updated_summary_data %>%
       cross_join(
-        updated_summary_data %>%
-          filter(if ("age" %in% summary_data$predictors) {
-            predictors == "age"
-          } else {
-            predictors == "full"
-          }) %>%
-          mutate(rmse_age = rmse) %>%
+        age_rmse_data %>%
           select(rmse_age)
       ) %>%
       mutate(delta_rmse = rmse_age - rmse) %>%
@@ -226,7 +211,8 @@ calculate_RMSE_R2 <- function(summary_data,
   return(updated_summary_data)
 }
 
-df_summary_bioage <- calculate_RMSE_R2(df_summary_bioage,
+df_summary_bioage <- calculate_RMSE_R2(
+  df_summary_bioage,
   df_results_bioage,
   output_bioage$predictions,
   per_age_group = TRUE
@@ -240,17 +226,13 @@ df_summary_bioage_overall <- calculate_RMSE_R2(
 )
 
 if (isFALSE(params$telolength)) {
-  df_summary_biomarkers <- calculate_RMSE_R2(
-    df_summary_biomarkers,
-    df_results_biomarkers,
-    output_biomarkers$predictions,
+  df_summary_biomarkers <- calculate_RMSE_R2(df_summary_biomarkers,
+    df_results_biomarkers, output_biomarkers$predictions,
     per_age_group = TRUE
   )
 
-  df_summary_biomarkers_overall <- calculate_RMSE_R2(
-    df_summary_biomarkers_overall,
-    df_results_biomarkers,
-    output_biomarkers$predictions,
+  df_summary_biomarkers_overall <- calculate_RMSE_R2(df_summary_biomarkers_overall,
+    df_results_biomarkers, output_biomarkers$predictions,
     per_age_group = FALSE
   )
 
@@ -299,11 +281,17 @@ compute_rmse_CI <- function(data, summary_data, n_boot, per_age_group = FALSE, c
   for (predictor in predictor_list) {
     for (age_bin in age_bins) {
       error_ref <- data %>%
-        filter(predictors == ref_var, if (isTRUE(per_age_group)) age_group == age_bin else TRUE) %>%
+        filter(
+          predictors == ref_var,
+          if (isTRUE(per_age_group)) age_group == age_bin else TRUE
+        ) %>%
         pull(squared_residuals)
 
       error_target <- data %>%
-        filter(predictors == predictor, if (isTRUE(per_age_group)) age_group == age_bin else TRUE) %>%
+        filter(
+          predictors == predictor,
+          if (isTRUE(per_age_group)) age_group == age_bin else TRUE
+        ) %>%
         pull(squared_residuals)
 
       if (length(error_ref) != length(error_target)) {
@@ -311,7 +299,12 @@ compute_rmse_CI <- function(data, summary_data, n_boot, per_age_group = FALSE, c
       }
 
       if (!age_bin %in% names(index_cache)) {
-        index_cache[[age_bin]] <- matrix(sample(length(error_ref), length(error_ref) * n_boot, replace = TRUE), length(error_ref))
+        index_cache[[age_bin]] <- matrix(
+          sample(
+            length(error_ref), length(error_ref) * n_boot,
+            replace = TRUE
+          ), length(error_ref)
+        )
       }
 
       idx <- index_cache[[age_bin]]
@@ -688,13 +681,19 @@ df_summary_bioage_overall <- import_p_values(df_summary_bioage_overall,
 )
 
 if (isFALSE(params$telolength)) {
-  df_summary_biomarkers <- import_p_values(df_summary_biomarkers, pwc_biomarkers, per_age_group = TRUE)
+  df_summary_biomarkers <- import_p_values(df_summary_biomarkers,
+    pwc_biomarkers,
+    per_age_group = TRUE
+  )
   df_summary_biomarkers_overall <- import_p_values(df_summary_biomarkers_overall,
     pwc_biomarkers_overall,
     per_age_group = FALSE
   )
 
-  df_summary_confounders <- import_p_values(df_summary_confounders, pwc_confounders, per_age_group = TRUE)
+  df_summary_confounders <- import_p_values(df_summary_confounders,
+    pwc_confounders,
+    per_age_group = TRUE
+  )
   df_summary_confounders_overall <- import_p_values(df_summary_confounders_overall,
     pwc_confounders_overall,
     per_age_group = FALSE
@@ -730,11 +729,23 @@ df_summary_bioage <- add_n_age_groups(df, df_summary_bioage, per_age_group = TRU
 df_summary_bioage_overall <- add_n_age_groups(df, df_summary_bioage_overall, per_age_group = FALSE)
 
 if (isFALSE(params$telolength)) {
-  df_summary_biomarkers <- add_n_age_groups(df, df_summary_biomarkers, per_age_group = TRUE)
-  df_summary_biomarkers_overall <- add_n_age_groups(df, df_summary_biomarkers_overall, per_age_group = FALSE)
+  df_summary_biomarkers <- add_n_age_groups(
+    df, df_summary_biomarkers,
+    per_age_group = TRUE
+  )
+  df_summary_biomarkers_overall <- add_n_age_groups(
+    df, df_summary_biomarkers_overall,
+    per_age_group = FALSE
+  )
 
-  df_summary_confounders <- add_n_age_groups(df, df_summary_confounders, per_age_group = TRUE)
-  df_summary_confounders_overall <- add_n_age_groups(df, df_summary_confounders_overall, per_age_group = FALSE)
+  df_summary_confounders <- add_n_age_groups(
+    df, df_summary_confounders,
+    per_age_group = TRUE
+  )
+  df_summary_confounders_overall <- add_n_age_groups(
+    df, df_summary_confounders_overall,
+    per_age_group = FALSE
+  )
 }
 ```
 

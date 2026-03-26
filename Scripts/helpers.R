@@ -67,12 +67,20 @@ construct_axes <- function(x = NULL, y = NULL) {
 set_colors <- function(colors = NULL, fill_colors = NULL, labels = NULL, breaks = NULL) {
   color_scales <- list()
 
-  if (!is.null(colors)) {
+  if (!is.null(colors) && !is.null(breaks)) {
     color_scales <- c(color_scales, scale_color_manual(values = colors, labels = labels, breaks = breaks))
   }
 
-  if (!is.null(fill_colors)) {
+  if (!is.null(fill_colors) && !is.null(breaks)) {
     color_scales <- c(color_scales, scale_fill_manual(values = fill_colors, labels = labels, breaks = breaks))
+  }
+
+  if (!is.null(colors) && is.null(breaks)) {
+    color_scales <- c(color_scales, scale_color_manual(values = colors, labels = labels))
+  }
+
+  if (!is.null(fill_colors) && is.null(breaks)) {
+    color_scales <- c(color_scales, scale_fill_manual(values = fill_colors, labels = labels))
   }
 
   color_scales

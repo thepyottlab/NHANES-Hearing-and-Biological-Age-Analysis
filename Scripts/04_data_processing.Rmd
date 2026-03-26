@@ -71,7 +71,8 @@ Or we use emtrends to calculate the slope at each point. The result is the same.
 However, using emtrends we can calculate simultaneous intervals with "mvt". Emtrends also works with smooth terms.
 
 ```{r predict_aging}
-build_age_rate_predictions <- function(df, model, predictor, type = c("predict", "predict_derivative")) {
+predict_age_rate <- function(df, model, predictor = "age",
+                             type = c("predict", "predict_derivative")) {
   ages <- setNames(list(seq(min(df[[predictor]]), max(df[[predictor]]), by = 1)), predictor)
   formula <- as.formula(paste("~", predictor))
 
@@ -103,12 +104,25 @@ build_age_rate_predictions <- function(df, model, predictor, type = c("predict",
 output_age_rate$predictions <- append(
   output_age_rate$predictions,
   list(
-    linear = build_age_rate_predictions(df, output_age_rate$models$linear, "age", type = "predict"),
-    linear_derivative = build_age_rate_predictions(df, output_age_rate$models$linear, "age", type = "predict_derivative"),
-    quadratic = build_age_rate_predictions(df, output_age_rate$models$quadratic, "age", type = "predict"),
-    quadratic_derivative = build_age_rate_predictions(df, output_age_rate$models$quadratic, "age", type = "predict_derivative"),
-    smooth = build_age_rate_predictions(df, output_age_rate$models$smooth, "age", type = "predict"),
-    derivative_smooth = build_age_rate_predictions(df, output_age_rate$models$smooth, "age", type = "predict_derivative")
+    linear = predict_age_rate(df, output_age_rate$models$linear,
+      type = "predict"
+    ),
+    linear_derivative = predict_age_rate(df, output_age_rate$models$linear,
+      type = "predict_derivative"
+    ),
+    quadratic = predict_age_rate(df, output_age_rate$models$quadratic,
+      type = "predict"
+    ),
+    quadratic_derivative = predict_age_rate(df, output_age_rate$models$quadratic,
+      type = "predict_derivative"
+    ),
+    smooth = predict_age_rate(df, output_age_rate$models$smooth,
+      type = "predict"
+    ),
+    derivative_smooth = predict_age_rate(df, output_age_rate$models$smooth,
+      type =
+        "predict_derivative"
+    )
   )
 )
 
