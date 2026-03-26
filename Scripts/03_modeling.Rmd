@@ -942,45 +942,31 @@ prefers more complex model.
 ```{r conf_interactions}
 if (isTRUE(params$run_optional_chunks)) {
   compare_confounder_interactions <- function(df, k, equal_wiggliness, return_model = FALSE) {
-    if (equal_wiggliness) {
-      m0 <- bam(
-        as.formula(paste0(params$hearing_var, ' ~
-        s(age, k = k) +
+    terms <- c(
+      confounder_vars, # pull confounder variables
+      crossing(var1 = confounder_vars, var2 = confounder_vars) %>% # cross confounders
+        filter(var1 < var2) %>% # everything is copied twice, so only keep copy where var1 comes first alphabetically
+        mutate(pair = paste(var1, var2, sep = ", ")) %>% # paste confounder combinations separated by comma
+        pull(pair) # pull confounder combinations
+    )
 
-        s(gender, age, bs = "sz", k = k, id = 1) +
-        s(race, age, bs = "sz", k = k, id = 2) +
-        s(smoking, age, bs = "sz", k = k, id = 3) +
-        s(education, age, bs = "sz", k = k, id = 4) +
-
-        s(gender, race, age, bs = "sz", k = k, id = 5) +
-        s(gender, smoking, age, bs = "sz", k = k, id = 6) +
-        s(gender, education, age, bs = "sz", k = k, id = 7) +
-        s(race, smoking, age, bs = "sz", k = k, id = 8) +
-        s(race, education, age, bs = "sz", k = k, id = 9) +
-        s(smoking, education, age, bs = "sz", k = k, id = 10)')),
-        data = df,
-        method = "REML"
-      )
+    if (isTRUE(equal_wiggliness)) {
+      smooth_terms <- c(
+        paste0("s(age, k = ", k, ")"),
+        paste0("s(", terms, ", age, bs = 'sz', k = ", k,", id = ", seq_along(smooth_terms), ")")
+      ) # Combine an age term with smooth terms with a unique ID for each
     } else {
-      m0 <- bam(
-        as.formula(paste0(params$hearing_var, ' ~
-        s(age, k = k) +
-
-        s(gender, age, bs = "sz", k = k) +
-        s(race, age, bs = "sz", k = k) +
-        s(smoking, age, bs = "sz", k = k) +
-        s(education, age, bs = "sz", k = k) +
-
-        s(gender, race, age, bs = "sz", k = k) +
-        s(gender, smoking, age, bs = "sz", k = k) +
-        s(gender, education, age, bs = "sz", k = k) +
-        s(race, smoking, age, bs = "sz", k = k) +
-        s(race, education, age, bs = "sz", k = k) +
-        s(smoking, education, age, bs = "sz", k = k)')),
-        data = df,
-        method = "REML"
-      )
+      smooth_terms <- c(
+        paste0("s(age, k = ", k, ")"),
+        paste0("s(", confounder_vars, ", age, bs = 'sz', k = ", k, ")")
+      ) # Combine an age term with smooth terms
     }
+    
+    m0 <- bam(
+      as.formula(paste0(params$hearing_var, " ~ ", paste(smooth_terms, collapse = " + "))),
+      data = df,
+      method = "REML"
+    )
 
     print(summary(m0))
     plot(m0)
@@ -1084,47 +1070,6 @@ if (isTRUE(params$run_optional_chunks)) {
       fixed_thead = TRUE
     ) %>%
     scroll_box(width = "100%", height = "400px")
-}
-```
-
-### (Optional) Estimate modeling time
-
-bam speeds up the fitting compared to gam and limits the memory footprint.
-Data.table is negligibly faster than data.frame (less than 1%) because the
-majority of computing time is spent on fitting the model as opposed to data
-operations.
-
-With discrete = FALSE: k = 5, age + phenoage: 0.5 k = 10, age + phenoage: 0.78 k
-= 15, age + phenoage: 1.34 k = 20, age + phenoage: 2.76 k = 25, age + phenoage:
-4.98 k = 30, age + phenoage: 8.16 k = 40, age + phenoage: 18.28 k = 50, age +
-phenoage: 31.97
-
-With discrete = TRUE: k = 5, age + phenoage: 0.04 k = 10, age + phenoage: 0.06 k
-= 15, age + phenoage: 0.09 k = 20, age + phenoage: 0.15 k = 25, age + phenoage:
-0.24 k = 30, age + phenoage: 0.35 k = 40, age + phenoage: 0.78 k = 50, age +
-phenoage: 1.28
-
-```{r check_modeling_time}
-if (isTRUE(params$run_optional_chunks)) {
-  estimate_modeling_time <- function(df, k, discrete = FALSE) {
-    system.time({
-      bam(as.formula(paste0(params$hearing_var, ' ~
-        s(age, k = k) +
-
-        s(gender, age, bs = "sz", k = k, id = 1) +
-        s(race, age, bs = "sz", k = k, id = 2) +
-        s(smoking, age, bs = "sz", k = k, id = 3) +
-        s(education, age, bs = "sz", k = k, id = 4) +
-
-        s(gender, race, age, bs = "sz", k = k, id = 5) +
-
-        s(phenoage, k = k)')),
-        data = df, discrete = discrete, method = "fREML"
-      )
-    })
-  }
-
-  estimate_modeling_time(df, k = params$global_k, discrete = params$global_discrete)
 }
 ```
 
