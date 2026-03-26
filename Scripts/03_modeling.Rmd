@@ -420,11 +420,7 @@ cross_validation <- function(data,
 generate_model_path <- function(output_type) {
   model_path <- here(
     "Models",
-    paste0(params$hearing_var, if (isTRUE(params$telolength)) {
-      "_telolength"
-    } else {
-      NULL
-    }),
+    paste0(params$hearing_var, if (isTRUE(params$telolength)) "_telolength" else NULL),
     paste0(
       output_type,
       "_k=",
@@ -503,13 +499,10 @@ if (isFALSE(params$telolength)) {
 #### Store bioage modeling results
 
 ```{r store_biomarkers_cv}
-if (isFALSE(params$telolength)) {
-  if (isTRUE(params$store_model_results)) {
+if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
     saveRDS(output_biomarkers,
       generate_model_path("biomarkers"),
-      compress = "xz"
-    )
-  }
+      compress = "xz")
 }
 ```
 
@@ -574,8 +567,7 @@ if (isFALSE(params$telolength)) {
 #### Build confounder named step-down models
 
 ```{r fit_conf_models}
-if (isFALSE(params$telolength) &&
-  is.null(output_confounders$models)) {
+if (isFALSE(params$telolength) && is.null(output_confounders$models)) {
   for (formula in formula_list_confounders) {
     output_confounders$models <- append(output_confounders$models, list(
       bam(
@@ -589,12 +581,7 @@ if (isFALSE(params$telolength) &&
     ))
   }
 
-  names(output_confounders$models) <-
-    c(
-      "full",
-      paste0("no_", confounder_interactions),
-      "full_with_phenoage"
-    )
+  names(output_confounders$models) <- c("full", paste0("no_", confounder_interactions), "full_with_phenoage")
 }
 ```
 
