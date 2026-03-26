@@ -273,93 +273,108 @@ if (isFALSE(params$telolength)) {
 
 ### Calculate RMSE CIs
 
+Calculates squared residuals (error) to be used for RMSE calculations. Takes reference variable to be the full model or age model. Then for each predictor (and optionally each age group) subsets the data to a dataframe with the reference variable and with the target variable. These are equal length. Then takes random samples from the dataset with number of samples equal to the length of the subset (i.e., age group). The indices of each random sample is stored in a separate column, creating a matrix. The column mean is then calculated for each column (i.e., bootstrap sample) within the matrix. The square root is then taken from each mean to get the RMSE per sample. 2.5% and 97.5% quantiles are then computed to obtain 95% confidence intervals for both raw RMSEs and delta RMSEs. The selected rows are always the same for target and reference variables. Indices are calculated once for each age group and stored in a cache so that the next predictor uses the same indices as the other predictor per age group. Each bootstrap run creates a different sample of the data because observations are selected at random without requirement to be unique, so some observations are taken twice and others are omitted (set by replace = TRUE). If per_age_group = TRUE, iterate over each age group and subset df per age group. If per_age_group is FALSE, only iterate over the single "all" item that is not used (that is, run the code once and don't filter per age group). Compile into a dataframe (tidytable) at the end and insert values into the summary dataframes.
+
+
+
 ```{r calc_RMSE_CI}
 compute_rmse_CI <- function(data, summary_data, n_boot, per_age_group = FALSE, confounders = FALSE) {
   ref_var <- if (isTRUE(confounders)) "full" else "age"
 
-  predictor_list <- setdiff(unique(data$predictors), ref_var)
-
-  ci_df <- data.frame()
-
-  if (isTRUE(per_age_group)) {
-    for (predictor in predictor_list) {
-      for (age_bin in unique(data$age_group)) {
-        subset_ref <- data %>%
-          filter(predictors == ref_var, age_group == age_bin) %>%
-          select(all_of(params$hearing_var), predicted)
-
-        subset <- data %>%
-          filter(predictors == predictor, age_group == age_bin) %>%
-          select(all_of(params$hearing_var), predicted)
-
-        length <- nrow(subset)
-
-        rmses <- replicate(n_boot, {
-          i <- sample(length, replace = TRUE)
-          c(sqrt(mean((
-            subset[[params$hearing_var]][i] - subset[["predicted"]][i]
-          )^2)), sqrt(mean((subset_ref[[params$hearing_var]][i] - subset_ref[["predicted"]][i])^2)))
-        })
-
-        ci_lower <- quantile(rmses[1, ], 0.025)
-        ci_upper <- quantile(rmses[1, ], 0.975)
-
-        delta_ci_lower <- quantile(rmses[2, ] - rmses[1, ], 0.025)
-        delta_ci_upper <- quantile(rmses[2, ] - rmses[1, ], 0.975)
-
-        ci_subset <- data.frame(
-          ci_low_rmse = ci_lower,
-          ci_high_rmse = ci_upper,
-          ci_low_delta_rmse = delta_ci_lower,
-          ci_high_delta_rmse = delta_ci_upper,
-          predictors = predictor,
-          age_group = age_bin
-        )
-        ci_df <- rbind(ci_df, ci_subset)
-      }
-    }
+  predictor_list <- unique(data$predictors)
+  age_bins <- if (isTRUE(per_age_group)) unique(data$age_group) else "all"
+  group_vars <- if (isTRUE(per_age_group)) {
+    c("predictors", "age_group")
   } else {
-    for (predictor in predictor_list) {
-      subset_ref <- data %>%
-        filter(predictors == ref_var) %>%
-        select(all_of(params$hearing_var), predicted)
+    "predictors"
+  }
 
-      subset <- data %>%
-        filter(predictors == predictor) %>%
-        select(all_of(params$hearing_var), predicted)
+  ci_list <- list()
+  index_ci_list <- 1L
+  index_cache <- list()
 
-      length <- nrow(subset)
+  data <- data %>%
+    mutate(squared_residuals = (.data[[params$hearing_var]] - predicted)^2)
 
-      rmses <- replicate(n_boot, {
-        i <- sample(length, replace = TRUE)
-        c(sqrt(mean((
-          subset[[params$hearing_var]][i] - subset[["predicted"]][i]
-        )^2)), sqrt(mean((
-          subset_ref[[params$hearing_var]][i] - subset_ref[["predicted"]][i]
-        )^2)))
-      })
+  for (predictor in predictor_list) {
+    for (age_bin in age_bins) {
+      error_ref <- data %>%
+        filter(predictors == ref_var, if (isTRUE(per_age_group)) age_group == age_bin else TRUE) %>%
+        pull(squared_residuals)
 
-      ci_lower <- quantile(rmses[1, ], 0.025)
-      ci_upper <- quantile(rmses[1, ], 0.975)
+      error_target <- data %>%
+        filter(predictors == predictor, if (isTRUE(per_age_group)) age_group == age_bin else TRUE) %>%
+        pull(squared_residuals)
 
-      delta_ci_lower <- quantile(rmses[2, ] - rmses[1, ], 0.025)
-      delta_ci_upper <- quantile(rmses[2, ] - rmses[1, ], 0.975)
+      if (length(error_ref) != length(error_target)) {
+        stop("Length of target and reference predictor subsets are not equal")
+      }
 
-      ci_subset <- data.frame(
-        ci_low_rmse = ci_lower,
-        ci_high_rmse = ci_upper,
-        ci_low_delta_rmse = delta_ci_lower,
-        ci_high_delta_rmse = delta_ci_upper,
+      if (!age_bin %in% names(index_cache)) {
+        index_cache[[age_bin]] <- matrix(sample(length(error_ref), length(error_ref) * n_boot, replace = TRUE), length(error_ref))
+      }
+
+      idx <- index_cache[[age_bin]]
+
+      rmse_target <- sqrt(colMeans(matrix(error_target[idx])))
+      rmse_ref <- sqrt(colMeans(matrix(error_ref[idx])))
+
+      ci_list[[index_ci_list]] <- tibble(
+        ci_low_rmse = quantile(rmse_target, 0.025),
+        ci_high_rmse = quantile(rmse_target, 0.975),
+        ci_low_delta_rmse = quantile(rmse_ref - rmse_target, 0.025),
+        ci_high_delta_rmse = quantile(rmse_ref - rmse_target, 0.975),
         predictors = predictor
-      )
-      ci_df <- rbind(ci_df, ci_subset)
+      ) %>%
+        {
+          if (isTRUE(per_age_group)) mutate(., age_group = age_bin) else .
+        }
+
+      index_ci_list <- index_ci_list + 1
     }
   }
 
-  return(ci_df)
+  ci_df <- bind_rows(ci_list)
+
+  summary_data %>%
+    left_join(ci_df, by = group_vars)
 }
 
-test <- compute_rmse_CI(output_bioage$predictions, n_boot = 500, per_age_group = FALSE, confounders = FALSE)
+df_summary_bioage <- compute_rmse_CI(
+  output_bioage$predictions, df_summary_bioage,
+  n_boot = params$n_boot, per_age_group = TRUE, confounders = FALSE
+)
+
+df_summary_bioage_overall <- compute_rmse_CI(
+  output_bioage$predictions, df_summary_bioage_overall,
+  n_boot = params$n_boot, per_age_group = FALSE, confounders = FALSE
+)
+
+if (isFALSE(params$telolength)) {
+  df_summary_biomarkers <- compute_rmse_CI(
+    output_biomarkers$predictions,
+    df_summary_biomarkers,
+    n_boot = params$n_boot, per_age_group = TRUE, confounders = FALSE
+  )
+
+  df_summary_biomarkers_overall <- compute_rmse_CI(
+    output_biomarkers$predictions,
+    df_summary_biomarkers_overall,
+    n_boot = params$n_boot, per_age_group = FALSE, confounders = FALSE
+  )
+
+  df_summary_confounders <- compute_rmse_CI(
+    output_confounders$predictions,
+    df_summary_confounders,
+    n_boot = params$n_boot, per_age_group = TRUE, confounders = TRUE
+  )
+
+  df_summary_confounders_overall <- compute_rmse_CI(
+    output_confounders$predictions,
+    df_summary_confounders_overall,
+    n_boot = params$n_boot, per_age_group = FALSE, confounders = TRUE
+  )
+}
 ```
 
 ## Repeated Nadeau-Bengio Corrected T-Tests

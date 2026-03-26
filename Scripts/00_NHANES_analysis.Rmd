@@ -93,6 +93,11 @@ params:
     value: "gender_smoking_race_education_gender, race"
     input: text
     help: "Set confounder factor variables and interaction to be included in analysis separated by underscore"
+  n_boot:
+    label: "RMSE bootstrap N"
+    value: 2000
+    input: numeric
+    help: "Set number of samples to take when bootstrapping RMSEs for CI calculations"
   construct_data:
     label: "Build NHANES dataframe"
     value: FALSE
