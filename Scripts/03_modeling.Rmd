@@ -109,6 +109,7 @@ formula_generator <- function(data,
             DF_list <- append(DF_list, length(unique(data[data[[rep]] != fold, ][[predictor]]))) # store the DF for each fold in each repeat in a list
           }
         }
+
         DF <- min(unlist(DF_list)) - 1 # pick the smallest value in the list and subtract 1 to obtain degrees of freedom
         DF_store <- bind_rows(DF_store, tibble(predictor = predictor, DF = DF)) # Store in list
       }
@@ -117,7 +118,6 @@ formula_generator <- function(data,
 
       if (predictor == "age") {
         sm_terms <- append(sm_terms, paste0("s(age, k = ", k_formula, ")")) # construct age term
-
 
         if (!is.null(confounders)) {
           for (i in seq_along(confounders)) { # construct age * confounder terms
@@ -142,49 +142,39 @@ formula_generator <- function(data,
         )
       } # construct predictor terms
     }
-    formula_list <- append(formula_list, paste(params$hearing_var, "~", paste(unlist(sm_terms), collapse = " + "))) # put predictor terms in formula and separate by +
-    if (isTRUE(stepdown) && formula == "age") {
-      if ("age" %in% DF_store$predictor) {
-        DF <- DF_store$DF[DF_store$predictor == "age"]
-      } else {
-        DF_list <- list()
-        for (rep in fold_columns) {
-          for (fold in folds) {
-            DF_list <- append(DF_list, length(unique(data[data[[rep]] != fold, ][["age"]])))
-          }
-        }
 
-        DF <- min(unlist(DF_list)) - 1
-        DF_store <- bind_rows(DF_store, tibble(predictor = "age", DF = DF)) # Store in list
-      }
+    formula_list <- append(formula_list, paste(params$hearing_var, "~", paste(unlist(sm_terms), collapse = " + "))) # put predictor terms in formula and separate by +
+
+    if (isTRUE(stepdown) && formula == "age") { # Create confounder stepdown vars
+      DF <- DF_store$DF[DF_store$predictor == "age"] # age will already have been created by the previous loop
 
       k_formula <- if (max_k) DF else if (auto_limit_k && k > DF) DF else k
 
-      for (i in seq_along(confounders)) {
+      for (i in seq_along(confounders)) { # In this loop, remove one confounder at a time, construct the formula, and add it to the formula list
         sm_terms <- list()
-        sm_terms <- append(sm_terms, paste0("s(age, k = ", k_formula, ")"))
+        sm_terms <- append(sm_terms, paste0("s(age, k = ", k_formula, ")")) # add age term
         constrained_confounders <- confounders[-i]
 
-        for (j in seq_along(constrained_confounders)) {
+        for (j in seq_along(constrained_confounders)) { # Iterate over
           constrained_confounder <- constrained_confounders[j]
-          sm_terms <- append(
-            sm_terms,
-            paste0(
-              "s(age, ",
-              constrained_confounder,
-              ", bs = 'sz', k = ",
-              k_formula,
-              ", id = ",
-              j,
-              ") "
+          if (isTRUE(equal_wiggliness)) {
+            sm_terms <- append(
+              sm_terms,
+              paste0("s(age, ", constrained_confounder, ", bs = 'sz', k = ", k_formula, ", id = ", j, ")")
             )
-          )
+          } else {
+            sm_terms <- append(
+              sm_terms,
+              paste0("s(age, ", constrained_confounder, ", bs = 'sz', k = ", k_formula, ")")
+            )
+          }
         }
 
         formula_list <- append(formula_list, paste(params$hearing_var, "~", paste(unlist(sm_terms), collapse = " + ")))
       }
     }
   }
+
   return(formula_list)
 }
 ```
