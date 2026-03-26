@@ -102,7 +102,7 @@ formula_generator <- function(data,
       if (predictor %in% DF_store$predictor) {
         DF <- DF_store$DF[DF_store$predictor == predictor]
       } else {
-        DF_list <- list() # initialize a list to store the DF for each fold in
+        DF_list <- list() # initialize a list to store the DF for each fold in or load DF from cache if already previously computed for this predictor
 
         for (rep in fold_columns) {
           for (fold in folds) {
@@ -113,52 +113,26 @@ formula_generator <- function(data,
         DF_store <- bind_rows(DF_store, tibble(predictor = predictor, DF = DF)) # Store in list
       }
 
-      if (max_k) {
-        k_formula <- DF
-      } else {
-        k_formula <- k
-      }
+      k_formula <- if (max_k) DF else if (auto_limit_k && k > DF) DF else k # overwrite k with max allowed k if desired
 
-      if (auto_limit_k) {
-        if (k_formula > DF) {
-          k_formula <- DF
-        }
-      }
-      if ((predictor == "age") && (equal_wiggliness)) {
-        sm_terms <- append(sm_terms, paste0("s(age, k = ", k_formula, ")"))
+      if (predictor == "age") {
+        sm_terms <- append(sm_terms, paste0("s(age, k = ", k_formula, ")")) # construct age term
 
 
         if (!is.null(confounders)) {
-          for (i in seq_along(confounders)) {
+          for (i in seq_along(confounders)) { # construct age * confounder terms
             confounder <- confounders[i]
-            sm_terms <- append(
-              sm_terms,
-              paste0(
-                "s(age, ",
-                confounder,
-                ", bs = 'sz', k = ",
-                k_formula,
-                ", id = ",
-                i,
-                ") "
-              )
-            )
-          }
-        }
-      } else if ((predictor == "age") && !(equal_wiggliness)) {
-        sm_terms <- append(sm_terms, paste0("s(age, k = ", k_formula, ")"))
-        if (!is.null(confounders)) {
-          for (confounder in confounders) {
-            sm_terms <- append(
-              sm_terms,
-              paste0(
-                "s(age, ",
-                confounder,
-                ", bs = 'sz', k = ",
-                k_formula,
-                ") "
-              )
-            )
+            if (isTRUE(equal_wiggliness)) {
+              sm_terms <- append(
+                sm_terms,
+                paste0("s(", "age, ", confounder, ", bs = 'sz', k = ", k, ", id = ", i, ")")
+              ) # Combine an age term with smooth terms with a unique ID for each
+            } else {
+              sm_terms <- append(
+                sm_terms,
+                paste0("s(", "age, ", confounder, ", bs = 'sz', k = ", k, ")")
+              ) # Combine an age term with smooth terms
+            }
           }
         }
       } else {
@@ -166,7 +140,7 @@ formula_generator <- function(data,
           sm_terms,
           paste0("s(", predictor, ", k = ", k_formula, ")")
         )
-      }
+      } # construct predictor terms
     }
     formula_list <- append(formula_list, paste(params$hearing_var, "~", paste(unlist(sm_terms), collapse = " + "))) # put predictor terms in formula and separate by +
     if (isTRUE(stepdown) && formula == "age") {
@@ -183,17 +157,9 @@ formula_generator <- function(data,
         DF <- min(unlist(DF_list)) - 1
         DF_store <- bind_rows(DF_store, tibble(predictor = "age", DF = DF)) # Store in list
       }
-      if (max_k) {
-        k_formula <- DF
-      } else {
-        k_formula <- k
-      }
 
-      if (auto_limit_k) {
-        if (k_formula > DF) {
-          k_formula <- DF
-        }
-      }
+      k_formula <- if (max_k) DF else if (auto_limit_k && k > DF) DF else k
+
       for (i in seq_along(confounders)) {
         sm_terms <- list()
         sm_terms <- append(sm_terms, paste0("s(age, k = ", k_formula, ")"))
@@ -786,7 +752,7 @@ intensity over the X dimension and random dissimilarities between bands in the Y
 dimension (indicating repeats have different samples). **Stratified fold
 randomization succeeded**
 
-### (Optional) Check Interaction vs Offsets
+### (Optional) Check confounder two-way interactions vs offsets
 
 We want to get a sense which confounders improve the model and which interact
 with age.
@@ -822,9 +788,7 @@ if (isTRUE(params$run_optional_chunks)) {
     return(results)
   }
 
-  assess_confounders(df, confounders = c(
-    "gender", "smoking", "race", "education"
-  ), k = params$global_k)
+  assess_confounders(df, confounders = confounder_vars, k = params$global_k)
 }
 ```
 
@@ -953,12 +917,12 @@ if (isTRUE(params$run_optional_chunks)) {
     if (isTRUE(equal_wiggliness)) {
       smooth_terms <- c(
         paste0("s(age, k = ", k, ")"),
-        paste0("s(", terms, ", age, bs = 'sz', k = ", k,", id = ", seq_along(smooth_terms), ")")
+        paste0("s(", "age, ", terms, ", bs = 'sz', k = ", k,", id = ", seq_along(smooth_terms), ")")
       ) # Combine an age term with smooth terms with a unique ID for each
     } else {
       smooth_terms <- c(
         paste0("s(age, k = ", k, ")"),
-        paste0("s(", confounder_vars, ", age, bs = 'sz', k = ", k, ")")
+        paste0("s(", "age, ", terms, ", bs = 'sz', k = ", k, ")")
       ) # Combine an age term with smooth terms
     }
     
@@ -977,7 +941,7 @@ if (isTRUE(params$run_optional_chunks)) {
   }
 
   system.time({
-    compare_confounder_interactions(df, k = params$global_k, equal_wiggliness = TRUE)
+    compare_confounder_interactions(df, k = 5, equal_wiggliness = TRUE)
   })
 }
 ```
