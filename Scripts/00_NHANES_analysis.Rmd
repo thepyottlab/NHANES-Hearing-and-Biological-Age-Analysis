@@ -146,7 +146,9 @@ knitr::opts_chunk$set(
   dev = "ragg_png"
 )
 
-knitr::opts_knit$set(root.dir = here::here())
+knitr::opts_knit$set(
+  root.dir = here::here()
+)
 
 options(
   contrasts = c("contr.sum", "contr.poly"),
@@ -155,10 +157,26 @@ options(
 
 run_module <- function(path) {
   if (isTRUE(getOption("knitr.in.progress"))) {
-    cat(knitr::knit_child(path, quiet = TRUE))
+    cat(
+      knitr::knit_child(
+        path,
+        quiet = TRUE
+      )
+    )
   } else {
-    runtime <- system.time(knitr::knit_child(path, quiet = TRUE))
-    cat(basename(path), " completed in ", round(runtime["elapsed"], 1), "s.\n", sep = "")
+    runtime <- system.time(
+      knitr::knit_child(
+        path,
+        quiet = TRUE
+      )
+    )
+    cat(
+      basename(path),
+      " completed in ",
+      round(runtime["elapsed"], 1),
+      "s.\n",
+      sep = ""
+    )
   }
 }
 ```
@@ -166,10 +184,22 @@ run_module <- function(path) {
 # Run modules
 
 ```{r run_modules, results='asis', echo=FALSE}
-run_module(here::here("Scripts", "01_import.Rmd"))
-run_module(here::here("Scripts", "02_data_preprocessing.Rmd"))
-run_module(here::here("Scripts", "03_modeling.Rmd"))
-run_module(here::here("Scripts", "04_data_processing.Rmd"))
-run_module(here::here("Scripts", "05_statistics.Rmd"))
-run_module(here::here("Scripts", "06_visualization.Rmd"))
+run_module(
+  here::here("Scripts", "01_import.Rmd")
+  )
+run_module(
+  here::here("Scripts", "02_data_preprocessing.Rmd")
+  )
+run_module(
+  here::here("Scripts", "03_modeling.Rmd")
+  )
+run_module(
+  here::here("Scripts", "04_data_processing.Rmd")
+  )
+run_module(
+  here::here("Scripts", "05_statistics.Rmd")
+  )
+run_module(
+  here::here("Scripts", "06_visualization.Rmd")
+  )
 ```

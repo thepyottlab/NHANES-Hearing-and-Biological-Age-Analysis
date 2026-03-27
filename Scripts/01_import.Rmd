@@ -39,7 +39,11 @@ source(here("Scripts", "helpers.R"))
 ## Print params for knitted reports
 
 ```{r print_params}
-kable(as.data.frame(unclass(params)))
+kable(
+  as.data.frame(
+    unclass(params)
+    )
+  )
 ```
 
 ## Import Data
@@ -60,22 +64,41 @@ import_nhanes_data <- function(path) {
 
   meta <- data.table(
     file = files,
-    year = str_extract(tools::file_path_sans_ext(basename(files)), "\\d{4}-\\d{4}$")
+    year = str_extract(
+      tools::file_path_sans_ext(
+        basename(files)
+      ),
+      "\\d{4}-\\d{4}$"
+    )
   )
 
-  meta[, dt := lapply(file, \(f) as.data.table(read_xpt(f)))]
+  meta[, dt := lapply(
+    file,
+    \(f) as.data.table(
+      read_xpt(f)
+    )
+  )]
+  
   by_year <- split(meta$dt, meta$year)
 
-  as.data.frame(rbindlist(
-    lapply(by_year, \(dts)
-    Reduce(\(x, y) merge(
+  as.data.frame(
+    rbindlist(
+    lapply(
+      by_year, 
+      \(dts) Reduce(
+        \(x, y) merge(
       x, y,
-      by = "SEQN", all = TRUE
-    ), dts)),
+      by = "SEQN", 
+      all = TRUE
+    ), 
+    dts
+    )
+    ),
     fill = TRUE,
     use.names = TRUE,
     idcol = "year"
-  ))
+  )
+  )
 }
 
 if (isTRUE(params$construct_data)) {
