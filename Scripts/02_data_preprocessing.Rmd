@@ -8,6 +8,7 @@ We take the param value for confounders and build one lists with all included in
 confounder_interactions <- trimws(
   strsplit(params$confounders, "_")[[1]]
 )
+
 confounder_vars <- confounder_interactions[!grepl(",", confounder_interactions)]
 ```
 

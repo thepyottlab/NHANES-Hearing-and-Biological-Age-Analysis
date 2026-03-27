@@ -39,7 +39,7 @@ format_table <- function(summary_data, per_age_group = FALSE) {
                 as.numeric(`p (vs age)`),
                 3
               )
-            ), 
+            ),
             "html",
             bold = TRUE
           ),
@@ -98,7 +98,7 @@ rename_bioage_table <- function(bioage_table) {
     ) %>%
     arrange(Predictors)
 
-  return(bioage_table)
+  bioage_table
 }
 
 rename_biomarker_table <- function(biomarker_table) {
@@ -148,7 +148,7 @@ rename_biomarker_table <- function(biomarker_table) {
     ) %>%
     arrange(Predictors)
 
-  return(biomarker_table)
+  biomarker_table
 }
 
 rename_confounder_table <- function(confounders_table) {
@@ -238,7 +238,7 @@ render_and_save_table <- function(table, path) {
     save_kable(html_table, path)
   }
 
-  return(html_table)
+  html_table
 }
 
 render_and_save_table(
@@ -289,15 +289,15 @@ build_confounder_table <- function(data, y = params$hearing_var) {
   data <- data %>%
     mutate(
       gender = dplyr::recode(
-        gender, 
-        "1" = "Male", 
+        gender,
+        "1" = "Male",
         "2" = "Female"
-        ),
+      ),
       smoking = dplyr::recode(
-        smoking, 
-        "1" = "Smoker", 
+        smoking,
+        "1" = "Smoker",
         "2" = "Non-smoker"
-        ),
+      ),
       race = dplyr::recode(
         race,
         "1" = "Hispanic",
@@ -323,26 +323,27 @@ build_confounder_table <- function(data, y = params$hearing_var) {
 
   bind_rows(
     lapply(variables, function(variable) {
-    data %>%
-      mutate(level = .data[[variable]]) %>%
-      group_by(age_group, level) %>%
-      summarise(
-        mean = mean(.data[[y]], na.rm = TRUE),
-        sd = sd(.data[[y]], na.rm = TRUE),
-        .groups = "drop"
-      ) %>%
-      mutate(
-        variable = factor(
-          variable, 
-          levels = c(
-          "Gender", 
-          "Smoking", 
-          "Race", 
-          "Education"
-        )),
-        .before = 1
-      )
-  })
+      data %>%
+        mutate(level = .data[[variable]]) %>%
+        group_by(age_group, level) %>%
+        summarise(
+          mean = mean(.data[[y]], na.rm = TRUE),
+          sd = sd(.data[[y]], na.rm = TRUE),
+          .groups = "drop"
+        ) %>%
+        mutate(
+          variable = factor(
+            variable,
+            levels = c(
+              "Gender",
+              "Smoking",
+              "Race",
+              "Education"
+            )
+          ),
+          .before = 1
+        )
+    })
   )
 }
 ```
@@ -352,7 +353,7 @@ We recode variables, combine means and SDs, pivot table, and format it
 
 ```{r pivot_conf_table}
 if (isFALSE(params$telolength)) {
-  table_confounders_descriptive <- df %>% 
+  table_confounders_descriptive <- df %>%
     build_confounder_table() %>%
     mutate(stat = sprintf("%.2f (%.2f)", mean, sd)) %>%
     select(variable, level, age_group, stat) %>%
@@ -392,7 +393,7 @@ We store a separate configuration depending on output type of figure for easy sw
 get_plot_config <- function(global_params) {
   p_cfg_vars <- list(
     global = list(
-    axis_unit_color = "#4D4D4D" # used later when constructing axes from HTML
+      axis_unit_color = "#4D4D4D" # used later when constructing axes from HTML
     ),
     poster = list(),
     paper = list(
@@ -410,7 +411,7 @@ get_plot_config <- function(global_params) {
       signif_size = 14
     )
   )
-  
+
   c(p_cfg_vars$global, p_cfg_vars[[global_params$plot_output_type]])
 }
 ```
@@ -422,7 +423,7 @@ We first store the theme preset (theme_few), then theme overrides, then other th
 ```{r}
 get_plot_theme <- function(global_params = params) {
   config <- if (!is.null(global_params)) get_plot_config(global_params)
-  
+
   list(
     theme_few(),
     theme(
@@ -609,7 +610,7 @@ get_axes <- function(x = NULL, y = NULL, global_params = params) {
       )
     )
   }
-  
+
   construct_axes(x = x, y = y)
 }
 ```
@@ -620,142 +621,142 @@ Available colors can be inspected with str(get_colors(), max.level = 2).
 
 ```{r}
 get_colors <- function(color_list_name) {
-    switch(color_list_name,
-      bioage = set_colors(
-        colors = c(
-          "age" = "#000000",
-          "age, hd_log" = "#256DAB",
-          "age, kdm" = "#059748",
-          "age, phenoage" = "#CB2027",
-          "age, telolength" = if (isTRUE(params$telolength)) "#7B3A96" else NULL
-        ),
-        fill_colors = c(
-          "age" = "#8C8C8C",
-          "age, hd_log" = "#88BDE6",
-          "age, kdm" = "#90CD97",
-          "age, phenoage" = "#F07E6E",
-          "age, telolength" = if (isTRUE(params$telolength)) "#B276B2" else NULL
-        ),
-        labels = c(
-          "age" = "Age",
-          "age, hd_log" = "Age + HD",
-          "age, kdm" = "Age + KDM",
-          "age, phenoage" = "Age + PhenoAge",
-          "age, telolength" = if (isTRUE(params$telolength)) "Age + Telolength" else NULL
-        )
+  switch(color_list_name,
+    bioage = set_colors(
+      colors = c(
+        "age" = "#000000",
+        "age, hd_log" = "#256DAB",
+        "age, kdm" = "#059748",
+        "age, phenoage" = "#CB2027",
+        "age, telolength" = if (isTRUE(params$telolength)) "#7B3A96" else NULL
       ),
-      confounders = set_colors(
-        colors = c(
-          "full" = "#000000",
-          "no_gender" = "#059748",
-          "no_smoking" = "#9D722A",
-          "no_race" = "#E5126F",
-          "no_education" = "#DF5C24",
-          "no_gender, race" = "#7B3A96",
-          "full_with_phenoage" = "#256DAB"
-        ),
-        fill_colors = c(
-          "full" = "#8C8C8C",
-          "no_gender" = "#90CD97",
-          "no_smoking" = "#BFA554",
-          "no_race" = "#F6AAC9",
-          "no_education" = "#FBB258",
-          "no_gender, race" = "#BC99C7",
-          "full_with_phenoage" = "#88BDE6"
-        ),
-        labels = c(
-          "full" = "Full",
-          "no_gender" = "Gender",
-          "no_smoking" = "Smoking",
-          "no_race" = "Race",
-          "no_education" = "Education",
-          "no_gender, race" = "Gender*Race",
-          "full_with_phenoage" = "Phenoage"
-        )
+      fill_colors = c(
+        "age" = "#8C8C8C",
+        "age, hd_log" = "#88BDE6",
+        "age, kdm" = "#90CD97",
+        "age, phenoage" = "#F07E6E",
+        "age, telolength" = if (isTRUE(params$telolength)) "#B276B2" else NULL
       ),
-      phenoage = set_colors(
-        colors = c(
-          "age" = "#000000",
-          "age, phenoage" = "#CB2027"
-        ),
-        fill_colors = c(
-          "age" = "#8C8C8C",
-          "age, phenoage" = "#F07E6E"
-        ),
-        labels = c(
-          "age" = "Age",
-          "age, phenoage" = "Age + PhenoAge"
-        )
+      labels = c(
+        "age" = "Age",
+        "age, hd_log" = "Age + HD",
+        "age, kdm" = "Age + KDM",
+        "age, phenoage" = "Age + PhenoAge",
+        "age, telolength" = if (isTRUE(params$telolength)) "Age + Telolength" else NULL
+      )
+    ),
+    confounders = set_colors(
+      colors = c(
+        "full" = "#000000",
+        "no_gender" = "#059748",
+        "no_smoking" = "#9D722A",
+        "no_race" = "#E5126F",
+        "no_education" = "#DF5C24",
+        "no_gender, race" = "#7B3A96",
+        "full_with_phenoage" = "#256DAB"
       ),
-      gender = set_colors(
-        colors = c(
-          "1" = "#2986cc",
-          "2" = "#c90076"
-        ),
-        fill_colors = c(
-          "1" = "#6fa8dc",
-          "2" = "#d5a6bd"
-        ),
-        labels = c(
-          "1" = "Male",
-          "2" = "Female"
-        )
+      fill_colors = c(
+        "full" = "#8C8C8C",
+        "no_gender" = "#90CD97",
+        "no_smoking" = "#BFA554",
+        "no_race" = "#F6AAC9",
+        "no_education" = "#FBB258",
+        "no_gender, race" = "#BC99C7",
+        "full_with_phenoage" = "#88BDE6"
       ),
-      race = set_colors(
-        colors = c(
-          "1" = "#E5126F",
-          "3" = "#DF5C24",
-          "4" = "#7B3A96",
-          "5" = "#256DAB"
-        ),
-        fill_colors = c(
-          "1" = "#F6AAC9",
-          "3" = "#FBB258",
-          "4" = "#BC99C7",
-          "5" = "#88BDE6"
-        ),
-        labels = c(
-          "1" = "Hispanic",
-          "3" = "White",
-          "4" = "Black",
-          "5" = "Other"
-        )
+      labels = c(
+        "full" = "Full",
+        "no_gender" = "Gender",
+        "no_smoking" = "Smoking",
+        "no_race" = "Race",
+        "no_education" = "Education",
+        "no_gender, race" = "Gender*Race",
+        "full_with_phenoage" = "Phenoage"
+      )
+    ),
+    phenoage = set_colors(
+      colors = c(
+        "age" = "#000000",
+        "age, phenoage" = "#CB2027"
       ),
-      biomarker_diff = set_colors(
-        colors = c(
-          "age, crp, hba1c, albumin_gL, phenoage" = "#CB2027",
-          "age, crp, hba1c, albumin_gL" = "#059748",
-          "age, phenoage" = "grey65"
-        ),
-        fill_colors = c(
-          "age, crp, hba1c, albumin_gL, phenoage" = "#F07E6E",
-          "age, crp, hba1c, albumin_gL" = "#90CD97",
-          "age, phenoage" = "grey80"
-        ),
-        labels = c(
-          "age, crp, hba1c, albumin_gL, phenoage" = "Age + CRP + HbA1c + ALB + PhenoAge",
-          "age, crp, hba1c, albumin_gL" = "Age + CRP + HbA1c + ALB",
-          "age, phenoage" = "Age + PhenoAge"
-        ),
-        breaks = c(
-          "age, crp, hba1c, albumin_gL, phenoage",
-          "age, crp, hba1c, albumin_gL",
-          "age, phenoage"
-        )
+      fill_colors = c(
+        "age" = "#8C8C8C",
+        "age, phenoage" = "#F07E6E"
       ),
-      best_biomarkers = set_colors(
-        colors = c(
-          "age, crp" = "#256DAB",
-          "age, hba1c" = "#E5126F",
-          "age, albumin_gL" = "#DF5C24"
-        ),
-        fill_colors = c(
-          "age, crp" = "#88BDE6",
-          "age, hba1c" = "#F6AAC9",
-          "age, albumin_gL" = "#FBB258"
-        )
+      labels = c(
+        "age" = "Age",
+        "age, phenoage" = "Age + PhenoAge"
+      )
+    ),
+    gender = set_colors(
+      colors = c(
+        "1" = "#2986cc",
+        "2" = "#c90076"
+      ),
+      fill_colors = c(
+        "1" = "#6fa8dc",
+        "2" = "#d5a6bd"
+      ),
+      labels = c(
+        "1" = "Male",
+        "2" = "Female"
+      )
+    ),
+    race = set_colors(
+      colors = c(
+        "1" = "#E5126F",
+        "3" = "#DF5C24",
+        "4" = "#7B3A96",
+        "5" = "#256DAB"
+      ),
+      fill_colors = c(
+        "1" = "#F6AAC9",
+        "3" = "#FBB258",
+        "4" = "#BC99C7",
+        "5" = "#88BDE6"
+      ),
+      labels = c(
+        "1" = "Hispanic",
+        "3" = "White",
+        "4" = "Black",
+        "5" = "Other"
+      )
+    ),
+    biomarker_diff = set_colors(
+      colors = c(
+        "age, crp, hba1c, albumin_gL, phenoage" = "#CB2027",
+        "age, crp, hba1c, albumin_gL" = "#059748",
+        "age, phenoage" = "grey65"
+      ),
+      fill_colors = c(
+        "age, crp, hba1c, albumin_gL, phenoage" = "#F07E6E",
+        "age, crp, hba1c, albumin_gL" = "#90CD97",
+        "age, phenoage" = "grey80"
+      ),
+      labels = c(
+        "age, crp, hba1c, albumin_gL, phenoage" = "Age + CRP + HbA1c + ALB + PhenoAge",
+        "age, crp, hba1c, albumin_gL" = "Age + CRP + HbA1c + ALB",
+        "age, phenoage" = "Age + PhenoAge"
+      ),
+      breaks = c(
+        "age, crp, hba1c, albumin_gL, phenoage",
+        "age, crp, hba1c, albumin_gL",
+        "age, phenoage"
+      )
+    ),
+    best_biomarkers = set_colors(
+      colors = c(
+        "age, crp" = "#256DAB",
+        "age, hba1c" = "#E5126F",
+        "age, albumin_gL" = "#DF5C24"
+      ),
+      fill_colors = c(
+        "age, crp" = "#88BDE6",
+        "age, hba1c" = "#F6AAC9",
+        "age, albumin_gL" = "#FBB258"
       )
     )
+  )
 }
 ```
 
@@ -831,26 +832,29 @@ p0 <- ggplot() +
   geom_point(
     data = df,
     aes(
-      x = age, 
+      x = age,
       y = .data[[params$hearing_var]]
-      )
+    )
   ) +
   geom_line(
     data = output_age_rate$predictions$linear,
     aes(
-      x = age, 
+      x = age,
       y = estimate
-      )
+    )
   ) +
   geom_ribbon(
     data = output_age_rate$predictions$linear,
     aes(
-      x = age, 
+      x = age,
       ymin = ci_lower,
       ymax = ci_upper
-      )
+    )
   ) +
-  get_axes(x = "age", y = "hl") +
+  get_axes(
+    x = "age",
+    y = "hl"
+  ) +
   get_plot_theme() +
   theme(
     plot.margin = margin(1, 0, 0, 1, unit = "pt"),
@@ -863,24 +867,27 @@ p1 <- ggplot() +
     aes(
       x = age,
       y = .data[[params$hearing_var]]
-      )
+    )
   ) +
   geom_line(
     data = output_age_rate$predictions$quadratic,
     aes(
-      x = age, 
+      x = age,
       y = estimate
-      )
+    )
   ) +
   geom_ribbon(
     data = output_age_rate$predictions$quadratic,
     aes(
-      x = age, 
+      x = age,
       ymin = ci_lower,
       ymax = ci_upper
-      )
+    )
   ) +
-  get_axes(x = "age", y = "hl") +
+  get_axes(
+    x = "age",
+    y = "hl"
+  ) +
   get_plot_theme() +
   theme(
     plot.margin = margin(1, 0, 0, 1, unit = "pt"),
@@ -903,7 +910,7 @@ p2 <- ggplot() +
     aes(
       x = age,
       y = .data[[params$hearing_var]]
-      )
+    )
   ) +
   geom_ribbon(
     data = output_age_rate$predictions$smooth,
@@ -920,7 +927,10 @@ p2 <- ggplot() +
       y = estimate + coef(output_age_rate$models$smooth)["(Intercept)"]
     )
   ) +
-  get_axes(x = "age", y = "hl") +
+  get_axes(
+    x = "age",
+    y = "hl"
+  ) +
   get_plot_theme() +
   theme(
     plot.margin = margin(1, 1, 0, 0, unit = "pt"),
@@ -932,27 +942,47 @@ p3 <- ggplot() +
   geom_hline(yintercept = 0) +
   geom_line(
     data = output_age_rate$predictions$linear_derivative,
-    aes(x = age, y = derivative)
+    aes(
+      x = age,
+      y = derivative
+    )
   ) +
   geom_ribbon(
     data = output_age_rate$predictions$linear_derivative,
-    aes(x = age, ymin = ci_lower, ymax = ci_upper)
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    )
   ) +
-  p_cfg$plot_theme +
-  construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
+  get_axes(
+    x = "age",
+    y = "hl_rate"
+  ) +
+  get_plot_theme() +
   theme(plot.margin = margin(0, 0, 0, 1, unit = "pt"))
 
 p4 <- ggplot() +
   geom_hline(yintercept = 0) +
   geom_line(
     data = output_age_rate$predictions$quadratic_derivative,
-    aes(x = age, y = derivative)
+    aes(
+      x = age,
+      y = derivative
+    )
   ) +
   geom_ribbon(
     data = output_age_rate$predictions$quadratic_derivative,
-    aes(x = age, ymin = ci_lower, ymax = ci_upper)
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    )
   ) +
-  get_axes(x = "age", y = "hl_rate") +
+  get_axes(
+    x = "age",
+    y = "hl_rate"
+  ) +
   get_plot_theme() +
   theme(
     plot.margin = margin(0, 0, 0, 1, unit = "pt"),
@@ -972,13 +1002,23 @@ p5 <- ggplot() +
   geom_hline(yintercept = 0) +
   geom_ribbon(
     data = output_age_rate$predictions$derivative_smooth,
-    aes(x = age, ymin = ci_lower, ymax = ci_upper)
+    aes(
+      x = age,
+      ymin = ci_lower,
+      ymax = ci_upper
+    )
   ) +
   geom_line(
     data = output_age_rate$predictions$derivative_smooth,
-    aes(x = age, y = derivative)
+    aes(
+      x = age,
+      y = derivative
+    )
   ) +
-  get_axes(x = "age", y = "hl_rate") +
+  get_axes(
+    x = "age",
+    y = "hl_rate"
+  ) +
   get_plot_theme() +
   theme(
     plot.margin = margin(0, 1, 0, 0, unit = "pt"),
@@ -998,13 +1038,23 @@ p6 <- ggplot() +
   geom_hline(yintercept = 0) +
   geom_ribbon(
     data = output_age_rate$predictions$derivative_smooth,
-    aes(x = age, ymin = ci_lower_adj, ymax = ci_upper_adj)
+    aes(
+      x = age,
+      ymin = ci_lower_adj,
+      ymax = ci_upper_adj
+    )
   ) +
   geom_line(
     data = output_age_rate$predictions$derivative_smooth,
-    aes(x = age, y = derivative_adj)
+    aes(
+      x = age,
+      y = derivative_adj
+    )
   ) +
-  get_axes(x = "age", y = "hl_diff") +
+  get_axes(
+    x = "age",
+    y = "hl_diff"
+  ) +
   get_plot_theme() +
   theme(plot.margin = margin(0, 0, 1, 0, unit = "pt"))
 
@@ -1074,36 +1124,35 @@ sameplot(
 if (isFALSE(params$telolength)) {
   p <- align_plots(p0, p1, p2, p3, p4, p5, align = "hv")
 
-  p <-
+  p <- plot_grid(
     plot_grid(
-      plot_grid(
-        p[[1]],
-        NULL,
-        p[[2]],
-        NULL,
-        p[[3]],
-        labels = c("A", "", "B", "", "C"),
-        nrow = 1,
-        rel_widths = c(1, -0.01, 1, -0.01, 1),
-        label_x = 0.04,
-        label_y = 1.02
-      ),
+      p[[1]],
       NULL,
-      plot_grid(
-        p[[4]],
-        NULL,
-        p[[5]],
-        NULL,
-        p[[6]],
-        labels = c("D", "", "E", "", "F"),
-        nrow = 1,
-        rel_widths = c(1, -0.01, 1, -0.01, 1),
-        label_x = 0.04,
-        label_y = 1.02
-      ),
-      ncol = 1,
-      rel_heights = c(1, -0.15, 1)
-    )
+      p[[2]],
+      NULL,
+      p[[3]],
+      labels = c("A", "", "B", "", "C"),
+      nrow = 1,
+      rel_widths = c(1, -0.01, 1, -0.01, 1),
+      label_x = 0.04,
+      label_y = 1.02
+    ),
+    NULL,
+    plot_grid(
+      p[[4]],
+      NULL,
+      p[[5]],
+      NULL,
+      p[[6]],
+      labels = c("D", "", "E", "", "F"),
+      nrow = 1,
+      rel_widths = c(1, -0.01, 1, -0.01, 1),
+      label_x = 0.04,
+      label_y = 1.02
+    ),
+    ncol = 1,
+    rel_heights = c(1, -0.15, 1)
+  )
 
   sameplot(
     p,
@@ -1128,10 +1177,16 @@ if (isFALSE(params$telolength)) {
   p0 <- ggplot() +
     geom_point(
       data = df,
-      aes(age, .data[[params$hearing_var]])
+      aes(
+        x = age,
+        y = .data[[params$hearing_var]]
+      )
     ) +
-  get_axes(x = "age", y = "hl") +
-  get_plot_theme() +
+    get_axes(
+      x = "age",
+      y = "hl"
+    ) +
+    get_plot_theme() +
     theme(
       plot.margin = margin(1, 0, 0, 1, unit = "pt"),
       axis.title.x = element_blank()
@@ -1140,10 +1195,16 @@ if (isFALSE(params$telolength)) {
   p1 <- ggplot() +
     geom_point(
       data = df,
-      aes(age, .data[[params$hearing_var]])
+      aes(
+        x = age,
+        y = .data[[params$hearing_var]]
+      )
     ) +
-  get_axes(x = "age", y = "hl") +
-  get_plot_theme() +
+    get_axes(
+      x = "age",
+      y = "hl"
+    ) +
+    get_plot_theme() +
     theme(
       plot.margin = margin(1, 0, 0, 1, unit = "pt"),
       axis.title.y = element_blank(),
@@ -1153,10 +1214,16 @@ if (isFALSE(params$telolength)) {
   p2 <- ggplot() +
     geom_point(
       data = df,
-      aes(age, .data[[params$hearing_var]])
+      aes(
+        x = age,
+        y = .data[[params$hearing_var]]
+      )
     ) +
-  get_axes(x = "age", y = "hl") +
-  get_plot_theme() +
+    get_axes(
+      x = "age",
+      y = "hl"
+    ) +
+    get_plot_theme() +
     theme(
       plot.margin = margin(1, 1, 0, 0, unit = "pt"),
       axis.title.y = element_blank(),
@@ -1169,11 +1236,17 @@ if (isFALSE(params$telolength)) {
     ) +
     geom_line(
       data = output_age_rate$predictions$linear_derivative,
-      aes(x = age, y = derivative),
+      aes(
+        x = age,
+        y = derivative
+      ),
       alpha = 0
     ) +
-  get_axes(x = "age", y = "hl_rate") +
-  get_plot_theme() +
+    get_axes(
+      x = "age",
+      y = "hl_rate"
+    ) +
+    get_plot_theme() +
     theme(plot.margin = margin(0, 0, 0, 1, unit = "pt"))
 
   p4 <- ggplot() +
@@ -1182,11 +1255,17 @@ if (isFALSE(params$telolength)) {
     ) +
     geom_line(
       data = output_age_rate$predictions$quadratic_derivative,
-      aes(x = age, y = derivative),
+      aes(
+        x = age,
+        y = derivative
+      ),
       alpha = 0
     ) +
-  get_axes(x = "age", y = "hl_rate") +
-  get_plot_theme() +
+    get_axes(
+      x = "age",
+      y = "hl_rate"
+    ) +
+    get_plot_theme() +
     theme(
       plot.margin = margin(0, 0, 0, 1, unit = "pt"),
       axis.title.y = element_blank()
@@ -1198,11 +1277,17 @@ if (isFALSE(params$telolength)) {
     ) +
     geom_line(
       data = output_age_rate$predictions$derivative_smooth,
-      aes(x = age, y = derivative),
+      aes(
+        x = age,
+        y = derivative
+      ),
       alpha = 0
     ) +
-  get_axes(x = "age", y = "hl_rate") +
-  get_plot_theme() +
+    get_axes(
+      x = "age",
+      y = "hl_rate"
+    ) +
+    get_plot_theme() +
     theme(
       plot.margin = margin(0, 1, 0, 0, unit = "pt"),
       axis.title.y = element_blank()
@@ -1210,36 +1295,35 @@ if (isFALSE(params$telolength)) {
 
   p <- align_plots(p0, p1, p2, p3, p4, p5, align = "hv")
 
-  p <-
+  p <- plot_grid(
     plot_grid(
-      plot_grid(
-        p[[1]],
-        NULL,
-        p[[2]],
-        NULL,
-        p[[3]],
-        labels = c("A", "", "B", "", "C"),
-        nrow = 1,
-        rel_widths = c(1, -0.01, 1, -0.01, 1),
-        label_x = 0.04,
-        label_y = 1.02
-      ),
+      p[[1]],
       NULL,
-      plot_grid(
-        p[[4]],
-        NULL,
-        p[[5]],
-        NULL,
-        p[[6]],
-        labels = c("D", "", "E", "", "F"),
-        nrow = 1,
-        rel_widths = c(1, -0.01, 1, -0.01, 1),
-        label_x = 0.04,
-        label_y = 1.02
-      ),
-      ncol = 1,
-      rel_heights = c(1, -0.15, 1)
-    )
+      p[[2]],
+      NULL,
+      p[[3]],
+      labels = c("A", "", "B", "", "C"),
+      nrow = 1,
+      rel_widths = c(1, -0.01, 1, -0.01, 1),
+      label_x = 0.04,
+      label_y = 1.02
+    ),
+    NULL,
+    plot_grid(
+      p[[4]],
+      NULL,
+      p[[5]],
+      NULL,
+      p[[6]],
+      labels = c("D", "", "E", "", "F"),
+      nrow = 1,
+      rel_widths = c(1, -0.01, 1, -0.01, 1),
+      label_x = 0.04,
+      label_y = 1.02
+    ),
+    ncol = 1,
+    rel_heights = c(1, -0.15, 1)
+  )
 
   sameplot(
     p,
@@ -1271,38 +1355,60 @@ if (isFALSE(params$telolength)) {
     family = gaussian()
   )
 
-  gender_predictions <- as.data.frame(confint(
-    emmeans(
-      gam_gender,
-      as.formula(paste("~ age + gender")),
-      at = setNames(list(seq(
-        min(df[["age"]]), max(df[["age"]]),
-        by = 1
-      )), "age"),
-      type = "response",
-      data = df
-    ),
-    adjust = "mvt"
-  )) %>%
+  gender_predictions <- as.data.frame(
+    confint(
+      emmeans(
+        gam_gender,
+        as.formula(
+          paste("~ age + gender")
+        ),
+        at = setNames(
+          list(
+            seq(
+              min(df[["age"]]),
+              max(df[["age"]]),
+              by = 1
+            )
+          ),
+          "age"
+        ),
+        type = "response",
+        data = df
+      ),
+      adjust = "mvt"
+    )
+  ) %>%
     rename(
       "estimate" = emmean,
       "ci_lower" = lower.CL,
       "ci_upper" = upper.CL
     )
 
-  gender_predictions_der <- data.frame(confint(
-    emtrends(
-      gam_gender,
-      as.formula(paste("~ age + gender")),
-      var = "age",
-      at = setNames(list(seq(
-        min(df[["age"]]), max(df[["age"]]),
-        by = 1
-      )), "age"),
-      data = df
-    ),
-    adjust = "mvt"
-  )) %>%
+  gender_predictions_der <- data.frame(
+    confint(
+      emtrends(
+        gam_gender,
+        as.formula(
+          paste("~ age + gender")
+        ),
+        var = "age",
+        at = setNames(
+          list(
+            seq(
+              min(
+                df[["age"]]
+              ),
+              max(df[["age"]]),
+              by = 1
+            )
+          ),
+          "age"
+        ),
+        data = df
+      ),
+      adjust = "mvt"
+    )
+  ) %>%
     rename(
       "derivative" = !!paste0("age", ".trend"),
       "ci_lower" = lower.CL,
@@ -1318,18 +1424,31 @@ if (isFALSE(params$telolength)) {
   p0 <- ggplot() +
     geom_point(
       data = df,
-      aes(age, .data[[params$hearing_var]])
+      aes(
+        x = age,
+        y = .data[[params$hearing_var]]
+      )
     ) +
     geom_line(
       data = output_age_rate$predictions$linear,
-      aes(x = age, y = estimate)
+      aes(
+        x = age,
+        y = estimate
+      )
     ) +
     geom_ribbon(
       data = output_age_rate$predictions$linear,
-      aes(x = age, ymin = ci_lower, ymax = ci_upper)
+      aes(
+        x = age,
+        ymin = ci_lower,
+        ymax = ci_upper
+      )
     ) +
-  get_axes(x = "age", y = "hl") +
-  get_plot_theme() +
+    get_axes(
+      x = "age",
+      y = "hl"
+    ) +
+    get_plot_theme() +
     theme(
       axis.title.x = element_blank(),
       plot.margin = margin(1, 0, 0, 1, unit = "pt")
@@ -1338,18 +1457,31 @@ if (isFALSE(params$telolength)) {
   p1 <- ggplot() +
     geom_point(
       data = df,
-      aes(age, .data[[params$hearing_var]])
+      aes(
+        x = age,
+        y = .data[[params$hearing_var]]
+      )
     ) +
     geom_line(
       data = output_age_rate$predictions$quadratic,
-      aes(x = age, y = estimate)
+      aes(
+        x = age,
+        y = estimate
+      )
     ) +
     geom_ribbon(
       data = output_age_rate$predictions$quadratic,
-      aes(x = age, ymin = ci_lower, ymax = ci_upper)
+      aes(
+        x = age,
+        ymin = ci_lower,
+        ymax = ci_upper
+      )
     ) +
-  get_axes(x = "age", y = "hl") +
-  get_plot_theme() +
+    get_axes(
+      x = "age",
+      y = "hl"
+    ) +
+    get_plot_theme() +
     theme(
       axis.title.x = element_blank(),
       axis.title.y = element_blank(),
@@ -1359,7 +1491,10 @@ if (isFALSE(params$telolength)) {
   p2 <- ggplot() +
     geom_point(
       data = df,
-      aes(age, .data[[params$hearing_var]])
+      aes(
+        x = age,
+        y = .data[[params$hearing_var]]
+      )
     ) +
     geom_ribbon(
       data = gender_predictions,
@@ -1373,12 +1508,19 @@ if (isFALSE(params$telolength)) {
     ) +
     geom_line(
       data = gender_predictions,
-      aes(x = age, y = estimate, color = gender),
+      aes(
+        x = age,
+        y = estimate,
+        color = gender
+      ),
       show.legend = FALSE
     ) +
-  get_axes(x = "age", y = "hl") +
+    get_axes(
+      x = "age",
+      y = "hl"
+    ) +
     get_colors("gender") +
-  get_plot_theme() +
+    get_plot_theme() +
     theme(
       axis.title.x = element_blank(),
       axis.title.y = element_blank(),
@@ -1391,14 +1533,24 @@ if (isFALSE(params$telolength)) {
     ) +
     geom_line(
       data = output_age_rate$predictions$linear_derivative,
-      aes(x = age, y = derivative)
+      aes(
+        x = age,
+        y = derivative
+      )
     ) +
     geom_ribbon(
       data = output_age_rate$predictions$linear_derivative,
-      aes(x = age, ymin = ci_lower, ymax = ci_upper)
+      aes(
+        x = age,
+        ymin = ci_lower,
+        ymax = ci_upper
+      )
     ) +
-  get_axes(x = "age", y = "hl_rate") +
-  get_plot_theme() +
+    get_axes(
+      x = "age",
+      y = "hl_rate"
+    ) +
+    get_plot_theme() +
     theme(plot.margin = margin(0, 0, 0, 1, unit = "pt"))
 
   p4 <- ggplot() +
@@ -1407,14 +1559,24 @@ if (isFALSE(params$telolength)) {
     ) +
     geom_line(
       data = output_age_rate$predictions$quadratic_derivative,
-      aes(x = age, y = derivative)
+      aes(
+        x = age,
+        y = derivative
+      )
     ) +
     geom_ribbon(
       data = output_age_rate$predictions$quadratic_derivative,
-      aes(x = age, ymin = ci_lower, ymax = ci_upper)
+      aes(
+        x = age,
+        ymin = ci_lower,
+        ymax = ci_upper
+      )
     ) +
-  get_axes(x = "age", y = "hl_rate") +
-  get_plot_theme() +
+    get_axes(
+      x = "age",
+      y = "hl_rate"
+    ) +
+    get_plot_theme() +
     theme(
       axis.title.y = element_blank(),
       plot.margin = margin(0, 0, 0, 1, unit = "pt")
@@ -1439,9 +1601,12 @@ if (isFALSE(params$telolength)) {
       aes(x = age, y = derivative, color = gender),
       show.legend = FALSE
     ) +
-  get_axes(x = "age", y = "hl_rate") +
+    get_axes(
+      x = "age",
+      y = "hl_rate"
+    ) +
     get_colors("gender") +
-  get_plot_theme() +
+    get_plot_theme() +
     theme(
       axis.title.y = element_blank(),
       plot.margin = margin(0, 1, 0, 0, unit = "pt")
@@ -1449,36 +1614,35 @@ if (isFALSE(params$telolength)) {
 
   p <- align_plots(p0, p1, p2, p3, p4, p5, align = "hv")
 
-  p <-
+  p <- plot_grid(
     plot_grid(
-      plot_grid(
-        p[[1]],
-        NULL,
-        p[[2]],
-        NULL,
-        p[[3]],
-        labels = c("A", "", "B", "", "C"),
-        nrow = 1,
-        rel_widths = c(1, -0.01, 1, -0.01, 1),
-        label_x = 0.04,
-        label_y = 1.02
-      ),
+      p[[1]],
       NULL,
-      plot_grid(
-        p[[4]],
-        NULL,
-        p[[5]],
-        NULL,
-        p[[6]],
-        labels = c("D", "", "E", "", "F"),
-        nrow = 1,
-        rel_widths = c(1, -0.01, 1, -0.01, 1),
-        label_x = 0.04,
-        label_y = 1.02
-      ),
-      ncol = 1,
-      rel_heights = c(1, -0.15, 1)
-    )
+      p[[2]],
+      NULL,
+      p[[3]],
+      labels = c("A", "", "B", "", "C"),
+      nrow = 1,
+      rel_widths = c(1, -0.01, 1, -0.01, 1),
+      label_x = 0.04,
+      label_y = 1.02
+    ),
+    NULL,
+    plot_grid(
+      p[[4]],
+      NULL,
+      p[[5]],
+      NULL,
+      p[[6]],
+      labels = c("D", "", "E", "", "F"),
+      nrow = 1,
+      rel_widths = c(1, -0.01, 1, -0.01, 1),
+      label_x = 0.04,
+      label_y = 1.02
+    ),
+    ncol = 1,
+    rel_heights = c(1, -0.15, 1)
+  )
 
   sameplot(
     p,
@@ -1505,21 +1669,36 @@ if (isFALSE(params$telolength)) {
   p0 <- ggplot() +
     geom_point(
       data = df,
-      aes(age, .data[[params$hearing_var]])
+      aes(
+        x = age,
+        y = .data[[params$hearing_var]]
+      )
     ) +
     geom_line(
       data = output_age_rate$predictions$smooth,
-      aes(x = age, y = estimate),
+      aes(
+        x = age,
+        y = estimate
+      ),
       color = "grey80"
     ) +
     geom_line(
       data = df %>%
         group_by(age) %>%
-        summarize(hearing_var = mean(.data[[params$hearing_var]]), .groups = "drop"),
-      aes(x = age, y = hearing_var)
+        summarize(
+          hearing_var = mean(.data[[params$hearing_var]]),
+          .groups = "drop"
+        ),
+      aes(
+        x = age,
+        y = hearing_var
+      )
     ) +
-  get_axes(x = "age", y = "hl") +
-  get_plot_theme()
+    get_axes(
+      x = "age",
+      y = "hl"
+    ) +
+    get_plot_theme()
 
   sameplot(
     p0,
@@ -1539,24 +1718,41 @@ if (isFALSE(params$telolength)) {
   p0 <- ggplot() +
     geom_point(
       data = df,
-      aes(age, .data[[params$hearing_var]])
+      aes(
+        x = age,
+        y = .data[[params$hearing_var]]
+      )
     ) +
     geom_line(
       data = gender_predictions,
-      aes(x = age, y = estimate, color = gender),
+      aes(
+        x = age,
+        y = estimate,
+        color = gender
+      ),
       show.legend = FALSE
     ) +
     geom_line(
       data = df %>%
         group_by(age, gender) %>%
-        summarize(hearing_var = mean(.data[[params$hearing_var]]), .groups = "drop"),
-      aes(x = age, y = hearing_var, color = gender),
+        summarize(
+          hearing_var = mean(.data[[params$hearing_var]]),
+          .groups = "drop"
+        ),
+      aes(
+        x = age,
+        y = hearing_var,
+        color = gender
+      ),
       show.legend = FALSE
     ) +
-  get_axes(x = "age", y = "hl") +
+    get_axes(
+      x = "age",
+      y = "hl"
+    ) +
     get_colors("gender") +
-  get_plot_theme() 
-  
+    get_plot_theme()
+
   sameplot(
     p0,
     file = here(p_cfg$figure_dir, "Extras", "age_rate_mean.png"),
@@ -1575,17 +1771,30 @@ if (isFALSE(params$telolength)) {
   p0 <- ggplot() +
     geom_point(
       data = df,
-      aes(age, .data[[params$hearing_var]])
+      aes(
+        x = age,
+        y = .data[[params$hearing_var]]
+      )
     ) +
     geom_line(
       data = df %>%
         group_by(age, race) %>%
-        summarize(hearing_var = mean(.data[[params$hearing_var]]), .groups = "drop"),
-      aes(x = age, y = hearing_var, color = race)
+        summarize(
+          hearing_var = mean(.data[[params$hearing_var]]),
+          .groups = "drop"
+        ),
+      aes(
+        x = age,
+        y = hearing_var,
+        color = race
+      )
     ) +
-  get_axes(x = "age", y = "hl") +
+    get_axes(
+      x = "age",
+      y = "hl"
+    ) +
     get_colors("race") +
-  get_plot_theme() 
+    get_plot_theme()
 
   sameplot(
     p0,
@@ -1607,7 +1816,12 @@ update_geom_defaults("point", p_cfg$geom_args$mse_point)
 update_geom_defaults("line", p_cfg$geom_args$mse_line)
 
 p <- df_summary_bioage %>%
-  ggplot(aes(x = age_group, y = mean_delta_mse)) +
+  ggplot(
+    aes(
+      x = age_group,
+      y = mean_delta_mse
+    )
+  ) +
   geom_hline(yintercept = 0) +
   geom_ribbon(
     aes(
@@ -1619,11 +1833,16 @@ p <- df_summary_bioage %>%
     show.legend = FALSE
   ) +
   geom_line(
-    aes(color = predictors, group = predictors),
+    aes(
+      color = predictors,
+      group = predictors
+    ),
     show.legend = TRUE
   ) +
   geom_point(
-    aes(color = predictors),
+    aes(
+      color = predictors
+    ),
     show.legend = TRUE
   ) +
   geom_text(
@@ -1637,8 +1856,11 @@ p <- df_summary_bioage %>%
     ),
     size = p_cfg$signif_size / (14 / 5)
   ) +
-    get_axes(x = "age_group", y = "dmse_bioage") +
-    get_colors("bioage") +
+  get_axes(
+    x = "age_group",
+    y = "dmse_bioage"
+  ) +
+  get_colors("bioage") +
   get_plot_theme()
 
 sameplot(
@@ -1655,7 +1877,11 @@ sameplot(
 
 ```{r}
 p <- df_summary_bioage %>%
-  ggplot(aes(x = age_group, y = delta_rmse)) +
+  ggplot(
+    aes(
+      x = age_group, y = delta_rmse
+    )
+  ) +
   geom_hline(yintercept = 0) +
   geom_ribbon(
     aes(
@@ -1685,8 +1911,11 @@ p <- df_summary_bioage %>%
     ),
     size = p_cfg$signif_size / (14 / 5)
   ) +
-    get_axes(x = "age_group", y = "drmse_bioage") +
-    get_colors("bioage") +
+  get_axes(
+    x = "age_group",
+    y = "drmse_bioage"
+  ) +
+  get_colors("bioage") +
   get_plot_theme()
 
 sameplot(
@@ -1707,7 +1936,12 @@ sameplot(
 if (isFALSE(params$telolength)) {
   p <- df_summary_bioage %>%
     filter(predictors %in% c("age", "age, phenoage")) %>%
-    ggplot(aes(x = age_group, y = mean_delta_mse)) +
+    ggplot(
+      aes(
+        x = age_group,
+        y = mean_delta_mse
+      )
+    ) +
     geom_hline(
       yintercept = 0
     ) +
@@ -1721,11 +1955,16 @@ if (isFALSE(params$telolength)) {
       show.legend = FALSE
     ) +
     geom_line(
-      aes(color = predictors, group = predictors),
+      aes(
+        color = predictors,
+        group = predictors
+      ),
       show.legend = TRUE
     ) +
     geom_point(
-      aes(color = predictors),
+      aes(
+        color = predictors
+      ),
       show.legend = TRUE
     ) +
     geom_text(
@@ -1740,9 +1979,12 @@ if (isFALSE(params$telolength)) {
       manual = TRUE,
       size = p_cfg$signif_size / (14 / 5)
     ) +
-    get_axes(x = "age_group", y = "dmse_bioage") +
+    get_axes(
+      x = "age_group",
+      y = "dmse_bioage"
+    ) +
     get_colors("phenoage") +
-  get_plot_theme()
+    get_plot_theme()
 
   sameplot(
     p,
@@ -1764,8 +2006,18 @@ if (isFALSE(params$telolength)) {
 
 ```{r }
 p <- df %>%
-  ggplot(aes(x = age, y = phenoage_advance)) +
-  geom_density_ridges(aes(x = phenoage_advance, y = age_group)) +
+  ggplot(
+    aes(
+      x = age,
+      y = phenoage_advance
+    )
+  ) +
+  geom_density_ridges(
+    aes(
+      x = phenoage_advance,
+      y = age_group
+    )
+  ) +
   annotate(
     "text",
     x = Inf,
@@ -1786,8 +2038,11 @@ p <- df %>%
     size = p_cfg$text_size_primary / (14 / 5),
     color = "darkred"
   ) +
-      get_axes(x = "age_accel", y = "age_group") +
-    get_colors("bioage") +
+  get_axes(
+    x = "age_accel",
+    y = "age_group"
+  ) +
+  get_colors("bioage") +
   get_plot_theme()
 
 sameplot(
@@ -1810,7 +2065,12 @@ if (isFALSE(params$telolength)) {
   update_geom_defaults("line", p_cfg$geom_args$mse_line)
 
   p <- df_summary_confounders %>%
-    ggplot(aes(x = age_group, y = mean_delta_mse)) +
+    ggplot(
+      aes(
+        x = age_group,
+        y = mean_delta_mse
+      )
+    ) +
     geom_hline(
       yintercept = 0
     ) +
@@ -1824,11 +2084,16 @@ if (isFALSE(params$telolength)) {
       show.legend = FALSE
     ) +
     geom_line(
-      aes(color = predictors, group = predictors),
+      aes(
+        color = predictors,
+        group = predictors
+      ),
       show.legend = TRUE
     ) +
     geom_point(
-      aes(color = predictors),
+      aes(
+        color = predictors
+      ),
       show.legend = TRUE
     ) +
     geom_text(
@@ -1843,9 +2108,12 @@ if (isFALSE(params$telolength)) {
       manual = TRUE,
       size = p_cfg$signif_size / (14 / 5)
     ) +
-    get_axes(x = "age_group", y = "dmse_conf") +
+    get_axes(
+      x = "age_group",
+      y = "dmse_conf"
+    ) +
     get_colors("confounders") +
-  get_plot_theme()
+    get_plot_theme()
 
   sameplot(
     p,
@@ -1863,7 +2131,12 @@ if (isFALSE(params$telolength)) {
 ```{r plot_confounders_var, warning=FALSE}
 if (isFALSE(params$telolength)) {
   p <- df_summary_confounders %>%
-    ggplot(aes(x = age_group, y = mean_additional_variance)) +
+    ggplot(
+      aes(
+        x = age_group,
+        y = mean_additional_variance
+      )
+    ) +
     geom_hline(
       yintercept = 0
     ) +
@@ -1877,11 +2150,16 @@ if (isFALSE(params$telolength)) {
       show.legend = FALSE
     ) +
     geom_line(
-      aes(color = predictors, group = predictors),
+      aes(
+        color = predictors,
+        group = predictors
+      ),
       show.legend = TRUE
     ) +
     geom_point(
-      aes(color = predictors),
+      aes(
+        color = predictors
+      ),
       show.legend = TRUE
     ) +
     geom_text(
@@ -1896,9 +2174,12 @@ if (isFALSE(params$telolength)) {
       manual = TRUE,
       size = p_cfg$signif_size / (14 / 5)
     ) +
-    get_axes(x = "age_group", y = "add_pred_conf") +
+    get_axes(
+      x = "age_group",
+      y = "add_pred_conf"
+    ) +
     get_colors("confounders") +
-  get_plot_theme()
+    get_plot_theme()
 
   sameplot(
     p,
@@ -1932,7 +2213,12 @@ if (isFALSE(params$telolength)) {
         levels = c("age, crp", "age, hba1c", "age, albumin_gL")
       )
     ) %>%
-    ggplot(aes(x = age_group, y = mean_delta_mse)) +
+    ggplot(
+      aes(
+        x = age_group,
+        y = mean_delta_mse
+      )
+    ) +
     geom_hline(
       yintercept = 0
     ) +
@@ -1962,11 +2248,16 @@ if (isFALSE(params$telolength)) {
       show.legend = FALSE
     ) +
     geom_line(
-      aes(color = predictors, group = predictors),
+      aes(
+        color = predictors,
+        group = predictors
+      ),
       show.legend = FALSE
     ) +
     geom_point(
-      aes(color = predictors),
+      aes(
+        color = predictors
+      ),
       show.legend = FALSE
     ) +
     facet_wrap(
@@ -1981,9 +2272,12 @@ if (isFALSE(params$telolength)) {
         )
       )
     ) +
-        get_axes(x = "age_group", y = "dmse_best_biomark") +
+    get_axes(
+      x = "age_group",
+      y = "dmse_best_biomark"
+    ) +
     get_colors("best_biomarkers") +
-  get_plot_theme() +
+    get_plot_theme() +
     theme(strip.text.x = element_blank())
 
   sameplot(
@@ -2017,7 +2311,12 @@ if (isFALSE(params$telolength)) {
         "age, crp, hba1c, albumin_gL, phenoage"
       )
     )) %>%
-    ggplot(aes(x = age_group, y = mean_delta_mse)) +
+    ggplot(
+      aes(
+        x = age_group,
+        y = mean_delta_mse
+      )
+    ) +
     geom_hline(
       yintercept = 0,
     ) +
@@ -2031,16 +2330,24 @@ if (isFALSE(params$telolength)) {
       show.legend = FALSE
     ) +
     geom_line(
-      aes(color = predictors, group = predictors),
+      aes(
+        color = predictors,
+        group = predictors
+      ),
       show.legend = TRUE
     ) +
     geom_point(
-      aes(color = predictors),
+      aes(
+        color = predictors
+      ),
       show.legend = FALSE
     ) +
-            get_axes(x = "age_group", y = "dmse_bioage") +
+    get_axes(
+      x = "age_group",
+      y = "dmse_bioage"
+    ) +
     get_colors("biomarker_diff") +
-  get_plot_theme() +
+    get_plot_theme() +
     theme(
       axis.title.y = element_blank(),
       plot.margin = margin(1, 1, 0, 0, unit = "pt")
@@ -2135,9 +2442,17 @@ if (isFALSE(params$telolength)) {
         "CRP"
       )
     )) %>%
-    ggplot(aes(x = predictors, y = mean_delta_mse)) +
+    ggplot(
+      aes(
+        x = predictors,
+        y = mean_delta_mse
+      )
+    ) +
     geom_point(
-      aes(color = predictors, fill = predictors),
+      aes(
+        color = predictors,
+        fill = predictors
+      ),
       position = position_dodge(0.8),
       show.legend = FALSE
     ) +
@@ -2163,8 +2478,10 @@ if (isFALSE(params$telolength)) {
       size = p_cfg$signif_size / (14 / 5),
       show.legend = FALSE
     ) +
-    get_axes(y = "dmse_biomark") +
-  get_plot_theme() +
+    get_axes(
+      y = "dmse_biomark"
+    ) +
+    get_plot_theme() +
     theme(
       panel.grid.major.y = element_line(color = "grey95", linewidth = 0.25),
       axis.text.x = element_markdown(

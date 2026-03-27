@@ -712,19 +712,19 @@ get_p_table <- function(comparisons, title) {
 }
 
 get_p_table(
-  pwc_bioage_overall, 
+  pwc_bioage_overall,
   "Overall Bioage Pairwise Comparisons"
-  )
+)
 
 if (isFALSE(params$telolength)) {
   get_p_table(
-    pwc_biomarkers_overall, 
+    pwc_biomarkers_overall,
     "Overall Biomarker Pairwise Comparisons"
-    )
+  )
   get_p_table(
-    pwc_confounders_overall, 
+    pwc_confounders_overall,
     "Overall Confounder Pairwise Comparisons"
-    )
+  )
 }
 ```
 
@@ -859,29 +859,29 @@ if (isFALSE(params$telolength)) {
 ```{r}
 if (isFALSE(params$telolength)) {
   anova(
-    output_confounders$models$full, 
+    output_confounders$models$full,
     output_confounders$models$full_with_phenoage
-    )
+  )
   anova(
-    output_confounders$models$full, 
+    output_confounders$models$full,
     output_confounders$models$no_gender
-    )
+  )
   anova(
-    output_confounders$models$full, 
+    output_confounders$models$full,
     output_confounders$models$no_smoking
-    )
+  )
   anova(
-    output_confounders$models$full, 
+    output_confounders$models$full,
     output_confounders$models$no_race
-    )
+  )
   anova(
-    output_confounders$models$full, 
+    output_confounders$models$full,
     output_confounders$models$no_education
-    )
+  )
   anova(
-    output_confounders$models$full, 
+    output_confounders$models$full,
     output_confounders$models$`no_gender, race`
-    )
+  )
 }
 ```
 

@@ -170,7 +170,7 @@ run_module <- function(path) {
         quiet = TRUE
       )
     )
-    
+
     cat(
       basename(path),
       " completed in ",
@@ -187,20 +187,20 @@ run_module <- function(path) {
 ```{r run_modules, results='asis', echo=FALSE}
 run_module(
   here::here("Scripts", "01_import.Rmd")
-  )
+)
 run_module(
   here::here("Scripts", "02_data_preprocessing.Rmd")
-  )
+)
 run_module(
   here::here("Scripts", "03_modeling.Rmd")
-  )
+)
 run_module(
   here::here("Scripts", "04_data_processing.Rmd")
-  )
+)
 run_module(
   here::here("Scripts", "05_statistics.Rmd")
-  )
+)
 run_module(
   here::here("Scripts", "06_visualization.Rmd")
-  )
+)
 ```

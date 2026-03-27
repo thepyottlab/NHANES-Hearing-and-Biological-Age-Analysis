@@ -42,8 +42,8 @@ source(here("Scripts", "helpers.R"))
 kable(
   as.data.frame(
     unclass(params)
-    )
   )
+)
 ```
 
 ## Import Data

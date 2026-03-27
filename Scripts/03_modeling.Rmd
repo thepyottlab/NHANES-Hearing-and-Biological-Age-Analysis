@@ -11,10 +11,8 @@ possible issues. We shuffle indices within each age group so that the numbers 1-
 
 ```{r fun_make_folds}
 make_repeated_folds <- function(data, grouping_variable, k, repeats) {
-  
   # Helper to create random k-fold indices for one repeat
   kfold_split_stratified <- function(k, grouping_variable = NULL) {
-    
     # Convert factor of age_group to number
     grouping_variable <- as.integer(
       as.factor(grouping_variable)
@@ -107,7 +105,6 @@ formula_generator <- function(
   equal_wiggliness = TRUE,
   stepdown = FALSE
 ) {
-  
   # Initialize the repeat columns with folds and unique fold numbers in folds
   fold_columns <- grep("^fold_r", names(data), value = TRUE)
   folds <- seq_along(fold_columns) # get each unique fold number in folds
@@ -121,7 +118,6 @@ formula_generator <- function(
   )
 
   for (formula in formulas) {
-    
     # Unlist, split by comma, and get rid of white spaces for the current predictors string
     predictors <- trimws(
       unlist(
@@ -135,7 +131,6 @@ formula_generator <- function(
     # make a term for each predictor and load degrees of freedom if already computed for predictor
     for (predictor in predictors) {
       if (predictor %in% deg_free_store$predictor) {
-        
         # Load degrees of freedom from cache if already computed else create list
         deg_free <- deg_free_store$deg_free[deg_free_store$predictor == predictor]
       } else {
@@ -180,12 +175,10 @@ formula_generator <- function(
         )
 
         if (!is.null(confounders)) {
-          
           # construct Age * confounder terms
           for (i in seq_along(confounders)) {
             confounder <- confounders[i]
             if (isTRUE(equal_wiggliness)) {
-              
               # Combine an age term with smooth terms with a unique ID for each
               sm_terms <- append(
                 sm_terms,
@@ -200,7 +193,6 @@ formula_generator <- function(
                 )
               )
             } else {
-              
               # Combine an age term with smooth terms
               sm_terms <- append(
                 sm_terms,
@@ -216,7 +208,6 @@ formula_generator <- function(
           }
         }
       } else {
-        
         # Construct predictor terms
         sm_terms <- append(
           sm_terms,
@@ -243,7 +234,6 @@ formula_generator <- function(
 
     # Create confounder stepdown vars
     if (isTRUE(stepdown) && formula == "age") {
-      
       # Age will already have been created by the previous loop
       deg_free <- deg_free_store$deg_free[deg_free_store$predictor == "age"]
 
@@ -252,7 +242,7 @@ formula_generator <- function(
       # Remove one confounder at a time, construct the formula, and add it to the formula list
       for (i in seq_along(confounders)) {
         sm_terms <- list()
-        
+
         # Add age term
         sm_terms <- append(
           sm_terms,
@@ -300,9 +290,9 @@ formula_generator <- function(
             params$hearing_var,
             "~",
             paste(
-              unlist(sm_terms), 
+              unlist(sm_terms),
               collapse = " + "
-              )
+            )
           )
         )
       }
@@ -443,11 +433,11 @@ if (isFALSE(params$telolength)) {
     confounders = confounder_interactions,
     stepdown = TRUE
   )
-  
+
   get_formula_table(
-  formula_list = formula_list_confounders,
-  title = "Confounder Formulas"
-)
+    formula_list = formula_list_confounders,
+    title = "Confounder Formulas"
+  )
 }
 ```
 
@@ -466,7 +456,6 @@ cross_validation <- function(
   keep_models = FALSE,
   confounder_analysis = FALSE
 ) {
-  
   # Initialize age groups to stratify by and repeat column names that contain fold specification
   age_groups <- c(
     "20-30",
@@ -529,7 +518,6 @@ cross_validation <- function(
   for (formula in formulas) {
     for (repeat_column in repeat_columns) {
       for (fold in seq_len(folds)) {
-        
         # Subset training and testing data
         train <- data %>% filter(
           .data[[repeat_column]] != fold
@@ -567,7 +555,6 @@ cross_validation <- function(
 
         # calculate performance per age group
         for (age_group_val in age_groups) {
-          
           # Subset testing and training data for age group
           test_subset <- test %>%
             filter(
@@ -698,10 +685,10 @@ system.time({
 ```{r store_bioage_res}
 if (isTRUE(params$store_model_results)) {
   saveRDS(
-    object = output_bioage, 
-    file = generate_model_path("bioage"), 
+    object = output_bioage,
+    file = generate_model_path("bioage"),
     compress = "xz"
-    )
+  )
 }
 ```
 
@@ -791,9 +778,9 @@ if (isFALSE(params$telolength)) {
 if (isFALSE(params$telolength)) {
   system.time({
     output_confounders <- if (
-      isTRUE(params$load_model_results) && 
-      file.exists(generate_model_path("confounders"))
-      ) {
+      isTRUE(params$load_model_results) &&
+        file.exists(generate_model_path("confounders"))
+    ) {
       readRDS(generate_model_path("confounders"))
     } else {
       cross_validation(
@@ -842,10 +829,10 @@ if (isFALSE(params$telolength) && is.null(output_confounders$models)) {
 ```{r store_conf_res}
 if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
   saveRDS(
-    object = output_confounders, 
-    file = generate_model_path("confounders"), 
+    object = output_confounders,
+    file = generate_model_path("confounders"),
     compress = "xz"
-    )
+  )
 }
 ```
 
@@ -998,15 +985,15 @@ if (isTRUE(params$run_optional_chunks)) {
       )
 
       m1 <- bam(
-        as.formula(f1), 
-        data = df, 
+        as.formula(f1),
+        data = df,
         method = "REML"
-        )
+      )
       m2 <- bam(
         as.formula(f2),
-        data = df, 
+        data = df,
         method = "REML"
-        )
+      )
 
       aov <- as.data.frame(
         anova(m0, m1, m2)
@@ -1106,16 +1093,16 @@ if (isTRUE(params$run_optional_chunks)) {
 
     print(
       cbind(
-      as.data.frame(
-        AIC(m0, m1, m2, m3, m4)
-      ),
-      as.data.frame(
-        BIC(m0, m1, m2, m3, m4)
-      ),
-      as.data.frame(
-        anova(m0, m1, m2, m3, m4)
+        as.data.frame(
+          AIC(m0, m1, m2, m3, m4)
+        ),
+        as.data.frame(
+          BIC(m0, m1, m2, m3, m4)
+        ),
+        as.data.frame(
+          anova(m0, m1, m2, m3, m4)
+        )
       )
-    )
     )
     print(
       summary(m4)
@@ -1320,28 +1307,29 @@ if (isTRUE(params$run_optional_chunks)) {
       )
 
       predictors <- paste(
-        extract_predictors(formula), 
+        extract_predictors(formula),
         collapse = ", "
-        )
+      )
 
       models[[predictors]] <- mod
     }
 
     inspect_k <- function(model) {
       k.check(
-        model, 
-        subsample = subsample, 
-        n.rep = reps)
+        model,
+        subsample = subsample,
+        n.rep = reps
+      )
     }
 
     k_output <- lapply(models, inspect_k)
     k_output <- imap_dfr(
-      k_output, 
+      k_output,
       ~ {
-      as.data.frame(.x) %>%
-        rownames_to_column(var = "Predictors") %>%
-        mutate(model = .y)
-    }
+        as.data.frame(.x) %>%
+          rownames_to_column(var = "Predictors") %>%
+          mutate(model = .y)
+      }
     )
 
     k_output
@@ -1355,7 +1343,7 @@ if (isTRUE(params$run_optional_chunks)) {
     kable(
       "html",
       caption = "Inspect K Bioage"
-      ) %>%
+    ) %>%
     kable_styling(
       bootstrap_options = c("striped", "hover"),
       full_width = FALSE,
@@ -1371,9 +1359,9 @@ if (isTRUE(params$run_optional_chunks)) {
     reps = 400
   ) %>%
     kable(
-      "html", 
+      "html",
       caption = "Inspect K Biomarkers"
-      ) %>%
+    ) %>%
     kable_styling(
       bootstrap_options = c("striped", "hover"),
       full_width = FALSE,

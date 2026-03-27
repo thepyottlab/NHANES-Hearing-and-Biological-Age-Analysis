@@ -13,10 +13,10 @@ reformat_df <- function(data) {
       data$results %>%
         filter(
           if ("age" %in% data$results$predictors) {
-          predictors == "age"
-        } else {
-          predictors == "full"
-        }
+            predictors == "age"
+          } else {
+            predictors == "full"
+          }
         ) %>%
         mutate(mse_age = mse) %>%
         select(-mse, -predictors, -n_train, -n_test),
@@ -27,7 +27,7 @@ reformat_df <- function(data) {
       additional_variance = delta_mse / mse_age * 100,
       fold_repeat_id = factor(
         interaction(r, k)
-        ),
+      ),
     )
 
   if ("full" %in% data$results$predictors) {
@@ -44,7 +44,7 @@ reformat_df <- function(data) {
         )
       )
   }
-  
+
   reformatted_data
 }
 
