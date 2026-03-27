@@ -170,6 +170,7 @@ run_module <- function(path) {
         quiet = TRUE
       )
     )
+    
     cat(
       basename(path),
       " completed in ",

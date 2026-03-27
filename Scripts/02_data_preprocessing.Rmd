@@ -5,7 +5,9 @@
 We take the param value for confounders and build one lists with all included interactions with age and one with just the variables
 
 ```{r confounder_list}
-confounder_interactions <- trimws(strsplit(params$confounders, "_")[[1]])
+confounder_interactions <- trimws(
+  strsplit(params$confounders, "_")[[1]]
+)
 confounder_vars <- confounder_interactions[!grepl(",", confounder_interactions)]
 ```
 
@@ -50,7 +52,10 @@ df <- df_raw %>%
     wbc,
     uap
   ) %>%
-  filter(education != 9, smoking %in% c(1, 2)) %>%
+  filter(
+    education != 9,
+    smoking %in% c(1, 2)
+  ) %>%
   mutate(
     gender = factor(gender),
     smoking = factor(smoking),
@@ -84,6 +89,7 @@ df <- df %>% mutate(
     age >= 50 & age < 60 ~ "50-60",
     age >= 60 & age < 70 ~ "60-70",
     isFALSE(params$telolength) & age >= 70 ~ "70+",
-  ), confounders = interaction(gender, smoking)
+  ),
+  confounders = interaction(gender, smoking)
 )
 ```

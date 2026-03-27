@@ -10,7 +10,7 @@ Round R² and delta RMSE, rename variables, set p values to bold and to " <
 0.001" when very small.
 
 ```{r format_table}
-format_table <- function(summary_data, per_age_group) {
+format_table <- function(summary_data, per_age_group = FALSE) {
   table <- summary_data %>%
     mutate(
       r2 = round(r2, 3),
@@ -26,12 +26,23 @@ format_table <- function(summary_data, per_age_group) {
       `p (vs age)` = case_when(
         signif == "***" ~
           cell_spec("< 0.001", "html", bold = TRUE),
-        suppressWarnings(!is.na(as.numeric(`p (vs age)`)) &
-          as.numeric(`p (vs age)`) < 0.05) &
+        suppressWarnings(
+          !is.na(
+            as.numeric(`p (vs age)`)
+          ) &
+            as.numeric(`p (vs age)`) < 0.05
+        ) &
           `p (vs age)` != "< 0.001" ~
-          cell_spec(suppressWarnings(round(
-            as.numeric(`p (vs age)`), 3
-          )), "html", bold = TRUE),
+          cell_spec(
+            suppressWarnings(
+              round(
+                as.numeric(`p (vs age)`),
+                3
+              )
+            ), 
+            "html",
+            bold = TRUE
+          ),
         TRUE ~ `p (vs age)`
       ),
       `p (vs age)` = as.character(`p (vs age)`),
@@ -58,18 +69,7 @@ format_table <- function(summary_data, per_age_group) {
       "∆RMSE (vs full model, dB HL)" = `∆RMSE (vs age, dB HL)`,
     )
 
-  return(table)
-}
-
-table_bioage <- format_table(df_summary_bioage, per_age_group = TRUE)
-table_bioage_overall <- format_table(df_summary_bioage_overall, per_age_group = FALSE)
-
-if (isFALSE(params$telolength)) {
-  table_biomarkers <- format_table(df_summary_biomarkers, per_age_group = TRUE)
-  table_biomarkers_overall <- format_table(df_summary_biomarkers_overall, per_age_group = FALSE)
-
-  table_confounders <- format_table(df_summary_confounders, per_age_group = TRUE)
-  table_confounders_overall <- format_table(df_summary_confounders_overall, per_age_group = FALSE)
+  table
 }
 ```
 
@@ -103,7 +103,8 @@ rename_bioage_table <- function(bioage_table) {
 
 rename_biomarker_table <- function(biomarker_table) {
   biomarker_table <- biomarker_table %>%
-    filter(!(
+    filter(!
+    (
       Predictors %in% c(
         "age",
         "age, phenoage",
@@ -153,9 +154,7 @@ rename_biomarker_table <- function(biomarker_table) {
 rename_confounder_table <- function(confounders_table) {
   confounders_table <- confounders_table %>%
     filter(!(
-      Predictors %in% c(
-        "full"
-      )
+      Predictors %in% c("full")
     )) %>%
     mutate(
       Predictors = case_when(
@@ -177,20 +176,46 @@ rename_confounder_table <- function(confounders_table) {
     ) %>%
     arrange(Predictors)
 
-  return(confounders_table)
-}
-
-table_bioage <- rename_bioage_table(table_bioage)
-table_bioage_overall <- rename_bioage_table(table_bioage_overall)
-
-if (isFALSE(params$telolength)) {
-  table_biomarkers <- rename_biomarker_table(table_biomarkers)
-  table_biomarkers_overall <- rename_biomarker_table(table_biomarkers_overall)
-
-  table_confounders <- rename_confounder_table(table_confounders)
-  table_confounders_overall <- rename_confounder_table(table_confounders_overall)
+  confounders_table
 }
 ```
+
+#### Run table formatting pipeline
+
+```{r}
+table_bioage <- df_summary_bioage %>%
+  format_table(
+    per_age_group = TRUE
+  ) %>%
+  rename_bioage_table()
+
+table_bioage_overall <- df_summary_bioage_overall %>%
+  format_table() %>%
+  rename_bioage_table()
+
+if (isFALSE(params$telolength)) {
+  table_biomarkers <- df_summary_biomarkers %>%
+    format_table(
+      per_age_group = TRUE
+    ) %>%
+    rename_biomarker_table()
+
+  table_biomarkers_overall <- df_summary_biomarkers_overall %>%
+    format_table() %>%
+    rename_biomarker_table()
+
+  table_confounders <- df_summary_confounders %>%
+    format_table(
+      per_age_group = TRUE
+    ) %>%
+    rename_confounder_table()
+
+  table_confounders_overall <- df_summary_confounders_overall %>%
+    format_table() %>%
+    rename_confounder_table()
+}
+```
+
 
 #### Render table
 
@@ -216,17 +241,38 @@ render_and_save_table <- function(table, path) {
   return(html_table)
 }
 
-render_and_save_table(table_bioage, path = here("Output", "Figures", params$hearing_var, "table_bioage.html"))
-render_and_save_table(table_bioage_overall, path = here("Output", "Figures", params$hearing_var, "table_bioage_overall.html"))
+render_and_save_table(
+  table = table_bioage,
+  path = here("Output", "Figures", params$hearing_var, "table_bioage.html")
+)
+
+render_and_save_table(
+  table = table_bioage_overall,
+  path = here("Output", "Figures", params$hearing_var, "table_bioage_overall.html")
+)
 
 if (isFALSE(params$telolength)) {
-  render_and_save_table(table_biomarkers, path = here("Output", "Figures", params$hearing_var, "table_biomarkers.html")) %>%
+  render_and_save_table(
+    table = table_biomarkers,
+    path = here("Output", "Figures", params$hearing_var, "table_biomarkers.html")
+  ) %>%
     scroll_box(width = "100%", height = "400px")
-  render_and_save_table(table_biomarkers_overall, path = here("Output", "Figures", params$hearing_var, "table_biomarkers_overall.html"))
 
-  render_and_save_table(table_confounders, path = here("Output", "Figures", params$hearing_var, "table_confounders.html")) %>%
+  render_and_save_table(
+    table = table_biomarkers_overall,
+    path = here("Output", "Figures", params$hearing_var, "table_biomarkers_overall.html")
+  )
+
+  render_and_save_table(
+    table = table_confounders,
+    path = here("Output", "Figures", params$hearing_var, "table_confounders.html")
+  ) %>%
     scroll_box(width = "100%", height = "400px")
-  render_and_save_table(table_confounders_overall, path = here("Output", "Figures", params$hearing_var, "table_confounders_overall.html"))
+
+  render_and_save_table(
+    table = table_confounders_overall,
+    path = here("Output", "Figures", params$hearing_var, "table_confounders_overall.html")
+  )
 }
 ```
 
@@ -234,14 +280,24 @@ if (isFALSE(params$telolength)) {
 
 #### Build table and recode values
 
+Recode has a namespace conflict and is called explicitly from dplyr.
+
 ```{r build_conf_table}
 build_confounder_table <- function(data, y = params$hearing_var) {
   variables <- c("Gender", "Smoking", "Race", "Education")
 
   data <- data %>%
     mutate(
-      gender = dplyr::recode(gender, "1" = "Male", "2" = "Female"),
-      smoking = dplyr::recode(smoking, "1" = "Smoker", "2" = "Non-smoker"),
+      gender = dplyr::recode(
+        gender, 
+        "1" = "Male", 
+        "2" = "Female"
+        ),
+      smoking = dplyr::recode(
+        smoking, 
+        "1" = "Smoker", 
+        "2" = "Non-smoker"
+        ),
       race = dplyr::recode(
         race,
         "1" = "Hispanic",
@@ -265,7 +321,8 @@ build_confounder_table <- function(data, y = params$hearing_var) {
       "Education" = education
     )
 
-  bind_rows(lapply(variables, function(variable) {
+  bind_rows(
+    lapply(variables, function(variable) {
     data %>%
       mutate(level = .data[[variable]]) %>%
       group_by(age_group, level) %>%
@@ -275,35 +332,31 @@ build_confounder_table <- function(data, y = params$hearing_var) {
         .groups = "drop"
       ) %>%
       mutate(
-        variable = factor(variable, levels = c(
-          "Gender", "Smoking", "Race", "Education"
+        variable = factor(
+          variable, 
+          levels = c(
+          "Gender", 
+          "Smoking", 
+          "Race", 
+          "Education"
         )),
         .before = 1
       )
-  }))
-}
-
-if (isFALSE(params$telolength)) {
-  table_confounders_descriptive <- build_confounder_table(df)
+  })
+  )
 }
 ```
 
-#### Pivot table and merge mean and standard deviation
+#### Create confounder table and format confounder table
+We recode variables, combine means and SDs, pivot table, and format it 
 
 ```{r pivot_conf_table}
 if (isFALSE(params$telolength)) {
-  table_confounders_descriptive <- table_confounders_descriptive %>%
+  table_confounders_descriptive <- df %>% 
+    build_confounder_table() %>%
     mutate(stat = sprintf("%.2f (%.2f)", mean, sd)) %>%
     select(variable, level, age_group, stat) %>%
-    pivot_wider(names_from = age_group, values_from = stat)
-}
-```
-
-#### Format table
-
-```{r format_Conf_table}
-if (isFALSE(params$telolength)) {
-  table_confounders_descriptive <- table_confounders_descriptive %>%
+    pivot_wider(names_from = age_group, values_from = stat) %>%
     group_by(variable) %>%
     mutate(variable = if_else(row_number() == 1L, variable, "")) %>%
     ungroup() %>%
@@ -368,82 +421,189 @@ We first store the theme preset (theme_few), then theme overrides, then other th
 
 ```{r}
 p_cfg <-
-  c(list(plot_theme = list(
-    theme_few(),
-    theme(
-      axis.text.x = element_markdown("sans", size = get_plot_config(params)$text_size_primary),
-      axis.text.y = element_markdown("sans", size = get_plot_config(params)$text_size_primary),
-      strip.text.x = element_markdown(
-        "sans",
-        size = get_plot_config(params)$text_size_secondary,
-        lineheight = 1.1
-      ),
-      strip.text.y = element_markdown(
-        "sans",
-        size = get_plot_config(params)$text_size_secondary,
-        lineheight = 1.1
-      ),
-      axis.title.x = element_markdown(
-        "sans",
-        size = get_plot_config(params)$text_size_secondary,
-        lineheight = 1.1
-      ),
-      axis.title.y = element_markdown(
-        "sans",
-        size = get_plot_config(params)$text_size_secondary,
-        lineheight = 1.1
-      ),
-      legend.title = element_blank(),
-      legend.background = element_rect(fill = "transparent", color = NA),
-      legend.box.background = element_rect(fill = "transparent", color = NA),
-      legend.key = element_rect(fill = "transparent"),
-      legend.position = "inside",
-      legend.justification.inside = c(0, 1),
-      legend.key.spacing.y = unit(1, "pt"),
-      panel.border = element_part_rect(
-        colour = "grey30",
-        side = "lb",
-        linewidth = 0.5
-      ),
-      plot.margin = margin(1, 1, 0, 1, unit = "pt")
-    ),
-    guides(
-      colour = guide_legend(
-        override.aes = list(size = 1.25),
-        keywidth = unit(0.3, "cm"),
-        keyheight = unit(0.3, "cm"),
-        label.theme = element_markdown(
-          "sans",
-          size = get_plot_config(params)$text_size_secondary,
-          margin = margin(l = 3, t = 1.5, unit = "pt")
+  c(
+    list(
+      plot_theme = list(
+        theme_few(),
+        theme(
+          axis.text.x = element_markdown("sans", size = get_plot_config(params)$text_size_primary),
+          axis.text.y = element_markdown("sans", size = get_plot_config(params)$text_size_primary),
+          strip.text.x = element_markdown(
+            "sans",
+            size = get_plot_config(params)$text_size_secondary,
+            lineheight = 1.1
+          ),
+          strip.text.y = element_markdown(
+            "sans",
+            size = get_plot_config(params)$text_size_secondary,
+            lineheight = 1.1
+          ),
+          axis.title.x = element_markdown(
+            "sans",
+            size = get_plot_config(params)$text_size_secondary,
+            lineheight = 1.1
+          ),
+          axis.title.y = element_markdown(
+            "sans",
+            size = get_plot_config(params)$text_size_secondary,
+            lineheight = 1.1
+          ),
+          legend.title = element_blank(),
+          legend.background = element_rect(fill = "transparent", color = NA),
+          legend.box.background = element_rect(fill = "transparent", color = NA),
+          legend.key = element_rect(fill = "transparent"),
+          legend.position = "inside",
+          legend.justification.inside = c(0, 1),
+          legend.key.spacing.y = unit(1, "pt"),
+          panel.border = element_part_rect(
+            colour = "grey30",
+            side = "lb",
+            linewidth = 0.5
+          ),
+          plot.margin = margin(1, 1, 0, 1, unit = "pt")
+        ),
+        guides(
+          colour = guide_legend(
+            override.aes = list(size = 1.25),
+            keywidth = unit(0.3, "cm"),
+            keyheight = unit(0.3, "cm"),
+            label.theme = element_markdown(
+              "sans",
+              size = get_plot_config(params)$text_size_secondary,
+              margin = margin(l = 3, t = 1.5, unit = "pt")
+            )
+          )
         )
       )
-    )
-  )), get_plot_config(params))
+    ),
+    get_plot_config(params)
+  )
 ```
 
 #### Set axis scales
 
 ```{r}
+set_axis()
 p_cfg <- modifyList(
   p_cfg,
   list(
     x = list(
-      age = set_axis(p_cfg, "x", "continuous", breaks = seq(20, 80, 10), limits = c(20, 82), label = "Age", unit = "Years"),
-      age_group = set_axis(p_cfg, "x", "discrete", limits = c(1.4, 5.6), label = "Age", unit = "Years"),
-      age_accel = set_axis(p_cfg, "x", "continuous", limits = c(-20, 20), label = "Age Acceleration", unit = "PhenoAge – Age (Years)")
+      age = set_axis(
+        config = p_cfg,
+        axis = "x",
+        type = "continuous",
+        breaks = seq(20, 80, 10),
+        limits = c(20, 82),
+        label = "Age",
+        unit = "Years"
+      ),
+      age_group = set_axis(
+        config = p_cfg,
+        axis = "x",
+        type = "discrete",
+        limits = c(1.4, 5.6),
+        label = "Age",
+        unit = "Years"
+      ),
+      age_accel = set_axis(
+        config = p_cfg,
+        axis = "x",
+        type = "continuous",
+        limits = c(-20, 20),
+        label = "Age Acceleration",
+        unit = "PhenoAge – Age (Years)"
+      )
     ),
     y = list(
-      age_group = set_axis(p_cfg, "y", "discrete", limits = c(1, 7), label = "Age", unit = "Years"),
-      hl = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 90, 30), limits = c(-10, 100), label = paste0(if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index"), unit = "dB HL"),
-      hl_rate = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 2, 1), limits = c(-0.5, 2.6), label = "Rate of HL", unit = "dB HL/Year"),
-      hl_diff = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 2, 1), limits = c(-0.5, 2.6), label = "Deviation Rate of HL", unit = "dB HL/Year"),
-      dmse_bioage = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 8, 2), limits = c(-1, 8.5), label = "Additional Predictive Capacity", unit = "Δ MSE (dB HL)<sup>2</sup>"),
-      drmse_bioage = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 0.25, 0.1), limits = c(-0.05, 0.25), label = "Additional Predictive Capacity", unit = "Δ RMSE (dB HL)"),
-      dmse_biomark = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 2, 1), limits = c(-0.25, 1.5), label = "Additional Predictive Capacity", unit = "Δ MSE (dB HL)<sup>2</sup>"),
-      dmse_conf = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 40, 5), limits = c(-1, 40), label = "Additional Predictive Capacity", unit = "Δ MSE (dB HL)<sup>2</sup>"),
-      dmse_best_biomark = set_axis(p_cfg, "y", "continuous", breaks = c(0, 2), limits = c(-1.5, 4), label = "Additional Predictive Capacity", unit = "Δ MSE (dB HL)<sup>2</sup>"),
-      add_pred_conf = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 14, 2), limits = c(-1, 15), label = "Additional Predictive Capacity", unit = "% Change MSE")
+      age_group = set_axis(
+        config = p_cfg,
+        axis = "y",
+        type = "discrete",
+        limits = c(1, 7),
+        label = "Age",
+        unit = "Years"
+      ),
+      hl = set_axis(
+        config = p_cfg,
+        axis = "y",
+        type = "continuous",
+        breaks = seq(0, 90, 30),
+        limits = c(-10, 100),
+        label = paste0(if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index"),
+        unit = "dB HL"
+      ),
+      hl_rate = set_axis(
+        config = p_cfg,
+        axis = "y",
+        type = "continuous",
+        breaks = seq(0, 2, 1),
+        limits = c(-0.5, 2.6),
+        label = "Rate of HL",
+        unit = "dB HL/Year"
+      ),
+      hl_diff = set_axis(
+        config = p_cfg,
+        axis = "y",
+        type = "continuous",
+        breaks = seq(0, 2, 1),
+        limits = c(-0.5, 2.6),
+        label = "Deviation Rate of HL",
+        unit = "dB HL/Year"
+      ),
+      dmse_bioage = set_axis(
+        config = p_cfg,
+        axis = "y",
+        type = "continuous",
+        breaks = seq(0, 8, 2),
+        limits = c(-1, 8.5),
+        label = "Additional Predictive Capacity",
+        unit = "Δ MSE (dB HL)<sup>2</sup>"
+      ),
+      drmse_bioage = set_axis(
+        config = p_cfg,
+        axis = "y",
+        type = "continuous",
+        breaks = seq(0, 0.25, 0.1),
+        limits = c(-0.05, 0.25),
+        label = "Additional Predictive Capacity",
+        unit = "Δ RMSE (dB HL)"
+      ),
+      dmse_biomark = set_axis(
+        config = p_cfg,
+        axis = "y",
+        type = "continuous",
+        breaks = seq(0, 2, 1),
+        limits = c(-0.25, 1.5),
+        label = "Additional Predictive Capacity",
+        unit = "Δ MSE (dB HL)<sup>2</sup>"
+      ),
+      dmse_conf = set_axis(
+        config = p_cfg,
+        axis = "y",
+        type = "continuous",
+        breaks = seq(0, 40, 5),
+        limits = c(-1, 40),
+        label = "Additional Predictive Capacity",
+        unit = "Δ MSE (dB HL)<sup>2</sup>"
+      ),
+      dmse_best_biomark = set_axis(
+        config = p_cfg,
+        axis = "y",
+        type = "continuous",
+        breaks = c(0, 2),
+        limits = c(-1.5, 4),
+        label = "Additional Predictive Capacity",
+        unit = "Δ MSE (dB HL)<sup>2</sup>"
+      ),
+      add_pred_conf = set_axis(
+        config = p_cfg,
+        axis = "y",
+        type = "continuous",
+        breaks = seq(0, 14, 2),
+        limits = c(-1, 15),
+        label = "Additional Predictive Capacity",
+        unit = "% Change MSE"
+      )
     )
   )
 )
@@ -471,7 +631,13 @@ p_cfg <- modifyList(
           "age, phenoage" = "#F07E6E",
           "age, telolength" = if (isTRUE(params$telolength)) "#B276B2" else NULL
         ),
-        labels = c("age" = "Age", "age, hd_log" = "Age + HD", "age, kdm" = "Age + KDM", "age, phenoage" = "Age + PhenoAge", "age, telolength" = if (isTRUE(params$telolength)) "Age + Telolength" else NULL)
+        labels = c(
+          "age" = "Age", 
+          "age, hd_log" = "Age + HD", 
+          "age, kdm" = "Age + KDM", 
+          "age, phenoage" = "Age + PhenoAge", 
+          "age, telolength" = if (isTRUE(params$telolength)) "Age + Telolength" else NULL
+          )
       ),
       confounders = set_colors(
         colors = c(
@@ -504,23 +670,31 @@ p_cfg <- modifyList(
       ),
       phenoage = set_colors(
         colors = c(
-          "age" = "#000000", "age, phenoage" = "#CB2027"
+          "age" = "#000000", 
+          "age, phenoage" = "#CB2027"
         ),
         fill_colors = c(
-          "age" = "#8C8C8C", "age, phenoage" = "#F07E6E"
+          "age" = "#8C8C8C", 
+          "age, phenoage" = "#F07E6E"
         ),
         labels = c(
-          "age" = "Age", "age, phenoage" = "Age + PhenoAge"
+          "age" = "Age", 
+          "age, phenoage" = "Age + PhenoAge"
         )
       ),
       gender = set_colors(
         colors = c(
-          "1" = "#2986cc", "2" = "#c90076"
+          "1" = "#2986cc", 
+          "2" = "#c90076"
         ),
         fill_colors = c(
-          "1" = "#6fa8dc", "2" = "#d5a6bd"
+          "1" = "#6fa8dc",
+          "2" = "#d5a6bd"
         ),
-        labels = c("1" = "Male", "2" = "Female")
+        labels = c(
+          "1" = "Male",
+          "2" = "Female"
+          )
       ),
       race = set_colors(
         colors = c(
@@ -535,7 +709,12 @@ p_cfg <- modifyList(
           "4" = "#BC99C7",
           "5" = "#88BDE6"
         ),
-        labels = c("1" = "Hispanic", "3" = "White", "4" = "Black", "5" = "Other")
+        labels = c(
+          "1" = "Hispanic", 
+          "3" = "White",
+          "4" = "Black", 
+          "5" = "Other"
+          )
       ),
       biomarker_diff = set_colors(
         colors = c(

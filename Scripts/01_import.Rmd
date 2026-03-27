@@ -78,26 +78,26 @@ import_nhanes_data <- function(path) {
       read_xpt(f)
     )
   )]
-  
+
   by_year <- split(meta$dt, meta$year)
 
   as.data.frame(
     rbindlist(
-    lapply(
-      by_year, 
-      \(dts) Reduce(
-        \(x, y) merge(
-      x, y,
-      by = "SEQN", 
-      all = TRUE
-    ), 
-    dts
+      lapply(
+        by_year,
+        \(dts) Reduce(
+          \(x, y) merge(
+            x, y,
+            by = "SEQN",
+            all = TRUE
+          ),
+          dts
+        )
+      ),
+      fill = TRUE,
+      use.names = TRUE,
+      idcol = "year"
     )
-    ),
-    fill = TRUE,
-    use.names = TRUE,
-    idcol = "year"
-  )
   )
 }
 
