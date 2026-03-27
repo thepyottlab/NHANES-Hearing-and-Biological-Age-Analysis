@@ -389,7 +389,7 @@ if (isFALSE(params$telolength)) {
 We store a separate configuration depending on output type of figure for easy switching between output types. Only the currently selected output type variables in params + global variables for plotting we may need later is returned. These variables are used to construct ggplot protoobjects.
 
 ```{r}
-get_plot_config <- function(params) {
+get_plot_config <- function(global_params) {
   p_cfg_vars <- list(
     global = list(
     axis_unit_color = "#4D4D4D" # used later when constructing axes from HTML
@@ -399,10 +399,10 @@ get_plot_config <- function(params) {
       figure_dir = here(
         "Output",
         "Figures",
-        if (isTRUE(params$telolength)) {
-          paste0(params$hearing_var, "_telolength")
+        if (isTRUE(global_params$telolength)) {
+          paste0(global_params$hearing_var, "_telolength")
         } else {
-          params$hearing_var
+          global_params$hearing_var
         }
       ),
       text_size_primary = 8,
@@ -411,7 +411,7 @@ get_plot_config <- function(params) {
     )
   )
   
-  c(p_cfg_vars$global, p_cfg_vars[[params$plot_output_type]])
+  c(p_cfg_vars$global, p_cfg_vars[[global_params$plot_output_type]])
 }
 ```
 
@@ -420,76 +420,76 @@ get_plot_config <- function(params) {
 We first store the theme preset (theme_few), then theme overrides, then other theme items like guides. Upon initial assignment of the theme settings, we read directly from get_plot_config(). The plot output type variables set in the previous chunk are also appended, so that they can be accessed either with p_cfg or with get_plot_config(params). All items in the plot_theme list must be ggplot proto objects. Repeated get_plot_config() calls are used to avoid creating another unnecessary variable. Setting the theme with repeated calls takes < 200ms, so clarity of intent with only declaring one list of p_cfg is preferred
 
 ```{r}
-p_cfg <-
-  c(
-    list(
-      plot_theme = list(
-        theme_few(),
-        theme(
-          axis.text.x = element_markdown("sans", size = get_plot_config(params)$text_size_primary),
-          axis.text.y = element_markdown("sans", size = get_plot_config(params)$text_size_primary),
-          strip.text.x = element_markdown(
-            "sans",
-            size = get_plot_config(params)$text_size_secondary,
-            lineheight = 1.1
-          ),
-          strip.text.y = element_markdown(
-            "sans",
-            size = get_plot_config(params)$text_size_secondary,
-            lineheight = 1.1
-          ),
-          axis.title.x = element_markdown(
-            "sans",
-            size = get_plot_config(params)$text_size_secondary,
-            lineheight = 1.1
-          ),
-          axis.title.y = element_markdown(
-            "sans",
-            size = get_plot_config(params)$text_size_secondary,
-            lineheight = 1.1
-          ),
-          legend.title = element_blank(),
-          legend.background = element_rect(fill = "transparent", color = NA),
-          legend.box.background = element_rect(fill = "transparent", color = NA),
-          legend.key = element_rect(fill = "transparent"),
-          legend.position = "inside",
-          legend.justification.inside = c(0, 1),
-          legend.key.spacing.y = unit(1, "pt"),
-          panel.border = element_part_rect(
-            colour = "grey30",
-            side = "lb",
-            linewidth = 0.5
-          ),
-          plot.margin = margin(1, 1, 0, 1, unit = "pt")
-        ),
-        guides(
-          colour = guide_legend(
-            override.aes = list(size = 1.25),
-            keywidth = unit(0.3, "cm"),
-            keyheight = unit(0.3, "cm"),
-            label.theme = element_markdown(
-              "sans",
-              size = get_plot_config(params)$text_size_secondary,
-              margin = margin(l = 3, t = 1.5, unit = "pt")
-            )
-          )
+get_plot_theme <- function(global_params = params) {
+  config <- if (!is.null(global_params)) get_plot_config(global_params)
+  
+  list(
+    theme_few(),
+    theme(
+      axis.text.x = element_markdown("sans", size = config$text_size_primary),
+      axis.text.y = element_markdown("sans", size = config$text_size_primary),
+      strip.text.x = element_markdown(
+        "sans",
+        size = config$text_size_secondary,
+        lineheight = 1.1
+      ),
+      strip.text.y = element_markdown(
+        "sans",
+        size = config$text_size_secondary,
+        lineheight = 1.1
+      ),
+      axis.title.x = element_markdown(
+        "sans",
+        size = config$text_size_secondary,
+        lineheight = 1.1
+      ),
+      axis.title.y = element_markdown(
+        "sans",
+        size = config$text_size_secondary,
+        lineheight = 1.1
+      ),
+      legend.title = element_blank(),
+      legend.background = element_rect(fill = "transparent", color = NA),
+      legend.box.background = element_rect(fill = "transparent", color = NA),
+      legend.key = element_rect(fill = "transparent"),
+      legend.position = "inside",
+      legend.justification.inside = c(0, 1),
+      legend.key.spacing.y = unit(1, "pt"),
+      panel.border = element_part_rect(
+        colour = "grey30",
+        side = "lb",
+        linewidth = 0.5
+      ),
+      plot.margin = margin(1, 1, 0, 1, unit = "pt")
+    ),
+    guides(
+      colour = guide_legend(
+        override.aes = list(size = 1.25),
+        keywidth = unit(0.3, "cm"),
+        keyheight = unit(0.3, "cm"),
+        label.theme = element_markdown(
+          "sans",
+          size = config$text_size_secondary,
+          margin = margin(l = 3, t = 1.5, unit = "pt")
         )
       )
-    ),
-    get_plot_config(params)
+    )
   )
+}
 ```
 
 #### Set axis scales
 
+Available scales can be inspected with str(get_scales(), max.level = 2).
+
 ```{r}
-set_axis()
-p_cfg <- modifyList(
-  p_cfg,
-  list(
-    x = list(
+get_axes <- function(x = NULL, y = NULL, global_params = params) {
+  config <- if (!is.null(global_params)) get_plot_config(global_params)
+
+  if (!is.null(x)) {
+    x <- switch(x,
       age = set_axis(
-        config = p_cfg,
+        config = config,
         axis = "x",
         type = "continuous",
         breaks = seq(20, 80, 10),
@@ -498,7 +498,7 @@ p_cfg <- modifyList(
         unit = "Years"
       ),
       age_group = set_axis(
-        config = p_cfg,
+        config = config,
         axis = "x",
         type = "discrete",
         limits = c(1.4, 5.6),
@@ -506,17 +506,20 @@ p_cfg <- modifyList(
         unit = "Years"
       ),
       age_accel = set_axis(
-        config = p_cfg,
+        config = config,
         axis = "x",
         type = "continuous",
         limits = c(-20, 20),
         label = "Age Acceleration",
         unit = "PhenoAge – Age (Years)"
       )
-    ),
-    y = list(
+    )
+  }
+
+  if (!is.null(y)) {
+    y <- switch(y,
       age_group = set_axis(
-        config = p_cfg,
+        config = config,
         axis = "y",
         type = "discrete",
         limits = c(1, 7),
@@ -524,7 +527,7 @@ p_cfg <- modifyList(
         unit = "Years"
       ),
       hl = set_axis(
-        config = p_cfg,
+        config = config,
         axis = "y",
         type = "continuous",
         breaks = seq(0, 90, 30),
@@ -533,7 +536,7 @@ p_cfg <- modifyList(
         unit = "dB HL"
       ),
       hl_rate = set_axis(
-        config = p_cfg,
+        config = config,
         axis = "y",
         type = "continuous",
         breaks = seq(0, 2, 1),
@@ -542,7 +545,7 @@ p_cfg <- modifyList(
         unit = "dB HL/Year"
       ),
       hl_diff = set_axis(
-        config = p_cfg,
+        config = config,
         axis = "y",
         type = "continuous",
         breaks = seq(0, 2, 1),
@@ -551,7 +554,7 @@ p_cfg <- modifyList(
         unit = "dB HL/Year"
       ),
       dmse_bioage = set_axis(
-        config = p_cfg,
+        config = config,
         axis = "y",
         type = "continuous",
         breaks = seq(0, 8, 2),
@@ -560,7 +563,7 @@ p_cfg <- modifyList(
         unit = "Δ MSE (dB HL)<sup>2</sup>"
       ),
       drmse_bioage = set_axis(
-        config = p_cfg,
+        config = config,
         axis = "y",
         type = "continuous",
         breaks = seq(0, 0.25, 0.1),
@@ -569,7 +572,7 @@ p_cfg <- modifyList(
         unit = "Δ RMSE (dB HL)"
       ),
       dmse_biomark = set_axis(
-        config = p_cfg,
+        config = config,
         axis = "y",
         type = "continuous",
         breaks = seq(0, 2, 1),
@@ -578,7 +581,7 @@ p_cfg <- modifyList(
         unit = "Δ MSE (dB HL)<sup>2</sup>"
       ),
       dmse_conf = set_axis(
-        config = p_cfg,
+        config = config,
         axis = "y",
         type = "continuous",
         breaks = seq(0, 40, 5),
@@ -587,7 +590,7 @@ p_cfg <- modifyList(
         unit = "Δ MSE (dB HL)<sup>2</sup>"
       ),
       dmse_best_biomark = set_axis(
-        config = p_cfg,
+        config = config,
         axis = "y",
         type = "continuous",
         breaks = c(0, 2),
@@ -596,7 +599,7 @@ p_cfg <- modifyList(
         unit = "Δ MSE (dB HL)<sup>2</sup>"
       ),
       add_pred_conf = set_axis(
-        config = p_cfg,
+        config = config,
         axis = "y",
         type = "continuous",
         breaks = seq(0, 14, 2),
@@ -605,17 +608,19 @@ p_cfg <- modifyList(
         unit = "% Change MSE"
       )
     )
-  )
-)
+  }
+  
+  construct_axes(x = x, y = y)
+}
 ```
 
 #### Set colors
 
+Available colors can be inspected with str(get_colors(), max.level = 2).
+
 ```{r}
-p_cfg <- modifyList(
-  p_cfg,
-  list(
-    colors = list(
+get_colors <- function(color_list_name) {
+    switch(color_list_name,
       bioage = set_colors(
         colors = c(
           "age" = "#000000",
@@ -632,12 +637,12 @@ p_cfg <- modifyList(
           "age, telolength" = if (isTRUE(params$telolength)) "#B276B2" else NULL
         ),
         labels = c(
-          "age" = "Age", 
-          "age, hd_log" = "Age + HD", 
-          "age, kdm" = "Age + KDM", 
-          "age, phenoage" = "Age + PhenoAge", 
+          "age" = "Age",
+          "age, hd_log" = "Age + HD",
+          "age, kdm" = "Age + KDM",
+          "age, phenoage" = "Age + PhenoAge",
           "age, telolength" = if (isTRUE(params$telolength)) "Age + Telolength" else NULL
-          )
+        )
       ),
       confounders = set_colors(
         colors = c(
@@ -670,21 +675,21 @@ p_cfg <- modifyList(
       ),
       phenoage = set_colors(
         colors = c(
-          "age" = "#000000", 
+          "age" = "#000000",
           "age, phenoage" = "#CB2027"
         ),
         fill_colors = c(
-          "age" = "#8C8C8C", 
+          "age" = "#8C8C8C",
           "age, phenoage" = "#F07E6E"
         ),
         labels = c(
-          "age" = "Age", 
+          "age" = "Age",
           "age, phenoage" = "Age + PhenoAge"
         )
       ),
       gender = set_colors(
         colors = c(
-          "1" = "#2986cc", 
+          "1" = "#2986cc",
           "2" = "#c90076"
         ),
         fill_colors = c(
@@ -694,7 +699,7 @@ p_cfg <- modifyList(
         labels = c(
           "1" = "Male",
           "2" = "Female"
-          )
+        )
       ),
       race = set_colors(
         colors = c(
@@ -710,11 +715,11 @@ p_cfg <- modifyList(
           "5" = "#88BDE6"
         ),
         labels = c(
-          "1" = "Hispanic", 
+          "1" = "Hispanic",
           "3" = "White",
-          "4" = "Black", 
+          "4" = "Black",
           "5" = "Other"
-          )
+        )
       ),
       biomarker_diff = set_colors(
         colors = c(
@@ -751,8 +756,7 @@ p_cfg <- modifyList(
         )
       )
     )
-  )
-)
+}
 ```
 
 #### Set geom style
@@ -760,59 +764,58 @@ p_cfg <- modifyList(
 Note that using update_geom_defaults() is global and requires reset_geom_defaults() to be reset. update_geom_defaults() is only set once when switching to a different plot type and subsequent plots with the same styling will not have repeated update_geom_defaults() calls to avoid overhead and clutter. Plots must therefore be run in order.
 
 ```{r}
-p_cfg <- modifyList(
-  p_cfg,
-  list(
-    geom_args = list(
-      ribbon = list(
-        alpha = 0.15
-      ),
-      highlight_rect = list(
-        alpha = 0.125,
-        fill = "#ff0000"
-      ),
-      hline = list(
-        linetype = "22",
-        color = "grey20",
-        linewidth = 0.2
-      ),
-      age_rate_point = list(
-        alpha = 0.1,
-        size = 0.5,
-        shape = 1,
-        stroke = 0.25,
-        color = "grey30"
-      ),
-      age_rate_line = list(
-        linewidth = 0.6,
-        alpha = 1
-      ),
-      mse_point = list(
-        size = 1.25,
-        alpha = 1,
-        shape = 16,
-        stroke = 0.5
-      ),
-      mse_line = list(
-        linewidth = 0.7,
-        alpha = 1
-      ),
-      biomarker_linerange = list(
-        linewidth = 0.75
-      ),
-      biomarker_point = list(
-        size = 2.25,
-        alpha = 1,
-        shape = 16,
-        stroke = 0.5
-      )
+get_geom_theme <- function(geom_theme_name, global_params = params) {
+  config <- if (!is.null(global_params)) get_plot_config(global_params)
+
+  switch(geom_theme_name,
+    ribbon = list(
+      alpha = 0.15
+    ),
+    highlight_rect = list(
+      alpha = 0.125,
+      fill = "#ff0000"
+    ),
+    hline = list(
+      linetype = "22",
+      color = "grey20",
+      linewidth = 0.2
+    ),
+    age_rate_point = list(
+      alpha = 0.1,
+      size = 0.5,
+      shape = 1,
+      stroke = 0.25,
+      color = "grey30"
+    ),
+    age_rate_line = list(
+      linewidth = 0.6,
+      alpha = 1
+    ),
+    mse_point = list(
+      size = 1.25,
+      alpha = 1,
+      shape = 16,
+      stroke = 0.5
+    ),
+    mse_line = list(
+      linewidth = 0.7,
+      alpha = 1
+    ),
+    biomarker_linerange = list(
+      linewidth = 0.75
+    ),
+    biomarker_point = list(
+      size = 2.25,
+      alpha = 1,
+      shape = 16,
+      stroke = 0.5
     )
   )
-)
+}
 
-update_geom_defaults("ribbon", p_cfg$geom_args$ribbon)
-update_geom_defaults("rect", p_cfg$geom_args$highlight_rect)
-update_geom_defaults("hline", p_cfg$geom_args$hline)
+update_geom_defaults("ribbon", get_geom_theme("ribbon"))
+update_geom_defaults("rect", get_geom_theme("highlight_rect"))
+update_geom_defaults("hline", get_geom_theme("hline"))
 ```
 
 
@@ -821,45 +824,64 @@ update_geom_defaults("hline", p_cfg$geom_args$hline)
 #### Main panel (paper)
 
 ```{r plot_aging, warning=FALSE}
-update_geom_defaults("point", p_cfg$geom_args$age_rate_point)
-update_geom_defaults("line", p_cfg$geom_args$age_rate_line)
+update_geom_defaults("point", get_geom_theme("age_rate_point"))
+update_geom_defaults("line", get_geom_theme("age_rate_line"))
 
 p0 <- ggplot() +
   geom_point(
     data = df,
-    aes(age, .data[[params$hearing_var]])
+    aes(
+      x = age, 
+      y = .data[[params$hearing_var]]
+      )
   ) +
   geom_line(
     data = output_age_rate$predictions$linear,
-    aes(x = age, y = estimate)
+    aes(
+      x = age, 
+      y = estimate
+      )
   ) +
   geom_ribbon(
     data = output_age_rate$predictions$linear,
-    aes(x = age, ymin = ci_lower, ymax = ci_upper)
+    aes(
+      x = age, 
+      ymin = ci_lower,
+      ymax = ci_upper
+      )
   ) +
-  construct_axes(p_cfg$x$age, p_cfg$y$hl) +
-  p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl") +
+  get_plot_theme() +
   theme(
     plot.margin = margin(1, 0, 0, 1, unit = "pt"),
-    axis.title.x = element_blank(),
-    geom = element_geom()
+    axis.title.x = element_blank()
   )
 
 p1 <- ggplot() +
   geom_point(
     data = df,
-    aes(age, .data[[params$hearing_var]])
+    aes(
+      x = age,
+      y = .data[[params$hearing_var]]
+      )
   ) +
   geom_line(
     data = output_age_rate$predictions$quadratic,
-    aes(x = age, y = estimate)
+    aes(
+      x = age, 
+      y = estimate
+      )
   ) +
   geom_ribbon(
     data = output_age_rate$predictions$quadratic,
-    aes(x = age, ymin = ci_lower, ymax = ci_upper)
+    aes(
+      x = age, 
+      ymin = ci_lower,
+      ymax = ci_upper
+      )
   ) +
-  construct_axes(p_cfg$x$age, p_cfg$y$hl) +
-  p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl") +
+  get_plot_theme() +
   theme(
     plot.margin = margin(1, 0, 0, 1, unit = "pt"),
     axis.title.y = element_blank(),
@@ -878,7 +900,10 @@ p2 <- ggplot() +
   ) +
   geom_point(
     data = df,
-    aes(age, .data[[params$hearing_var]])
+    aes(
+      x = age,
+      y = .data[[params$hearing_var]]
+      )
   ) +
   geom_ribbon(
     data = output_age_rate$predictions$smooth,
@@ -895,8 +920,8 @@ p2 <- ggplot() +
       y = estimate + coef(output_age_rate$models$smooth)["(Intercept)"]
     )
   ) +
-  construct_axes(p_cfg$x$age, p_cfg$y$hl) +
-  p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl") +
+  get_plot_theme() +
   theme(
     plot.margin = margin(1, 1, 0, 0, unit = "pt"),
     axis.title.y = element_blank(),
@@ -927,8 +952,8 @@ p4 <- ggplot() +
     data = output_age_rate$predictions$quadratic_derivative,
     aes(x = age, ymin = ci_lower, ymax = ci_upper)
   ) +
-  construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
-  p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl_rate") +
+  get_plot_theme() +
   theme(
     plot.margin = margin(0, 0, 0, 1, unit = "pt"),
     axis.title.y = element_blank()
@@ -953,8 +978,8 @@ p5 <- ggplot() +
     data = output_age_rate$predictions$derivative_smooth,
     aes(x = age, y = derivative)
   ) +
-  construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
-  p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl_rate") +
+  get_plot_theme() +
   theme(
     plot.margin = margin(0, 1, 0, 0, unit = "pt"),
     axis.title.y = element_blank()
@@ -979,8 +1004,8 @@ p6 <- ggplot() +
     data = output_age_rate$predictions$derivative_smooth,
     aes(x = age, y = derivative_adj)
   ) +
-  construct_axes(p_cfg$x$age, p_cfg$y$hl_diff) +
-  p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl_diff") +
+  get_plot_theme() +
   theme(plot.margin = margin(0, 0, 1, 0, unit = "pt"))
 
 
@@ -1105,8 +1130,8 @@ if (isFALSE(params$telolength)) {
       data = df,
       aes(age, .data[[params$hearing_var]])
     ) +
-    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
-    p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl") +
+  get_plot_theme() +
     theme(
       plot.margin = margin(1, 0, 0, 1, unit = "pt"),
       axis.title.x = element_blank()
@@ -1117,8 +1142,8 @@ if (isFALSE(params$telolength)) {
       data = df,
       aes(age, .data[[params$hearing_var]])
     ) +
-    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
-    p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl") +
+  get_plot_theme() +
     theme(
       plot.margin = margin(1, 0, 0, 1, unit = "pt"),
       axis.title.y = element_blank(),
@@ -1130,8 +1155,8 @@ if (isFALSE(params$telolength)) {
       data = df,
       aes(age, .data[[params$hearing_var]])
     ) +
-    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
-    p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl") +
+  get_plot_theme() +
     theme(
       plot.margin = margin(1, 1, 0, 0, unit = "pt"),
       axis.title.y = element_blank(),
@@ -1147,8 +1172,8 @@ if (isFALSE(params$telolength)) {
       aes(x = age, y = derivative),
       alpha = 0
     ) +
-    construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
-    p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl_rate") +
+  get_plot_theme() +
     theme(plot.margin = margin(0, 0, 0, 1, unit = "pt"))
 
   p4 <- ggplot() +
@@ -1160,8 +1185,8 @@ if (isFALSE(params$telolength)) {
       aes(x = age, y = derivative),
       alpha = 0
     ) +
-    construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
-    p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl_rate") +
+  get_plot_theme() +
     theme(
       plot.margin = margin(0, 0, 0, 1, unit = "pt"),
       axis.title.y = element_blank()
@@ -1176,8 +1201,8 @@ if (isFALSE(params$telolength)) {
       aes(x = age, y = derivative),
       alpha = 0
     ) +
-    construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
-    p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl_rate") +
+  get_plot_theme() +
     theme(
       plot.margin = margin(0, 1, 0, 0, unit = "pt"),
       axis.title.y = element_blank()
@@ -1303,8 +1328,8 @@ if (isFALSE(params$telolength)) {
       data = output_age_rate$predictions$linear,
       aes(x = age, ymin = ci_lower, ymax = ci_upper)
     ) +
-    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
-    p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl") +
+  get_plot_theme() +
     theme(
       axis.title.x = element_blank(),
       plot.margin = margin(1, 0, 0, 1, unit = "pt")
@@ -1323,8 +1348,8 @@ if (isFALSE(params$telolength)) {
       data = output_age_rate$predictions$quadratic,
       aes(x = age, ymin = ci_lower, ymax = ci_upper)
     ) +
-    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
-    p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl") +
+  get_plot_theme() +
     theme(
       axis.title.x = element_blank(),
       axis.title.y = element_blank(),
@@ -1351,9 +1376,9 @@ if (isFALSE(params$telolength)) {
       aes(x = age, y = estimate, color = gender),
       show.legend = FALSE
     ) +
-    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
-    p_cfg$colors$gender +
-    p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl") +
+    get_colors("gender") +
+  get_plot_theme() +
     theme(
       axis.title.x = element_blank(),
       axis.title.y = element_blank(),
@@ -1372,8 +1397,8 @@ if (isFALSE(params$telolength)) {
       data = output_age_rate$predictions$linear_derivative,
       aes(x = age, ymin = ci_lower, ymax = ci_upper)
     ) +
-    construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
-    p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl_rate") +
+  get_plot_theme() +
     theme(plot.margin = margin(0, 0, 0, 1, unit = "pt"))
 
   p4 <- ggplot() +
@@ -1388,8 +1413,8 @@ if (isFALSE(params$telolength)) {
       data = output_age_rate$predictions$quadratic_derivative,
       aes(x = age, ymin = ci_lower, ymax = ci_upper)
     ) +
-    construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
-    p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl_rate") +
+  get_plot_theme() +
     theme(
       axis.title.y = element_blank(),
       plot.margin = margin(0, 0, 0, 1, unit = "pt")
@@ -1414,9 +1439,9 @@ if (isFALSE(params$telolength)) {
       aes(x = age, y = derivative, color = gender),
       show.legend = FALSE
     ) +
-    construct_axes(p_cfg$x$age, p_cfg$y$hl_rate) +
-    p_cfg$colors$gender +
-    p_cfg$plot_theme +
+  get_axes(x = "age", y = "hl_rate") +
+    get_colors("gender") +
+  get_plot_theme() +
     theme(
       axis.title.y = element_blank(),
       plot.margin = margin(0, 1, 0, 0, unit = "pt")
@@ -1493,8 +1518,8 @@ if (isFALSE(params$telolength)) {
         summarize(hearing_var = mean(.data[[params$hearing_var]]), .groups = "drop"),
       aes(x = age, y = hearing_var)
     ) +
-    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
-    p_cfg$plot_theme
+  get_axes(x = "age", y = "hl") +
+  get_plot_theme()
 
   sameplot(
     p0,
@@ -1528,10 +1553,10 @@ if (isFALSE(params$telolength)) {
       aes(x = age, y = hearing_var, color = gender),
       show.legend = FALSE
     ) +
-    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
-    p_cfg$colors$gender +
-    p_cfg$plot_theme
-
+  get_axes(x = "age", y = "hl") +
+    get_colors("gender") +
+  get_plot_theme() 
+  
   sameplot(
     p0,
     file = here(p_cfg$figure_dir, "Extras", "age_rate_mean.png"),
@@ -1558,9 +1583,9 @@ if (isFALSE(params$telolength)) {
         summarize(hearing_var = mean(.data[[params$hearing_var]]), .groups = "drop"),
       aes(x = age, y = hearing_var, color = race)
     ) +
-    construct_axes(p_cfg$x$age, p_cfg$y$hl) +
-    p_cfg$colors$race +
-    p_cfg$plot_theme
+  get_axes(x = "age", y = "hl") +
+    get_colors("race") +
+  get_plot_theme() 
 
   sameplot(
     p0,
@@ -1612,9 +1637,9 @@ p <- df_summary_bioage %>%
     ),
     size = p_cfg$signif_size / (14 / 5)
   ) +
-  construct_axes(p_cfg$x$age_group, p_cfg$y$dmse_bioage) +
-  p_cfg$colors$bioage +
-  p_cfg$plot_theme
+    get_axes(x = "age_group", y = "dmse_bioage") +
+    get_colors("bioage") +
+  get_plot_theme()
 
 sameplot(
   p,
@@ -1660,9 +1685,9 @@ p <- df_summary_bioage %>%
     ),
     size = p_cfg$signif_size / (14 / 5)
   ) +
-  construct_axes(p_cfg$x$age_group, p_cfg$y$drmse_bioage) +
-  p_cfg$colors$bioage +
-  p_cfg$plot_theme
+    get_axes(x = "age_group", y = "drmse_bioage") +
+    get_colors("bioage") +
+  get_plot_theme()
 
 sameplot(
   p,
@@ -1715,9 +1740,9 @@ if (isFALSE(params$telolength)) {
       manual = TRUE,
       size = p_cfg$signif_size / (14 / 5)
     ) +
-    construct_axes(p_cfg$x$age_group, p_cfg$y$dmse_bioage) +
-    p_cfg$colors$phenoage +
-    p_cfg$plot_theme
+    get_axes(x = "age_group", y = "dmse_bioage") +
+    get_colors("phenoage") +
+  get_plot_theme()
 
   sameplot(
     p,
@@ -1761,9 +1786,9 @@ p <- df %>%
     size = p_cfg$text_size_primary / (14 / 5),
     color = "darkred"
   ) +
-  construct_axes(p_cfg$x$age_accel, p_cfg$y$age_group) +
-  p_cfg$colors$bioage +
-  p_cfg$plot_theme
+      get_axes(x = "age_accel", y = "age_group") +
+    get_colors("bioage") +
+  get_plot_theme()
 
 sameplot(
   p,
@@ -1818,9 +1843,9 @@ if (isFALSE(params$telolength)) {
       manual = TRUE,
       size = p_cfg$signif_size / (14 / 5)
     ) +
-    construct_axes(p_cfg$x$age_group, p_cfg$y$dmse_conf) +
-    p_cfg$colors$confounders +
-    p_cfg$plot_theme
+    get_axes(x = "age_group", y = "dmse_conf") +
+    get_colors("confounders") +
+  get_plot_theme()
 
   sameplot(
     p,
@@ -1871,9 +1896,9 @@ if (isFALSE(params$telolength)) {
       manual = TRUE,
       size = p_cfg$signif_size / (14 / 5)
     ) +
-    construct_axes(p_cfg$x$age_group, p_cfg$y$add_pred_conf) +
-    p_cfg$colors$confounders +
-    p_cfg$plot_theme
+    get_axes(x = "age_group", y = "add_pred_conf") +
+    get_colors("confounders") +
+  get_plot_theme()
 
   sameplot(
     p,
@@ -1956,9 +1981,9 @@ if (isFALSE(params$telolength)) {
         )
       )
     ) +
-    construct_axes(p_cfg$x$age_group, p_cfg$y$dmse_best_biomark) +
-    p_cfg$colors$best_biomarkers +
-    p_cfg$plot_theme +
+        get_axes(x = "age_group", y = "dmse_best_biomark") +
+    get_colors("best_biomarkers") +
+  get_plot_theme() +
     theme(strip.text.x = element_blank())
 
   sameplot(
@@ -2013,9 +2038,9 @@ if (isFALSE(params$telolength)) {
       aes(color = predictors),
       show.legend = FALSE
     ) +
-    construct_axes(p_cfg$x$age_group, p_cfg$y$dmse_bioage) +
-    p_cfg$colors$biomarker_diff +
-    p_cfg$plot_theme +
+            get_axes(x = "age_group", y = "dmse_bioage") +
+    get_colors("biomarker_diff") +
+  get_plot_theme() +
     theme(
       axis.title.y = element_blank(),
       plot.margin = margin(1, 1, 0, 0, unit = "pt")
@@ -2138,8 +2163,8 @@ if (isFALSE(params$telolength)) {
       size = p_cfg$signif_size / (14 / 5),
       show.legend = FALSE
     ) +
-    construct_axes(p_cfg$y$dmse_biomark) +
-    p_cfg$plot_theme +
+    get_axes(y = "dmse_biomark") +
+  get_plot_theme() +
     theme(
       panel.grid.major.y = element_line(color = "grey95", linewidth = 0.25),
       axis.text.x = element_markdown(

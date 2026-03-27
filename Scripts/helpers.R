@@ -13,7 +13,7 @@ set_axis <- function(
   type <- match.arg(type)
 
   # add label with formatted unit if unit is present, otherwise pass through label (whether populated or NULL).
-  label <- if (!is.null(unit) && !is.null(config)) {
+  label <- if (!is.null(unit) && !is.null(theme)) {
     paste0(
       label,
       "<br><span style='font-size:",
