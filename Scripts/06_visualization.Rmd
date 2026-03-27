@@ -439,7 +439,7 @@ p_cfg <- modifyList(
       hl_rate = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 2, 1), limits = c(-0.5, 2.6), label = "Rate of HL", unit = "dB HL/Year"),
       hl_diff = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 2, 1), limits = c(-0.5, 2.6), label = "Deviation Rate of HL", unit = "dB HL/Year"),
       dmse_bioage = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 8, 2), limits = c(-1, 8.5), label = "Additional Predictive Capacity", unit = "Δ MSE (dB HL)<sup>2</sup>"),
-      drmse_bioage = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 0.15, 0.05), limits = c(-0.05, 0.15), label = "Additional Predictive Capacity", unit = "Δ RMSE (dB HL)"),
+      drmse_bioage = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 0.25, 0.1), limits = c(-0.05, 0.25), label = "Additional Predictive Capacity", unit = "Δ RMSE (dB HL)"),
       dmse_biomark = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 2, 1), limits = c(-0.25, 1.5), label = "Additional Predictive Capacity", unit = "Δ MSE (dB HL)<sup>2</sup>"),
       dmse_conf = set_axis(p_cfg, "y", "continuous", breaks = seq(0, 40, 5), limits = c(-1, 40), label = "Additional Predictive Capacity", unit = "Δ MSE (dB HL)<sup>2</sup>"),
       dmse_best_biomark = set_axis(p_cfg, "y", "continuous", breaks = c(0, 2), limits = c(-1.5, 4), label = "Additional Predictive Capacity", unit = "Δ MSE (dB HL)<sup>2</sup>"),
@@ -1475,7 +1475,7 @@ p <- df_summary_bioage %>%
       filter(p_adj != "ns"),
     aes(
       x = age_group,
-      y = ci_high_delta_rmse + 0.25,
+      y = ci_high_delta_rmse + 0.01,
       label = signif,
       color = predictors
     ),
@@ -1494,8 +1494,6 @@ sameplot(
   save = params$save_figures
 )
 ```
-
-
 
 #### Additional Plots
 

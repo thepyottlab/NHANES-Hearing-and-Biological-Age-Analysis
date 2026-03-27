@@ -277,7 +277,7 @@ compute_rmse_CI <- function(data, summary_data, n_boot, per_age_group = FALSE, c
 
   data <- data %>%
     mutate(squared_residuals = (.data[[params$hearing_var]] - predicted)^2) %>%
-    group_by(phenoage, age_group) %>%
+    group_by(predictors, age_group, phenoage) %>%
     summarize(squared_residuals = mean(squared_residuals), .groups = "drop")
 
   for (predictor in predictor_list) {
