@@ -82,7 +82,7 @@ predict_age_rate <- function(df, model, predictor = "age",
     em <- emtrends(model, formula, var = predictor, at = ages, data = df)
   }
 
-  predictions <- tibble(confint(em), adjust = "mvt")
+  predictions <- tibble(confint(em, adjust = "mvt"))
 
   if (type == "predict") {
     predictions <- predictions %>%
@@ -132,4 +132,9 @@ output_age_rate$predictions$derivative_smooth <- output_age_rate$predictions$der
     ci_lower_adj = ci_lower - output_age_rate$predictions$quadratic_derivative$derivative,
     ci_upper_adj = ci_upper - output_age_rate$predictions$quadratic_derivative$derivative
   )
+
+output_age_rate$predictions$derivative_smooth
+
 ```
+
+

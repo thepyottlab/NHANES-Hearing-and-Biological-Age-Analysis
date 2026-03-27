@@ -95,7 +95,7 @@ params:
     help: "Set confounder factor variables and interaction to be included in analysis separated by underscore"
   n_boot:
     label: "RMSE bootstrap N"
-    value: 50
+    value: 500
     input: numeric
     help: "Set number of samples to take when bootstrapping RMSEs for CI calculations"
   construct_data:
