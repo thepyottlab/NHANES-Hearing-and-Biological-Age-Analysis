@@ -27,6 +27,7 @@ Refused 9. Don't know
 ```{r format_df}
 df <- df_raw %>%
   select(
+    SEQN,
     age,
     all_of(confounder_vars),
     kdm,

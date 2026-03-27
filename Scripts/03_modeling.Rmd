@@ -332,7 +332,7 @@ cross_validation <- function(data,
   }
 
   data <- data %>% select(all_of(
-    c(
+    c("SEQN",
       params$hearing_var,
       "age_group",
       names_of_predictors,

@@ -255,7 +255,7 @@ if (isFALSE(params$telolength)) {
 
 ### Calculate RMSE CIs
 
-Calculates squared residuals (error) to be used for RMSE calculations. Takes reference variable to be the full model or age model. Then for each predictor (and optionally each age group) subsets the data to a dataframe with the reference variable and with the target variable. These are equal length. Then takes random samples from the dataset with number of samples equal to the length of the subset (i.e., age group). The indices of each random sample is stored in a separate column, creating a matrix. The indices are then applied to the vector with squared residuals. The column mean is then calculated for each column (i.e., bootstrap sample) within the matrix. The square root is then taken from each mean to get the RMSE per sample. 2.5% and 97.5% quantiles are then computed to obtain 95% confidence intervals for both raw RMSEs and delta RMSEs. The selected rows are always the same for target and reference variables. Indices are calculated once for each age group and stored in a cache so that the next predictor uses the same indices as the other predictor per age group. Each bootstrap run creates a different sample of the data because observations are selected at random without requirement to be unique, so some observations are taken twice and others are omitted (set by replace = TRUE). If per_age_group = TRUE, iterate over each age group and subset df per age group. If per_age_group is FALSE, only iterate over the single "all" item that is not used (that is, run the code once and don't filter per age group). Compile into a dataframe (tidytable) at the end and insert values into the summary dataframes.
+Calculates squared residuals (error) to be used for RMSE calculations and takes mean MSE per subject over the 10 repeats. Takes reference variable to be the full model or age model. Then for each predictor (and optionally each age group) subsets the data to a dataframe with the reference variable and with the target variable. These are equal length. Then takes random samples from the dataset with number of samples equal to the length of the subset (i.e., age group). The indices of each random sample is stored in a separate column, creating a matrix. The indices are then applied to the vector with squared residuals. The column mean is then calculated for each column (i.e., bootstrap sample) within the matrix. The square root is then taken from each mean to get the RMSE per sample. 2.5% and 97.5% quantiles are then computed to obtain 95% confidence intervals for both raw RMSEs and delta RMSEs. The selected rows are always the same for target and reference variables. Indices are calculated once for each age group and stored in a cache so that the next predictor uses the same indices as the other predictor per age group. Each bootstrap run creates a different sample of the data because observations are selected at random without requirement to be unique, so some observations are taken twice and others are omitted (set by replace = TRUE). If per_age_group = TRUE, iterate over each age group and subset df per age group. If per_age_group is FALSE, only iterate over the single "all" item that is not used (that is, run the code once and don't filter per age group). Compile into a dataframe (tidytable) at the end and insert values into the summary dataframes.
 
 
 
@@ -276,7 +276,9 @@ compute_rmse_CI <- function(data, summary_data, n_boot, per_age_group = FALSE, c
   index_cache <- list()
 
   data <- data %>%
-    mutate(squared_residuals = (.data[[params$hearing_var]] - predicted)^2)
+    mutate(squared_residuals = (.data[[params$hearing_var]] - predicted)^2) %>%
+    group_by(phenoage, age_group) %>%
+    summarize(squared_residuals = mean(squared_residuals), .groups = "drop")
 
   for (predictor in predictor_list) {
     for (age_bin in age_bins) {
@@ -297,7 +299,7 @@ compute_rmse_CI <- function(data, summary_data, n_boot, per_age_group = FALSE, c
       if (length(error_ref) != length(error_target)) {
         stop("Length of target and reference predictor subsets are not equal")
       }
-
+      
       if (!age_bin %in% names(index_cache)) {
         index_cache[[age_bin]] <- matrix(
           sample(
@@ -369,6 +371,7 @@ if (isFALSE(params$telolength)) {
   )
 }
 ```
+
 
 ## Repeated Nadeau-Bengio Corrected T-Tests
 
