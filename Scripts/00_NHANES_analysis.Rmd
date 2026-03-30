@@ -98,11 +98,6 @@ params:
     value: 500
     input: numeric
     help: "Set number of samples to take when bootstrapping RMSEs for CI calculations"
-  construct_data:
-    label: "Build NHANES dataframe"
-    value: FALSE
-    input: checkbox
-    help: "Set to import NHANES data from online website and build dataframe from scratch"
   run_optional_chunks:
     label: "Run tests and validations"
     value: FALSE

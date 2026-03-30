@@ -48,62 +48,6 @@ kable(
 
 ## Import Data
 
-.xpt files are loaded, then stripped of extension. The year is stored. All files
-per year are merged horizontally (adding columns) by the SEQN column. Each
-yearly merged file is then added vertically (stacked rows).
-
 ```{r import_data}
-import_nhanes_data <- function(path) {
-  path
-  files <- list.files(
-    path,
-    pattern = "\\.xpt$",
-    full.names = TRUE,
-    ignore.case = TRUE
-  )
-
-  meta <- data.table(
-    file = files,
-    year = str_extract(
-      tools::file_path_sans_ext(
-        basename(files)
-      ),
-      "\\d{4}-\\d{4}$"
-    )
-  )
-
-  meta[, dt := lapply(
-    file,
-    \(f) as.data.table(
-      read_xpt(f)
-    )
-  )]
-
-  by_year <- split(meta$dt, meta$year)
-
-  as.data.frame(
-    rbindlist(
-      lapply(
-        by_year,
-        \(dts) Reduce(
-          \(x, y) merge(
-            x, y,
-            by = "SEQN",
-            all = TRUE
-          ),
-          dts
-        )
-      ),
-      fill = TRUE,
-      use.names = TRUE,
-      idcol = "year"
-    )
-  )
-}
-
-if (isTRUE(params$construct_data)) {
-  df_raw <- import_nhanes_data(here("Data", "Raw data"))
-} else {
-  df_raw <- read.csv(here("Data", "dataset_bioage.csv"))
-}
+df_raw <- read.csv(here("Data", "dataset_bioage.csv"))
 ```
