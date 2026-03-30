@@ -248,12 +248,14 @@ compute_rmse_CI <- function(
 
   predictions <- predictions %>%
     mutate(squared_residuals = (.data[[params$hearing_var]] - predicted)^2) %>%
-    group_by(predictors, age_group, phenoage) %>%
+    group_by(predictors, age_group, SEQN) %>%
     summarize(
       squared_residuals = mean(squared_residuals),
       .groups = "drop"
     )
-
+  
+  set.seed(43)
+  
   for (predictor in predictor_list) {
     for (age_bin in age_bins) {
       error_ref <- predictions %>%
@@ -327,7 +329,7 @@ compute_rmse_CI <- function(
 
 Debug using browser() placed in the functions or by using debugonce(function_name).
 
-```{r}
+```{r discr_stat_pipeline}
 df_summary_bioage <- df_results_bioage %>%
   calculate_nb_cis(per_age_group = TRUE) %>%
   calculate_RMSE_R2(
@@ -690,7 +692,7 @@ if (isFALSE(params$telolength)) {
 
 ### Display p value tables
 
-```{r}
+```{r show_p_tables}
 get_p_table <- function(comparisons, title) {
   invisible(
     print(
@@ -731,9 +733,8 @@ if (isFALSE(params$telolength)) {
 ### Add p-values to summary dataframe
 
 ```{r add_p_vals}
-import_p_values <- function(summary_data, pwc_data, per_age_group) {
+import_p_values <- function(summary_data, pwc_data, per_age_group = FALSE) {
   grouping_variables <- if (per_age_group) c("predictors", "age_group") else "predictors"
-
 
   updated_summary_data <- summary_data %>%
     left_join(

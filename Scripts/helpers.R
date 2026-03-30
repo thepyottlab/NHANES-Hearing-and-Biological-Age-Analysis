@@ -1,21 +1,21 @@
 # Axis config function allows clean arguments and formats in HTML to save a specification sheet with axis info. Intended to be used
 
-set_axis <- function(
+define_axis <- function(
   config = NULL,
   axis = c("x", "y"),
   type = c("continuous", "discrete"),
   breaks = NULL,
   limits = NULL,
-  label = NULL,
+  name = NULL,
   unit = NULL
 ) {
   axis <- match.arg(axis)
   type <- match.arg(type)
 
   # add label with formatted unit if unit is present, otherwise pass through label (whether populated or NULL).
-  label <- if (!is.null(unit) && !is.null(theme)) {
+  name <- if (!is.null(unit) && !is.null(theme)) {
     paste0(
-      label,
+      name,
       "<br><span style='font-size:",
       config$text_size_primary,
       "pt; color:",
@@ -26,7 +26,7 @@ set_axis <- function(
     )
   } else if (!is.null(unit)) {
     paste0(
-      label,
+      name,
       "<br><span style='font-size:",
       "8",
       "pt; color:",
@@ -36,13 +36,13 @@ set_axis <- function(
       ")</span>"
     )
   } else {
-    label
+    name
   }
 
   list(
     axis = axis,
     type = type,
-    label = label,
+    name = name,
     breaks = breaks,
     limits = limits
   )
@@ -51,7 +51,7 @@ set_axis <- function(
 
 # Axis builder function takes x and/or y axes of any type and constructs ggplot scale protoobjects with breaks and a name and a coord_cartesian object with limits.
 
-construct_axes <- function(x = NULL, y = NULL) {
+build_axes <- function(x = NULL, y = NULL) {
   specs <- list(x, y)
   scales <- list()
   xlim <- NULL
@@ -80,7 +80,7 @@ construct_axes <- function(x = NULL, y = NULL) {
     scales <- c(
       scales,
       construct_format(
-        if (!is.null(spec$label)) name <- spec$label else NULL,
+        if (!is.null(spec$name)) name <- spec$name else NULL,
         if (!is.null(spec$breaks)) breaks <- spec$breaks else NULL
       )
     )
@@ -100,7 +100,7 @@ construct_axes <- function(x = NULL, y = NULL) {
 
 # Color builder function ignores NULL items that are passed and constructs colors and fills with shared labels.
 
-set_colors <- function(
+build_color_scale <- function(
   colors = NULL,
   fill_colors = NULL,
   labels = NULL,

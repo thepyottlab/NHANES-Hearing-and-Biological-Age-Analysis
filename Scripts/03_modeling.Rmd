@@ -330,7 +330,7 @@ extract_predictors <- function(formula, collapse = "") {
 
 ### Get formula table function
 
-```{r}
+```{r fun_formula_table}
 get_formula_table <- function(formula_list, title) {
   invisible(
     print(
@@ -556,11 +556,11 @@ cross_validation <- function(
         # calculate performance per age group
         for (age_group_val in age_groups) {
           # Subset testing and training data for age group
-          test_subset <- test %>%
+          train_subset <- train %>%
             filter(
               age_group == age_group_val
             )
-          train_subset <- train %>%
+          test_subset <- test %>%
             filter(
               age_group == age_group_val
             )

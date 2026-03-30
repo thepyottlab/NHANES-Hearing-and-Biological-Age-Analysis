@@ -55,7 +55,7 @@ params:
     help: "Check to use telolength dataset with smaller N"
   global_k:
     label: "K (n BAM base functions)"
-    value: 50
+    value: 5
     input: numeric
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   global_discrete: 
@@ -65,12 +65,12 @@ params:
     help: "Check to speed up fitting but create larger models that perform a little worse"
   global_folds: 
     label: "Number of folds"
-    value: 10
+    value: 2
     input: numeric
     help: "Set fold number"
   global_repeats: 
     label: "Number of repeats"
-    value: 10
+    value: 1
     input: numeric
     help: "Set repeat number"
   store_model_results:
