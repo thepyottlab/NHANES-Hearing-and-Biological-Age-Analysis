@@ -2008,12 +2008,7 @@ if (isFALSE(params$telolength)) {
 
 ```{r plot_bioage_advance}
 p <- df %>%
-  ggplot(
-    aes(
-      x = age,
-      y = phenoage_advance
-    )
-  ) +
+  ggplot() +
   geom_density_ridges(
     aes(
       x = phenoage_advance,
