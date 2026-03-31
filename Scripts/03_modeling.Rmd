@@ -655,6 +655,8 @@ generate_model_path <- function(output_type) {
 
 ### Model bioage
 
+Cross-validations rerun if an .RDS file with the corresponding name does not exist or if load_model_results is FALSE. Results are stored if store_model_results is TRUE.
+
 #### Bioage K-fold CV
 
 ```{r bioage_cv}
@@ -688,7 +690,6 @@ if (isTRUE(params$store_model_results)) {
   )
 }
 ```
-
 
 ### Model biomarkers
 
@@ -756,6 +757,8 @@ if (isFALSE(params$telolength)) {
 
 #### Build confounder named step-down models
 
+Build models for covariate analysis to use for in-sample statistics or predictions.
+
 ```{r fit_conf_models}
 if (isFALSE(params$telolength) && is.null(output_confounders$models)) {
   for (formula in formula_list_confounders) {
@@ -802,12 +805,13 @@ When solely wanting to predict an outcome variable, the wiggliness penalty of a
 GAM prevents overfitting, so k can be as large as we'd like. However, with a
 larger k, we have more parameters, so if we take the derivative of the GAM and
 we have more parameters, each with its own uncertainty, the total uncertainty
-will grow, even if the extra base functions don't contribute much. Therefore, a
+will grow, even if the extra base functions don't contribute. Therefore, a
 larger k past the number that captures all global trends decreases statistical
 power. This is a problem when assessing the rate of aging. Therefore, we need to
-have a penalty for practically useless base functions so that they shrink to 0.
-As an alternative, we can use k.check with a small k to see if its enough. With
-a k of 10 we already get an edf of almost 8, so k = 10 should be sufficient.
+have a penalty for practically useless base functions so that they shrink to 0. Default shrinkage solution still permits large complexity despite the RMSE improving little over a simpler model.
+
+We can use k.check with a small k to see if its enough. With
+a k of 10 we already get a k index of 0.9998, so k = 10 should be sufficient.
 
 ```{r aging_models}
 output_age_rate <- list(models = list(), predictions = list())
@@ -908,8 +912,7 @@ Fold numbers are consistent between groups and correctly split upon multiple
 repeats. each fold number has the same (within 1) frequency, so there are no
 imbalances between folds and repeats. Plot shows no non-random changes in
 intensity over the X dimension and random dissimilarities between bands in the Y
-dimension (indicating repeats have different samples). **Stratified fold
-randomization succeeded**
+dimension (indicating repeats have different samples).
 
 ### (Optional) Check confounder two-way interactions vs offsets
 
@@ -984,8 +987,8 @@ if (isTRUE(params$run_optional_chunks)) {
 }
 ```
 
-**We see that for each confounder the interaction model fits better than the
-intercept-only model**
+**We see that for each confounder, the interaction model fits better than the
+intercept-only model, so we should use interaction terms instead of intercepts for covariates.**
 
 ### (Optional) Investigate Additional Information
 
@@ -1088,6 +1091,10 @@ but we do eat up a lot of degrees of freedom and may be 'wasting' the data
 estimating these global trends. It may also be better to spend the processing
 time on a higher k rather than estimating smooth parameters.
 
+See the link below for more info on constructing interaction terms:
+<https://stats.stackexchange.com/questions/637423/conceptual-interpretation-of-bs-fs-and-by-term-in-gam>.
+
+
 ```{r compare_wiggliness}
 if (isTRUE(params$run_optional_chunks)) {
   compare_wiggliness <- function(df, k) {
@@ -1143,15 +1150,10 @@ if (isTRUE(params$run_optional_chunks)) {
 }
 ```
 
-### (Optional) Check factor three-way interactions
+**The free wiggliness model takes about 15 times longer to compute and barely has a
+drop in residual deviance. The improvement in fit is not significant, so enforce shared smoothing parameters.**
 
-<https://stats.stackexchange.com/questions/637423/conceptual-interpretation-of-bs-fs-and-by-term-in-gam>.
-The free wiggliness model takes about 15 times longer to compute but has a 0.37%
-drop in residual deviance. That is significant but probably not worth it
-compared to a higher k. Moreover, the improvement in fit must stem entirely from
-three-way interactions, which are likely noisy, so it is unlikely that out of
-fold performance would improve substantially. BIC prefers simpler model and AIC
-prefers more complex model.
+### (Optional) Check factor three-way interactions
 
 ```{r conf_interactions}
 if (isTRUE(params$run_optional_chunks)) {
@@ -1225,7 +1227,7 @@ if (isTRUE(params$run_optional_chunks)) {
 ```
 
 We see that `age*gender*race` is a significant three-way interaction but it
-takes 3 times longer to compute. Thanks to bam() we can afford this cost.
+takes 3 times longer to compute. Bam() speeds things up enough over gam() that this processing cost is acceptable.
 
 ### (Optional) Inspect k-values
 
@@ -1237,7 +1239,7 @@ different base functions together, some of which capture linear trends, some of
 which are just splines or polynomials with a bump in one region. The GAM gives
 different weights to each model to get as good a fit as possible, but a GAM also
 measures wiggliness and gives a penalty to wiggliness. This is what makes it
-generalized, so to perform well in general, even to unseen data. Therefore, a
+generalized. I.e., to perform well in general, even to unseen data. Therefore, a
 GAM optimizes to get as good a fit as possible with as little wiggliness as
 possible. Because of this wiggliness penalty, adding more base functions to the
 GAM doesn't make it overfit. Therefore, k should be as large as possible within
@@ -1247,11 +1249,11 @@ residuals, we can assess if k is large enough. We want to capture all global
 patterns without fitting to any noise. This is what we assess when we look at
 k-index.
 
-For reference, k = 10 takes \~ 15 min, k = 25 takes \~ 1h, k = 50 takes \~ 4h.
+Models are fit on whole dataset.
 
 ```{r inspect_k}
 if (isTRUE(params$run_optional_chunks)) {
-  inspect_k_values <- function(data, formulas, subsample, reps) {
+  inspect_k_values <- function(data, formulas, discrete = FALSE, subsample = 5000, reps = 400) {
     set.seed(2)
 
     models <- list()
@@ -1260,8 +1262,9 @@ if (isTRUE(params$run_optional_chunks)) {
       mod <- bam(
         as.formula(formula),
         data = data,
-        method = "REML",
-        family = gaussian()
+        family = gaussian(),
+        method = if (isTRUE(discrete)) "fREML" else "REML",
+        discrete = if (isTRUE(discrete)) TRUE else FALSE
       )
 
       predictors <- paste(
@@ -1286,7 +1289,8 @@ if (isTRUE(params$run_optional_chunks)) {
       ~ {
         as.data.frame(.x) %>%
           rownames_to_column(var = "Predictors") %>%
-          mutate(model = .y)
+          mutate(model = .y) %>%
+          filter(!is.na(`k-index`))
       }
     )
 
@@ -1295,6 +1299,7 @@ if (isTRUE(params$run_optional_chunks)) {
 
   inspect_k_values(df,
     formula_list_bioage,
+    discrete = params$global_discrete,
     subsample = 5000,
     reps = 400
   ) %>%
@@ -1313,6 +1318,7 @@ if (isTRUE(params$run_optional_chunks)) {
 
   inspect_k_values(df,
     formula_list_biomarkers,
+    discrete = params$global_discrete,
     subsample = 5000,
     reps = 400
   ) %>%
@@ -1331,33 +1337,34 @@ if (isTRUE(params$run_optional_chunks)) {
 }
 ```
 
-*Without id = x, k = 15 took 39.65 theoretically, but in practice the 4 bioage
-formulas took 58s each. Similarly, k = 5 with id should have taken \~400s for
-one formula but took 650s, so add \~50% time to estimate processing time.*
-
 ### (Optional) Test k-fold validation
 
-Test k-fold validation on a single formula with small k. k = 5, discrete = FALSE
-takes 50s, k = 5, discrete = TRUE takes 15s
+Test k-fold validation on a single formula with specified k.
 
 ```{r test_k_fold_val}
 if (isTRUE(params$run_optional_chunks)) {
-  formula_list_test <- formula_generator(
-    data = df,
-    k = params$global_k,
-    auto_limit_k = TRUE,
-    equal_wiggliness = TRUE,
-    formulas = c("age, phenoage")
-  )
+  test_cv <- function(run = FALSE, k = 5) {
+    if (isTRUE(run)) {
+      formula_list_test <- formula_generator(
+        data = df,
+        k = k,
+        auto_limit_k = TRUE,
+        equal_wiggliness = TRUE,
+        formulas = c("age, phenoage")
+      )
 
-  system.time({
-    output_test <- cross_validation(
-      df,
-      formula_list_test,
-      k = params$global_folds,
-      repeats = params$global_repeats,
-      discrete = params$global_discrete
-    )
-  })
+      system.time({
+        output_test <- cross_validation(
+          df,
+          formula_list_test,
+          k = params$global_folds,
+          repeats = params$global_repeats,
+          discrete = params$global_discrete
+        )
+      })
+    }
+  }
+
+  test_cv(run = TRUE, k = 5)
 }
 ```

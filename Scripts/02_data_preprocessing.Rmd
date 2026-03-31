@@ -78,7 +78,6 @@ if (isTRUE(params$telolength)) {
 }
 ```
 
-
 ## Prepare age group column
 
 ```{r set_age_groups}

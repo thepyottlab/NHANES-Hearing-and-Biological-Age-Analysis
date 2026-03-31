@@ -51,7 +51,7 @@ params:
   telolength:
     label: "Analyze telomere length"
     input: checkbox
-    value: FALSE
+    value: TRUE
     help: "Check to use telolength dataset with smaller N"
   global_k:
     label: "K (n BAM base functions)"
@@ -60,7 +60,7 @@ params:
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   global_discrete: 
     label: "Discretize BAM"
-    value: FALSE
+    value: TRUE
     input: checkbox
     help: "Check to speed up fitting but create larger models that perform a little worse"
   global_folds: 
