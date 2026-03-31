@@ -58,12 +58,7 @@ make_repeated_folds <- function(data, grouping_variable, k, repeats) {
 }
 ```
 
-### Make folds
-
-If k-fold validation throws errors that testing data contains factor levels that
-weren't in the training data, it may be needed to make an interaction variable
-of age_group with the problematic factor (or condense levels) to ensure the
-smaller factor levels are represented in each fold.
+### Make folds per age group
 
 ```{r make_folds}
 set.seed(2)
@@ -79,13 +74,13 @@ df <- make_repeated_folds(
 
 ### Formula builder function
 
-The `k` determines the number of functions (linear or non-linear).The parameter
+The `k` determines the number of base functions (linear or non-linear).The parameter
 with the lowest degrees of freedom (deg_free) determines the maximum basis dimensions
 (k in mgcv). Albumin has 26 distinct levels, so the maximal k value/number of
 basic functions, equivalent to the deg_free, is 25 if each level is in each fold. We
 must compute the deg_free for each fold and pick the lowest to avoid errors. The GAM
 is a composite of all these underlying functions, with different weights for
-each function.
+each function. Max degrees of freedom are only computed once per variable and cached for retrieval.
 
 -   `k`: number of basis functions.
 -   `max_k`: sets k to the theoretical limit for each parameter (deg_free), note that
@@ -93,6 +88,8 @@ each function.
     length of the dataframe minus one.
 -   `auto_limit_k`: if k exceeds the deg_free for a parameter (e.g., if k \> 25 for
     albumin), it will automatically be limited to the deg_free.
+-   `equal_wiggliness`: gives an individual id to each sum-to-zero interaction term when FALSE which ensures they have the same smoothing parameter. Setting to TRUE marginally improves fit but uses many degrees of freedom.
+-   `stepdown`: additionally creates formulas with age as predictor that each miss one confounder for a nested-CV comparison (i.e., compare, for example, the impact of adding 'gender' to a model that already includes other covariates).
 
 ```{r fun_formula_gen}
 formula_generator <- function(
@@ -305,6 +302,8 @@ formula_generator <- function(
 
 ### Extract variables from formula function
 
+Helper used to turn a formula back into a list of variables.
+
 ```{r fun_extr_pred}
 extract_predictors <- function(formula, collapse = "") {
   s_terms <- unlist(
@@ -330,30 +329,27 @@ extract_predictors <- function(formula, collapse = "") {
 
 ### Get formula table function
 
+Takes a dataframe and title and makes a scrollable table.
+
 ```{r fun_formula_table}
 get_formula_table <- function(formula_list, title) {
-  invisible(
-    print(
-      tibble(
-        Formulas = unlist(formula_list)
-      ) %>%
-        kable(
-          "html",
-          caption = title
-        ) %>%
-        kable_styling(
-          bootstrap_options = c("striped", "hover"),
-          full_width = FALSE,
-          position = "left",
-          font_size = 12,
-          fixed_thead = TRUE
-        ) %>%
-        scroll_box(width = "100%", height = "400px")
-    )
-  )
+  tibble(
+    Formulas = unlist(formula_list)
+  ) %>%
+    kable(
+      "html",
+      caption = title
+    ) %>%
+    kable_styling(
+      bootstrap_options = c("striped", "hover"),
+      full_width = FALSE,
+      position = "left",
+      font_size = 12,
+      fixed_thead = TRUE
+    ) %>%
+    scroll_box(width = "100%", height = "400px")
 }
 ```
-
 
 ### Generate formulas bioage
 
@@ -441,10 +437,11 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-
 ## Repeated k-fold modeling
 
 ### Repeated k-fold validation function per age group
+
+Fits a BAM() to the formulas generated splitting data into folds. Predictions are made using the models and MSEs are calculated with these predictions per age group. A list is returned with a tibble with results (MSE per fold per formula), predictions (each individual prediction made), and optionally the actual models (uses very large amounts of memory when discrete = TRUE). When discrete = TRUE, discretizes fitting using fREML (much faster but slightly worse fit). Confounder_analysis does nothing to the fitting but returns names based on nested covariate models instead of the regular predictors (which exclude covariates in the label).
 
 ```{r fun_CV}
 cross_validation <- function(
@@ -516,6 +513,7 @@ cross_validation <- function(
   )
 
   for (formula in formulas) {
+    start_time <- Sys.time()
     for (repeat_column in repeat_columns) {
       for (fold in seq_len(folds)) {
         # Subset training and testing data
@@ -594,6 +592,7 @@ cross_validation <- function(
         }
       }
     }
+    print(paste(formula, Sys.time() - start_time))
   }
 
   # Bind results/predictions together and set factors when needed
@@ -657,8 +656,6 @@ generate_model_path <- function(output_type) {
 ### Model bioage
 
 #### Bioage K-fold CV
-With k = 40 discrete = FALSE takes 6759s With k = 50 discrete = FALSE takes
-13506s
 
 ```{r bioage_cv}
 system.time({
@@ -697,9 +694,6 @@ if (isTRUE(params$store_model_results)) {
 
 #### Biomarkers K-fold CV
 
-With k = 40 discrete = FALSE takes 52564s WIth k = 50 discrete = FALSE takes
-110443s
-
 ```{r biomarkers_cv}
 if (isFALSE(params$telolength)) {
   system.time({
@@ -731,42 +725,6 @@ if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
     file = generate_model_path("biomarkers"),
     compress = "xz"
   )
-}
-```
-
-#### Fit full biomarker model
-
-```{r fit_full_biomark_m}
-if (isFALSE(params$telolength)) {
-  fit_full_model <- function(fit) {
-    if (fit) {
-      full_biomarker_model <-
-        bam(
-          as.formula(
-            formula_generator(
-              data = df,
-              k = params$global_k,
-              auto_limit_k = TRUE,
-              equal_wiggliness = TRUE,
-              formulas = c(
-                "age, crp, hba1c, albumin_gL, alp, wbc, glucose, uap,
-                creat, totchol, rdw, lymph, mcv, bun, sbp, phenoage"
-              ),
-              confounders = confounder_interactions
-            )
-          ),
-          data = df,
-          method = "REML",
-          discrete = FALSE
-        )
-
-      print(summary(full_biomarker_model))
-
-      full_biomarker_model
-    }
-  }
-
-  fit_full_model(fit = FALSE)
 }
 ```
 
