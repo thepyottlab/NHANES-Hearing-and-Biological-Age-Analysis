@@ -694,8 +694,6 @@ if (isFALSE(params$telolength)) {
 
 ```{r show_p_tables}
 get_p_table <- function(comparisons, title) {
-  invisible(
-    print(
       comparisons %>%
         kable(
           "html",
@@ -709,8 +707,6 @@ get_p_table <- function(comparisons, title) {
           fixed_thead = TRUE
         ) %>%
         scroll_box(width = "100%", height = "400px")
-    )
-  )
 }
 
 get_p_table(

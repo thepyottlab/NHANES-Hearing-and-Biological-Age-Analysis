@@ -2,6 +2,7 @@
 library(haven)
 library(tidyverse)
 library(here)
+library(flexsurv)
 # Set path to working directory
 # setwd('/Users/landyqu/Desktop/NHANES Project/Data')
 
@@ -1143,12 +1144,15 @@ female_new <- subset(female, albumin >= albumin_mean_f - 5 * albumin_sd_f & albu
 dataset_all_clean <- rbind(male_new, female_new)
 
 # Calculate biological age ----------------------------------------------------------
-# install.packages("devtools")
-# install.packages("flexsurv")
-# install.packages("htmlTable")
-# devtools::install_github("dayoonkwon/BioAge")
-library(BioAge)
 library(dplyr)
+r_files <- list.files(here("Scripts", "Modified Kwon Scripts"),
+  pattern = "\\.R$", full.names = TRUE
+)
+lapply(r_files, source, local = TRUE, echo = FALSE)
+
+load(here("Data", "NHANES3.rda"))
+load(here("Data", "NHANES3_HDTrain.rda"))
+load(here("Data", "NHANES4.rda"))
 
 # HD using NHANES
 hd <- hd_nhanes(biomarkers = c("albumin", "alp", "lncrp", "totchol", "creat", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc"))
@@ -1162,21 +1166,17 @@ phenoage <- phenoage_nhanes(biomarkers = c("albumin_gL", "alp", "lncrp", "totcho
 # HD
 hd_fem <- hd_calc(
   data = dataset_all_clean %>%
-    filter(gender == 2) %>%
-    mutate(lncrp = log(crp)),
+    filter(gender == 2),
   reference = NHANES3_HDTrain %>%
-    filter(gender == 2) %>%
-    mutate(lncrp = log(crp)),
+    filter(gender == 2),
   biomarkers = c("albumin", "alp", "lncrp", "totchol", "creat", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc")
 )
 
 hd_male <- hd_calc(
   data = dataset_all_clean %>%
-    filter(gender == 1) %>%
-    mutate(lncrp = log(crp)),
+    filter(gender == 1),
   reference = NHANES3_HDTrain %>%
-    filter(gender == 1) %>%
-    mutate(lncrp = log(crp)),
+    filter(gender == 1),
   biomarkers = c("albumin", "alp", "lncrp", "totchol", "creat", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc")
 )
 
@@ -1188,7 +1188,7 @@ kdm_fem <- kdm_calc(
     filter(gender == 2),
   biomarkers = c("albumin", "alp", "lncrp", "totchol", "creat", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc"),
   fit = kdm$fit$female,
-  s_ba2 = kdm$fit$female$s_b2
+  s_ba2 = kdm$fit$female$s_ba2
 )
 
 kdm_male <- kdm_calc(
@@ -1196,7 +1196,7 @@ kdm_male <- kdm_calc(
     filter(gender == 1),
   biomarkers = c("albumin", "alp", "lncrp", "totchol", "creat", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc"),
   fit = kdm$fit$male,
-  s_ba2 = kdm$fit$male$s_b2
+  s_ba2 = kdm$fit$male$s_ba2
 )
 
 kdm_data <- rbind(kdm_fem$data, kdm_male$data)
