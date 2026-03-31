@@ -1,3 +1,9 @@
+---
+editor_options:
+  markdown:
+    wrap: 100
+---
+
 # Import
 
 ## Load libraries
@@ -35,7 +41,6 @@ library(tidytable) # for fast data loading
 source(here("Scripts", "helpers.R"))
 ```
 
-
 ## Print params for knitted reports
 
 ```{r print_params}
@@ -46,7 +51,7 @@ kable(
 )
 ```
 
-## Import Data
+## Import data
 
 ```{r import_data}
 df_raw <- read.csv(here("Data", "dataset_bioage.csv"))

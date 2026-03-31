@@ -38,7 +38,7 @@ output:
     
 editor_options:
   markdown:
-    wrap: 80
+    wrap: 100
   chunk_output_type: inline
   
 params:
@@ -128,7 +128,10 @@ params:
 
 # Set-up
 
-We set graphics device to ragg, set wd to here::here(), set contrasts by default to compare each level to the overall mean as opposed to reference, and import packages. The run_module() function checks if knitting or interactive session is in progress. If knitting, return markdown output, if interactive, only run code in environment and print a time message.
+We set graphics device to ragg, set wd to here::here(), set contrasts by default to compare each
+level to the overall mean as opposed to reference, and import packages. The run_module() function
+checks if knitting or interactive session is in progress. If knitting, return markdown output, if
+interactive, only run code in environment and print a time message.
 
 ```{r setup, include = FALSE, cache = FALSE}
 knitr::opts_chunk$set(

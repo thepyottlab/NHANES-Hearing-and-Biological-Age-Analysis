@@ -1,30 +1,27 @@
+---
+editor_options:
+  markdown:
+    wrap: 100
+---
+
 # Data Preprocessing
 
 ## Unpack confounders list
 
-We take the param value for confounders and build one lists with all included interactions with age and one with just the variables
+We take the param value for confounders and build one lists with all included interactions with age
+and one with just the variables
 
-```{r confounder_list}
-confounder_interactions <- trimws(
-  strsplit(params$confounders, "_")[[1]]
-)
+## Filter & rename columns
 
-confounder_vars <- confounder_interactions[!grepl(",", confounder_interactions)]
-```
+We filter out education level 9 because there are only 2 occurrences. Smoking has more than 2 levels
+but we only need two. Race 1 (Mexican American) and 2 (other Hispanic) are merged. Income could be
+added but we'd have to exclude 12, 13, 77, 99 and missing. 12 is over 20k, 13 is under 20k, 77 is
+refused and 99 is don't know. This would drop the size of the data set by about 20%.
 
-## Remove Unnecessary Columns & Rename
-
-We filter out education level 9 because there are only 2 occurrences. Smoking
-has more than 2 levels but we only need two. Race 1 (Mexican American) and 2
-(other Hispanic) are merged. Income could be added but we'd have to exclude 12,
-13, 77, 99 and missing. 12 is over 20k, 13 is under 20k, 77 is refused and 99 is
-don't know. This would drop the size of the data set by about 20%.
-
-Code levels: **Smoking** 1. Smoker (L1) 2. Non-smoker L2) 7. Refused 9. Don't
-know **Gender** 1. Male (L1) 2. Female (L2) **Race** 1. Mexican/other Hispanic
-(L1) 3. White (L2) 4. Black (L3) 5. Other (L4) **Education** 1. Less than 9th
-grade (L1) 2. 9-11th grade (includes 12th grade with no diploma) (L2) 3. High
-school (L3) 4. Some college or AA degree (L4) 5. College graduate or above 7.
+Code levels: **Smoking** 1. Smoker (L1) 2. Non-smoker L2) 7. Refused 9. Don't know **Gender** 1.
+Male (L1) 2. Female (L2) **Race** 1. Mexican/other Hispanic (L1) 3. White (L2) 4. Black (L3) 5.
+Other (L4) **Education** 1. Less than 9th grade (L1) 2. 9-11th grade (includes 12th grade with no
+diploma) (L2) 3. High school (L3) 4. Some college or AA degree (L4) 5. College graduate or above 7.
 Refused 9. Don't know
 
 ```{r format_df}

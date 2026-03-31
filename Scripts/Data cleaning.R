@@ -1022,23 +1022,23 @@ dataset_all_clean <- subset(dataset_all_clean, pta_diff < 15)
 
 # Make 'chronic kidney disease' covariable by pooling 'kid_failure' and 'dialysis' 1 = yes, 2 = no
 # dataset_all_clean <- mutate(dataset_all_clean, ckd = case_when(dataset_all_clean$kid_failure == 1 | dataset_all_clean$dialysis == 1 ~ 1,
-#                                                                dataset_all_clean$kid_failure == 2 | dataset_all_clean$dialysis == 2 ~ 2))
+# dataset_all_clean$kid_failure == 2 | dataset_all_clean$dialysis == 2 ~ 2))
 
 # Make 'noise exposure' covariable by pooling firearm usage, offwork exposure and job exposure
 # dataset_all_clean <- mutate(dataset_all_clean, noise_exposure = case_when(dataset_all_clean$firearm == 1 | dataset_all_clean$offwork_exposure == 1 | dataset_all_clean$job_exposure_loud == 1 | dataset_all_clean$job_exposure_very_loud == 1 ~ 1,
-#                                                                           dataset_all_clean$firearm == 2 | dataset_all_clean$offwork_exposure == 2 | dataset_all_clean$job_exposure_loud == 2 | dataset_all_clean$job_exposure_very_loud == 2 ~ 2))
+# dataset_all_clean$firearm == 2 | dataset_all_clean$offwork_exposure == 2 | dataset_all_clean$job_exposure_loud == 2 | dataset_all_clean$job_exposure_very_loud == 2 ~ 2))
 
 # Exclude 'refused' or 'don't know' in covariables
 # dataset_all_clean <- dataset_all_clean[!(dataset_all_clean$education == 7 | dataset_all_clean$education == 9 |
-#                                          dataset_all_clean$income == 77 | dataset_all_clean$income == 99 |dataset_all_clean$income == 12 | dataset_all_clean$income == 13 |
-#                                          dataset_all_clean$chf == 7 | dataset_all_clean$chf == 9 |
-#                                          dataset_all_clean$cad == 7 | dataset_all_clean$cad == 9 |
-#                                          dataset_all_clean$angina == 7 | dataset_all_clean$angina == 9 |
-#                                          dataset_all_clean$mi == 7 | dataset_all_clean$mi == 9 |
-#                                          dataset_all_clean$stroke == 7 | dataset_all_clean$stroke == 9 |
-#                                          dataset_all_clean$smoking == 7 | dataset_all_clean$smoking == 9 |
-#                                          dataset_all_clean$diabetes == 7 | dataset_all_clean$diabetes == 9 |
-#                                          dataset_all_clean$htn == 7 | dataset_all_clean$htn == 9),]
+# dataset_all_clean$income == 77 | dataset_all_clean$income == 99 |dataset_all_clean$income == 12 | dataset_all_clean$income == 13 |
+# dataset_all_clean$chf == 7 | dataset_all_clean$chf == 9 |
+# dataset_all_clean$cad == 7 | dataset_all_clean$cad == 9 |
+# dataset_all_clean$angina == 7 | dataset_all_clean$angina == 9 |
+# dataset_all_clean$mi == 7 | dataset_all_clean$mi == 9 |
+# dataset_all_clean$stroke == 7 | dataset_all_clean$stroke == 9 |
+# dataset_all_clean$smoking == 7 | dataset_all_clean$smoking == 9 |
+# dataset_all_clean$diabetes == 7 | dataset_all_clean$diabetes == 9 |
+# dataset_all_clean$htn == 7 | dataset_all_clean$htn == 9),]
 
 # Drop columns no longer needed
 drop <- c("BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4", "LBXHSCRP", "BPXOSY1", "BPXOSY2", "BPXOSY3", "LBXSCR", "LBDSCRSI")

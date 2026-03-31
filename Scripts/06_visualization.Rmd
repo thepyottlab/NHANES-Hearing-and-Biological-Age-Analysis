@@ -1,3 +1,9 @@
+---
+editor_options:
+  markdown:
+    wrap: 100
+---
+
 # Visualization
 
 ## Tables
@@ -6,8 +12,7 @@
 
 #### Format table
 
-Round R² and delta RMSE, rename variables, set p values to bold and to " <
-0.001" when very small.
+Round R² and delta RMSE, rename variables, set p values to bold and to " \< 0.001" when very small.
 
 ```{r format_table}
 format_table <- function(summary_data, per_age_group = FALSE) {
@@ -27,18 +32,13 @@ format_table <- function(summary_data, per_age_group = FALSE) {
         signif == "***" ~
           cell_spec("< 0.001", "html", bold = TRUE),
         suppressWarnings(
-          !is.na(
-            as.numeric(`p (vs age)`)
-          ) &
+          !is.na(as.numeric(`p (vs age)`)) &
             as.numeric(`p (vs age)`) < 0.05
         ) &
           `p (vs age)` != "< 0.001" ~
           cell_spec(
             suppressWarnings(
-              round(
-                as.numeric(`p (vs age)`),
-                3
-              )
+              round(as.numeric(`p (vs age)`), 3)
             ),
             "html",
             bold = TRUE
@@ -46,7 +46,10 @@ format_table <- function(summary_data, per_age_group = FALSE) {
         TRUE ~ `p (vs age)`
       ),
       `p (vs age)` = as.character(`p (vs age)`),
-      `p (vs age)` = case_when(Predictors == "age" ~ "", TRUE ~ `p (vs age)`),
+      `p (vs age)` = case_when(
+        Predictors == "age" ~ "",
+        TRUE ~ `p (vs age)`
+      ),
       `∆RMSE (vs age, dB HL)` = as.character(`∆RMSE (vs age, dB HL)`),
       `∆RMSE (vs age, dB HL)` = case_when(
         Predictors == "age" ~ "",
@@ -73,7 +76,7 @@ format_table <- function(summary_data, per_age_group = FALSE) {
 }
 ```
 
-#### Order, Filter, and Rename Tables
+#### Order, filter, and rename tables
 
 ```{r order_table}
 rename_bioage_table <- function(bioage_table) {
@@ -103,15 +106,14 @@ rename_bioage_table <- function(bioage_table) {
 
 rename_biomarker_table <- function(biomarker_table) {
   biomarker_table <- biomarker_table %>%
-    filter(!
-    (
-      Predictors %in% c(
+    filter(
+      !(Predictors %in% c(
         "age",
         "age, phenoage",
         "age, crp, hba1c, albumin_gL",
         "age, crp, hba1c, albumin_gL, phenoage"
-      )
-    )) %>%
+      ))
+    ) %>%
     mutate(
       Predictors = case_when(
         Predictors == "age, rdw" ~ "Age + RDW",
@@ -153,9 +155,9 @@ rename_biomarker_table <- function(biomarker_table) {
 
 rename_confounder_table <- function(confounders_table) {
   confounders_table <- confounders_table %>%
-    filter(!(
-      Predictors %in% c("full")
-    )) %>%
+    filter(
+      Predictors != "full"
+    ) %>%
     mutate(
       Predictors = case_when(
         Predictors == "full_with_phenoage" ~ "Phenoage",
@@ -215,7 +217,6 @@ if (isFALSE(params$telolength)) {
     rename_confounder_table()
 }
 ```
-
 
 #### Render table
 
@@ -349,7 +350,8 @@ build_confounder_table <- function(data, y = params$hearing_var) {
 ```
 
 #### Create confounder table and format confounder table
-We recode variables, combine means and SDs, pivot table, and format it 
+
+We recode variables, combine means and SDs, pivot table, and format it
 
 ```{r pivot_conf_table}
 if (isFALSE(params$telolength)) {
@@ -385,9 +387,13 @@ if (isFALSE(params$telolength)) {
 
 ### Set plot config
 
-#### Set plot styling variables
+#### Specify plot styling variables
 
-We store a separate configuration depending on output type of figure for easy switching between output types. Only the currently selected output type variables in params + global variables for plotting we may need later is returned. These variables are used to construct ggplot protoobjects.
+We store a separate configuration depending on output type of figure for easy switching between
+output types. Only the currently selected output type variables in params + global variables for
+plotting we may need later is returned. These variables are used to construct ggplot protoobjects
+and can be accessed either with `plot_config()`, which returns all, or with
+`plot_config("parameter")` to return a specific parameter.
 
 ```{r fun_plot_cfg}
 plot_config <- function(variable = NULL, global_params = params) {
@@ -413,14 +419,15 @@ plot_config <- function(variable = NULL, global_params = params) {
   )
 
   p_cfg_vars_comb <- c(p_cfg_vars$global, p_cfg_vars[[global_params$plot_output_type]])
-  
+
   if (!is.null(variable)) p_cfg_vars_comb[[variable]] else p_cfg_vars_comb
 }
 ```
 
-#### Store general plot theme
+#### Specify general plot theme
 
-We first store the theme preset (theme_few), then theme overrides, then other theme items like guides. Upon initial assignment of the theme settings, we read directly from plot_config(). The plot output type variables set in the previous chunk are also appended, so that they can be accessed either with p_cfg or with plot_config(). All items in the plot_theme list must be ggplot proto objects. Repeated plot_config() calls are used to avoid creating another unnecessary variable. Setting the theme with repeated calls takes < 200ms, so clarity of intent with only declaring one list of p_cfg is preferred
+We first store the theme preset (theme_few), then theme overrides, then other theme items like
+guides. All items specified in `plot_theme()` must be ggplot proto objects.
 
 ```{r fun_plot_theme}
 plot_theme <- function(global_params = params) {
@@ -429,8 +436,14 @@ plot_theme <- function(global_params = params) {
   list(
     theme_few(),
     theme(
-      axis.text.x = element_markdown("sans", size = config$text_size_primary),
-      axis.text.y = element_markdown("sans", size = config$text_size_primary),
+      axis.text.x = element_markdown(
+        "sans", 
+        size = config$text_size_primary
+        ),
+      axis.text.y = element_markdown(
+        "sans", 
+        size = config$text_size_primary
+        ),
       strip.text.x = element_markdown(
         "sans",
         size = config$text_size_secondary,
@@ -481,9 +494,7 @@ plot_theme <- function(global_params = params) {
 }
 ```
 
-#### Set axis scales
-
-Available scales can be inspected with str(get_scales(), max.level = 2).
+#### Specify axis scales
 
 ```{r fun_plot_axes}
 axes <- function(x = NULL, y = NULL, global_params = params) {
@@ -617,9 +628,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
 }
 ```
 
-#### Set colors
-
-Available colors can be inspected with str(color_scales(), max.level = 2).
+#### Specify colors
 
 ```{r fun_plot_colors}
 color_scales <- function(color_list_name) {
@@ -762,9 +771,12 @@ color_scales <- function(color_list_name) {
 }
 ```
 
-#### Set geom style
+#### Specify geom style
 
-Note that using update_geom_defaults() is global and requires reset_geom_defaults() to be reset. update_geom_defaults() is only set once when switching to a different plot type and subsequent plots with the same styling will not have repeated update_geom_defaults() calls to avoid overhead and clutter. Plots must therefore be run in order.
+Note that using `update_geom_defaults()` is global and requires `reset_geom_defaults()` to be reset.
+`update_geom_defaults()` is only set once when switching to a different plot type and subsequent
+plots with the same styling will not have repeated `update_geom_defaults()` calls to avoid overhead
+and clutter. Plots must therefore be run in order.
 
 ```{r fun_plot_theme}
 set_geom_theme <- function(geom_theme_name, global_params = params) {
@@ -815,12 +827,18 @@ set_geom_theme <- function(geom_theme_name, global_params = params) {
     )
   )
 }
+```
 
+#### Set default geoms
+
+The geom themes below are used in all plots. Plot-specific geoms are called on the first plot in a
+sequence of plots that share the same geom theme.
+
+```{r set_default_geoms}
 update_geom_defaults("ribbon", set_geom_theme("ribbon"))
 update_geom_defaults("rect", set_geom_theme("highlight_rect"))
 update_geom_defaults("hline", set_geom_theme("hline"))
 ```
-
 
 ### Rate of aging panel
 
@@ -1066,10 +1084,8 @@ p <- align_plots(p0, p1, p2, p3, p4, p5, p6, align = "hv")
 p <- plot_grid(
   plot_grid(
     plot_grid(
-      p[[1]],
-      NULL,
-      p[[2]],
-      NULL,
+      p[[1]], NULL,
+      p[[2]], NULL,
       p[[3]],
       labels = c("A", "", "B", "", "C"),
       nrow = 1,
@@ -1079,10 +1095,8 @@ p <- plot_grid(
     ),
     NULL,
     plot_grid(
-      p[[4]],
-      NULL,
-      p[[5]],
-      NULL,
+      p[[4]], NULL,
+      p[[5]], NULL,
       p[[6]],
       labels = c("D", "", "E", "", "F"),
       nrow = 1,
@@ -1095,9 +1109,7 @@ p <- plot_grid(
   ),
   NULL,
   plot_grid(
-    NULL,
-    p[[7]],
-    NULL,
+    NULL, p[[7]], NULL,
     ncol = 1,
     rel_heights = c(0.23, 0.54, 0.23),
     labels = c("", "G", ""),
@@ -1120,7 +1132,7 @@ sameplot(
 
 #### Additional plots
 
-##### Simplified Rate of Aging
+##### Simplified rate of aging
 
 ```{r plot_age_rate_simple}
 if (isFALSE(params$telolength)) {
@@ -1128,10 +1140,8 @@ if (isFALSE(params$telolength)) {
 
   p <- plot_grid(
     plot_grid(
-      p[[1]],
-      NULL,
-      p[[2]],
-      NULL,
+      p[[1]], NULL,
+      p[[2]], NULL,
       p[[3]],
       labels = c("A", "", "B", "", "C"),
       nrow = 1,
@@ -1141,10 +1151,8 @@ if (isFALSE(params$telolength)) {
     ),
     NULL,
     plot_grid(
-      p[[4]],
-      NULL,
-      p[[5]],
-      NULL,
+      p[[4]], NULL,
+      p[[5]], NULL,
       p[[6]],
       labels = c("D", "", "E", "", "F"),
       nrow = 1,
@@ -1299,10 +1307,8 @@ if (isFALSE(params$telolength)) {
 
   p <- plot_grid(
     plot_grid(
-      p[[1]],
-      NULL,
-      p[[2]],
-      NULL,
+      p[[1]], NULL,
+      p[[2]], NULL,
       p[[3]],
       labels = c("A", "", "B", "", "C"),
       nrow = 1,
@@ -1312,10 +1318,8 @@ if (isFALSE(params$telolength)) {
     ),
     NULL,
     plot_grid(
-      p[[4]],
-      NULL,
-      p[[5]],
-      NULL,
+      p[[4]], NULL,
+      p[[5]], NULL,
       p[[6]],
       labels = c("D", "", "E", "", "F"),
       nrow = 1,
@@ -1618,10 +1622,8 @@ if (isFALSE(params$telolength)) {
 
   p <- plot_grid(
     plot_grid(
-      p[[1]],
-      NULL,
-      p[[2]],
-      NULL,
+      p[[1]], NULL,
+      p[[2]], NULL,
       p[[3]],
       labels = c("A", "", "B", "", "C"),
       nrow = 1,
@@ -1631,10 +1633,8 @@ if (isFALSE(params$telolength)) {
     ),
     NULL,
     plot_grid(
-      p[[4]],
-      NULL,
-      p[[5]],
-      NULL,
+      p[[4]], NULL,
+      p[[5]], NULL,
       p[[6]],
       labels = c("D", "", "E", "", "F"),
       nrow = 1,
@@ -1932,7 +1932,7 @@ sameplot(
 
 #### Additional Plots
 
-##### Plot PhenoAge Only
+##### Plot PhenoAge only
 
 ```{r plot_phenoage_only, warning=FALSE}
 if (isFALSE(params$telolength)) {
@@ -2051,8 +2051,6 @@ sameplot(
   save = params$save_figures
 )
 ```
-
-
 
 ##### Confounders predictive capacity plot
 

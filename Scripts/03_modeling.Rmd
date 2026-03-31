@@ -1,13 +1,20 @@
+---
+editor_options:
+  markdown:
+    wrap: 100
+---
+
 # Modelling
 
 ## K fold splitting
 
 ### Fold-maker function
 
-This function takes the indices of rows each age group, randomizes them, then
-assigns numbers of 1-10. We could integrate this into the k-fold cross
-validation function, but by doing it separately it's easier to inspect any
-possible issues. We shuffle indices within each age group so that the numbers 1-10 will equally be spaced throughout the age group, creating even age group distributions in each fold.
+This function takes the indices of rows each age group, randomizes them, then assigns numbers of
+1-10. We could integrate this into the k-fold cross validation function, but by doing it separately
+it's easier to inspect any possible issues. We shuffle indices within each age group so that the
+numbers 1-10 will equally be spaced throughout the age group, creating even age group distributions
+in each fold.
 
 ```{r fun_make_folds}
 make_repeated_folds <- function(data, grouping_variable, k, repeats) {
@@ -74,22 +81,25 @@ df <- make_repeated_folds(
 
 ### Formula builder function
 
-The `k` determines the number of base functions (linear or non-linear).The parameter
-with the lowest degrees of freedom (deg_free) determines the maximum basis dimensions
-(k in mgcv). Albumin has 26 distinct levels, so the maximal k value/number of
-basic functions, equivalent to the deg_free, is 25 if each level is in each fold. We
-must compute the deg_free for each fold and pick the lowest to avoid errors. The GAM
-is a composite of all these underlying functions, with different weights for
+The `k` determines the number of base functions (linear or non-linear).The parameter with the lowest
+degrees of freedom (deg_free) determines the maximum basis dimensions (k in mgcv). Albumin has 26
+distinct levels, so the maximal k value/number of basic functions, equivalent to the deg_free, is 25
+if each level is in each fold. We must compute the deg_free for each fold and pick the lowest to
+avoid errors. The GAM is a composite of all these underlying functions, with different weights for
 each function. Max degrees of freedom are only computed once per variable and cached for retrieval.
 
 -   `k`: number of basis functions.
--   `max_k`: sets k to the theoretical limit for each parameter (deg_free), note that
-    for non-integers, like the bioage measures, this will be equivalent to the
-    length of the dataframe minus one.
--   `auto_limit_k`: if k exceeds the deg_free for a parameter (e.g., if k \> 25 for
-    albumin), it will automatically be limited to the deg_free.
--   `equal_wiggliness`: gives an individual id to each sum-to-zero interaction term when FALSE which ensures they have the same smoothing parameter. Setting to TRUE marginally improves fit but uses many degrees of freedom.
--   `stepdown`: additionally creates formulas with age as predictor that each miss one confounder for a nested-CV comparison (i.e., compare, for example, the impact of adding 'gender' to a model that already includes other covariates).
+-   `max_k`: sets k to the theoretical limit for each parameter (deg_free), note that for
+    non-integers, like the bioage measures, this will be equivalent to the length of the dataframe
+    minus one.
+-   `auto_limit_k`: if k exceeds the deg_free for a parameter (e.g., if k \> 25 for albumin), it
+    will automatically be limited to the deg_free.
+-   `equal_wiggliness`: gives an individual id to each sum-to-zero interaction term when FALSE which
+    ensures they have the same smoothing parameter. Setting to TRUE marginally improves fit but uses
+    many degrees of freedom.
+-   `stepdown`: additionally creates formulas with age as predictor that each miss one confounder
+    for a nested-CV comparison (i.e., compare, for example, the impact of adding 'gender' to a model
+    that already includes other covariates).
 
 ```{r fun_formula_gen}
 formula_generator <- function(
@@ -104,7 +114,7 @@ formula_generator <- function(
 ) {
   # Initialize the repeat columns with folds and unique fold numbers in folds
   fold_columns <- grep("^fold_r", names(data), value = TRUE)
-  folds <- seq_along(fold_columns) # get each unique fold number in folds
+  folds <- seq_along(fold_columns)
 
   # Initialize a list for compiled formulas
   formula_list <- list()
@@ -327,15 +337,13 @@ extract_predictors <- function(formula, collapse = "") {
 }
 ```
 
-### Get formula table function
+### Function to construct table
 
 Takes a dataframe and title and makes a scrollable table.
 
 ```{r fun_formula_table}
-get_formula_table <- function(formula_list, title) {
-  tibble(
-    Formulas = unlist(formula_list)
-  ) %>%
+construct_table <- function(formula_list, title) {
+  formula_list %>%
     kable(
       "html",
       caption = title
@@ -373,8 +381,11 @@ formula_list_bioage <- formula_generator(
   confounders = confounder_interactions
 )
 
-get_formula_table(
-  formula_list = formula_list_bioage,
+tibble(
+  Formulas = unlist(
+    formula_list_bioage
+  )
+) %>% construct_table(
   title = "Bioage Formulas"
 )
 ```
@@ -410,8 +421,11 @@ formula_list_biomarkers <- formula_generator(
   confounders = confounder_interactions
 )
 
-get_formula_table(
-  formula_list = formula_list_biomarkers,
+tibble(
+  Formulas = unlist(
+    formula_list_biomarkers
+  )
+) %>% construct_table(
   title = "Biomarker Formulas"
 )
 ```
@@ -430,8 +444,11 @@ if (isFALSE(params$telolength)) {
     stepdown = TRUE
   )
 
-  get_formula_table(
-    formula_list = formula_list_confounders,
+  tibble(
+    Formulas = unlist(
+      formula_list_confounders
+    )
+  ) %>% construct_table(
     title = "Confounder Formulas"
   )
 }
@@ -441,17 +458,23 @@ if (isFALSE(params$telolength)) {
 
 ### Repeated k-fold validation function per age group
 
-Fits a BAM() to the formulas generated splitting data into folds. Predictions are made using the models and MSEs are calculated with these predictions per age group. A list is returned with a tibble with results (MSE per fold per formula), predictions (each individual prediction made), and optionally the actual models (uses very large amounts of memory when discrete = TRUE). When discrete = TRUE, discretizes fitting using fREML (much faster but slightly worse fit). Confounder_analysis does nothing to the fitting but returns names based on nested covariate models instead of the regular predictors (which exclude covariates in the label).
+Fits a BAM() to the formulas generated splitting data into folds. Predictions are made using the
+models and MSEs are calculated with these predictions per age group. A list is returned with a
+tibble with results (MSE per fold per formula), predictions (each individual prediction made), and
+optionally the actual models (uses very large amounts of memory when discrete = TRUE). When discrete
+= TRUE, discretizes fitting using fREML (much faster but slightly worse fit). Confounder_analysis
+does nothing to the fitting but returns names based on nested covariate models instead of the
+regular predictors (which exclude covariates in the label).
 
 ```{r fun_CV}
 cross_validation <- function(
-  data,
-  formulas,
-  k,
-  repeats,
-  discrete = FALSE,
-  keep_models = FALSE,
-  confounder_analysis = FALSE
+    data, 
+    formulas, 
+    k, 
+    repeats, 
+    discrete = FALSE, 
+    keep_models = FALSE, 
+    confounder_analysis = FALSE
 ) {
   # Initialize age groups to stratify by and repeat column names that contain fold specification
   age_groups <- c(
@@ -647,7 +670,11 @@ generate_model_path <- function(output_type) {
 
   model_path <- here("Models", folder_name, file_name)
 
-  dir.create(dirname(model_path), recursive = TRUE, showWarnings = FALSE)
+  dir.create(
+    dirname(model_path),
+    recursive = TRUE,
+    showWarnings = FALSE
+  )
 
   model_path
 }
@@ -655,7 +682,8 @@ generate_model_path <- function(output_type) {
 
 ### Model bioage
 
-Cross-validations rerun if an .RDS file with the corresponding name does not exist or if load_model_results is FALSE. Results are stored if store_model_results is TRUE.
+Cross-validations rerun if an .RDS file with the corresponding name does not exist or if
+load_model_results is FALSE. Results are stored if store_model_results is TRUE.
 
 #### Bioage K-fold CV
 
@@ -799,19 +827,19 @@ if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
 
 ## Model age rate
 
-### Build GAM and Linear Age Models in a List
+### Build GAM and linear age models in a list
 
-When solely wanting to predict an outcome variable, the wiggliness penalty of a
-GAM prevents overfitting, so k can be as large as we'd like. However, with a
-larger k, we have more parameters, so if we take the derivative of the GAM and
-we have more parameters, each with its own uncertainty, the total uncertainty
-will grow, even if the extra base functions don't contribute. Therefore, a
-larger k past the number that captures all global trends decreases statistical
-power. This is a problem when assessing the rate of aging. Therefore, we need to
-have a penalty for practically useless base functions so that they shrink to 0. Default shrinkage solution still permits large complexity despite the RMSE improving little over a simpler model.
+When solely wanting to predict an outcome variable, the wiggliness penalty of a GAM prevents
+overfitting, so k can be as large as we'd like. However, with a larger k, we have more parameters,
+so if we take the derivative of the GAM and we have more parameters, each with its own uncertainty,
+the total uncertainty will grow, even if the extra base functions don't contribute. Therefore, a
+larger k past the number that captures all global trends decreases statistical power. This is a
+problem when assessing the rate of aging. Therefore, we need to have a penalty for practically
+useless base functions so that they shrink to 0. Default shrinkage solution still permits large
+complexity despite the RMSE improving little over a simpler model.
 
-We can use k.check with a small k to see if its enough. With
-a k of 10 we already get a k index of 0.9998, so k = 10 should be sufficient.
+We can use k.check with a small k to see if its enough. With a k of 10 we already get a k index of
+0.9998, so k = 10 should be sufficient.
 
 ```{r aging_models}
 output_age_rate <- list(models = list(), predictions = list())
@@ -842,13 +870,12 @@ k.check(output_age_rate$models$smooth)
 
 ### (Optional) Inspect folds
 
-We check if each fold number is assigned equal amounts of times in two repeats
-for each age group. Thereafter, we save the row number and plot the fold number
-of points (with some jitter to spread things out) to check if bands appear
-homogenous. We know it should be homogenous in the y-axis within a band because
-the jitter is random. If there are similarities between bands, then the shuffle
-isn't randomized for each repeat. If the bands don't appear of similar intensity
-over the x-axis, then the number assignment is not random.
+We check if each fold number is assigned equal amounts of times in two repeats for each age group.
+Thereafter, we save the row number and plot the fold number of points (with some jitter to spread
+things out) to check if bands appear homogenous. We know it should be homogenous in the y-axis
+within a band because the jitter is random. If there are similarities between bands, then the
+shuffle isn't randomized for each repeat. If the bands don't appear of similar intensity over the
+x-axis, then the number assignment is not random.
 
 ```{r inspect_folds, fig.height = 10, fig.width = 10}
 if (isTRUE(params$run_optional_chunks)) {
@@ -908,16 +935,14 @@ if (isTRUE(params$run_optional_chunks)) {
 }
 ```
 
-Fold numbers are consistent between groups and correctly split upon multiple
-repeats. each fold number has the same (within 1) frequency, so there are no
-imbalances between folds and repeats. Plot shows no non-random changes in
-intensity over the X dimension and random dissimilarities between bands in the Y
-dimension (indicating repeats have different samples).
+Fold numbers are consistent between groups and correctly split upon multiple repeats. each fold
+number has the same (within 1) frequency, so there are no imbalances between folds and repeats. Plot
+shows no non-random changes in intensity over the X dimension and random dissimilarities between
+bands in the Y dimension (indicating repeats have different samples).
 
 ### (Optional) Check confounder two-way interactions vs offsets
 
-We want to get a sense which confounders improve the model and which interact
-with age.
+We want to get a sense which confounders improve the model and which interact with age.
 
 ```{r assess_confounders}
 if (isTRUE(params$run_optional_chunks)) {
@@ -987,20 +1012,22 @@ if (isTRUE(params$run_optional_chunks)) {
 }
 ```
 
-**We see that for each confounder, the interaction model fits better than the
-intercept-only model, so we should use interaction terms instead of intercepts for covariates.**
+**We see that for each confounder, the interaction model fits better than the intercept-only model,
+so we should use interaction terms instead of intercepts for covariates.**
 
-### (Optional) Investigate Additional Information
+### (Optional) Investigate additional information
 
-First we see if the confounders are correlated (e.g., smoking is more prevalent
-in males than females so gender is partly coded in smoking), to see if all
-confounders actually contribute.
+First we see if the confounders are correlated (e.g., smoking is more prevalent in males than
+females so gender is partly coded in smoking), to see if all confounders actually contribute.
 
 ```{r compare_added_info}
 if (isTRUE(params$run_optional_chunks)) {
   compare_confounders <- function(df, k) {
     m0 <- bam(
-      reformulate("s(age, k = k)", response = params$hearing_var),
+      reformulate(
+        "s(age, k = k)",
+        response = params$hearing_var
+      ),
       data = df,
       method = "REML"
     )
@@ -1075,25 +1102,21 @@ if (isTRUE(params$run_optional_chunks)) {
 }
 ```
 
-**Each factor significantly improves the model and seems to interact with age in
-some way**
+**Each factor significantly improves the model and seems to interact with age in some way**
 
 ### (Optional) Check shared wiggliness
 
-We could insist that different smooths have the same amount of smoothness, i.e.,
-that there's no difference in the wiggliness of the GAM between men and women.
-The plots from the previous chunk (where different wiggliness was permitted)
-suggest that there may be equal amount of wiggliness, so that each smooth has
-the same basis functions but with different coefficients. There's no specific
-reason to assume that wiggliness is the same in many cases, so if aiming to
-maximize model flexibility/predictive power, we should leave this unconstrained,
-but we do eat up a lot of degrees of freedom and may be 'wasting' the data
-estimating these global trends. It may also be better to spend the processing
-time on a higher k rather than estimating smooth parameters.
+We could insist that different smooths have the same amount of smoothness, i.e., that there's no
+difference in the wiggliness of the GAM between men and women. The plots from the previous chunk
+(where different wiggliness was permitted) suggest that there may be equal amount of wiggliness, so
+that each smooth has the same basis functions but with different coefficients. There's no specific
+reason to assume that wiggliness is the same in many cases, so if aiming to maximize model
+flexibility/predictive power, we should leave this unconstrained, but we do eat up a lot of degrees
+of freedom and may be 'wasting' the data estimating these global trends. It may also be better to
+spend the processing time on a higher k rather than estimating smooth parameters.
 
 See the link below for more info on constructing interaction terms:
 <https://stats.stackexchange.com/questions/637423/conceptual-interpretation-of-bs-fs-and-by-term-in-gam>.
-
 
 ```{r compare_wiggliness}
 if (isTRUE(params$run_optional_chunks)) {
@@ -1150,8 +1173,8 @@ if (isTRUE(params$run_optional_chunks)) {
 }
 ```
 
-**The free wiggliness model takes about 15 times longer to compute and barely has a
-drop in residual deviance. The improvement in fit is not significant, so enforce shared smoothing parameters.**
+**The free wiggliness model takes about 15 times longer to compute and barely has a drop in residual
+deviance. The improvement in fit is not significant, so enforce shared smoothing parameters.**
 
 ### (Optional) Check factor three-way interactions
 
@@ -1226,27 +1249,24 @@ if (isTRUE(params$run_optional_chunks)) {
 }
 ```
 
-We see that `age*gender*race` is a significant three-way interaction but it
-takes 3 times longer to compute. Bam() speeds things up enough over gam() that this processing cost is acceptable.
+We see that `age*gender*race` is a significant three-way interaction but it takes 3 times longer to
+compute. Bam() speeds things up enough over gam() that this processing cost is acceptable.
 
 ### (Optional) Inspect k-values
 
-To assess k-value, we fit a model on the whole dataset using the formula lists,
-build a list of models, make a helper function to run the k.check function from
-mgcv, then turn it in a dataframe and return the output. The k-value determines
-the number of base functions that the GAM is constructed from. A GAM adds these
-different base functions together, some of which capture linear trends, some of
-which are just splines or polynomials with a bump in one region. The GAM gives
-different weights to each model to get as good a fit as possible, but a GAM also
-measures wiggliness and gives a penalty to wiggliness. This is what makes it
-generalized. I.e., to perform well in general, even to unseen data. Therefore, a
-GAM optimizes to get as good a fit as possible with as little wiggliness as
-possible. Because of this wiggliness penalty, adding more base functions to the
-GAM doesn't make it overfit. Therefore, k should be as large as possible within
-computation power or degrees of freedom. If k isn't large enough, there will be
-patterns left in the residuals. Therefore, by measuring patterns in the
-residuals, we can assess if k is large enough. We want to capture all global
-patterns without fitting to any noise. This is what we assess when we look at
+To assess k-value, we fit a model on the whole dataset using the formula lists, build a list of
+models, make a helper function to run the k.check function from mgcv, then turn it in a dataframe
+and return the output. The k-value determines the number of base functions that the GAM is
+constructed from. A GAM adds these different base functions together, some of which capture linear
+trends, some of which are just splines or polynomials with a bump in one region. The GAM gives
+different weights to each model to get as good a fit as possible, but a GAM also measures wiggliness
+and gives a penalty to wiggliness. This is what makes it generalized. I.e., to perform well in
+general, even to unseen data. Therefore, a GAM optimizes to get as good a fit as possible with as
+little wiggliness as possible. Because of this wiggliness penalty, adding more base functions to the
+GAM doesn't make it overfit. Therefore, k should be as large as possible within computation power or
+degrees of freedom. If k isn't large enough, there will be patterns left in the residuals.
+Therefore, by measuring patterns in the residuals, we can assess if k is large enough. We want to
+capture all global patterns without fitting to any noise. This is what we assess when we look at
 k-index.
 
 Models are fit on whole dataset.

@@ -1,35 +1,38 @@
+---
+editor_options:
+  markdown:
+    wrap: 100
+---
+
 # Statistics
 
 ## Calculate descriptive statistics
 
 ### Calculate CI
 
-For the overall, non-age-group-stratified summary statistics, we first calculate
-mse per fold by weighting the age groups. Then, we calculate the number of
-repeats and folds, the mse of each outcome variable (weighted per number of
-observations, which produces a small difference over unweighted because the
-n_test per fold differs by 1 at most), and the variance of mse `s2_mse`, also
+For the overall, non-age-group-stratified summary statistics, we first calculate mse per fold by
+weighting the age groups. Then, we calculate the number of repeats and folds, the mse of each
+outcome variable (weighted per number of observations, which produces a small difference over
+unweighted because the n_test per fold differs by 1 at most), and the variance of mse `s2_mse`, also
 weighted per n_test, grouped by predictors and possibly age group.
 
-The Nadeau Bengio corrected t-test estimates variance using the training and
-testing dataset sizes, because cross validations are not independent, violating
-the assumption of a paired t-test, inflating type 1 errors (false positives). We
-can use the corrected variance estimate for the confidence intervals too. First,
-we calculate t-crit using degrees of freedom (n-1). The t-test should be
-one-tailed because we only want to know if age + bioage is better than age, not
-if one is worse/different, so then a tcrit of 0.05 is appropriate, but for the
-confidence intervals we want to know whether the true mean is within 95% of the
-sample mean, not just where the true mean would be if it would only be above.
-The variance is used based on `n_train` and `n_test`. It doesn't matter whether
-we use the mean n per fold or the total over all folds because the ratio is the
-same.
+The Nadeau Bengio corrected t-test estimates variance using the training and testing dataset sizes,
+because cross validations are not independent, violating the assumption of a paired t-test,
+inflating type 1 errors (false positives). We can use the corrected variance estimate for the
+confidence intervals too. First, we calculate t-crit using degrees of freedom (n-1). The t-test
+should be one-tailed because we only want to know if age + bioage is better than age, not if one is
+worse/different, so then a tcrit of 0.05 is appropriate. Moreover, if GAMs don't overfit when adding
+parameters then adding parameters should never cause a lower delta MSE, which also motivates use of
+a one-tailed t-test. for the confidence intervals we want to know whether the true mean is within
+95% of the sample mean, not just where the true mean would be if it would only be above. The
+variance is used based on `n_train` and `n_test`. It doesn't matter whether we use the mean n per
+fold or the total over all folds because the ratio is the same.
 
-In <https://www.jmlr.org/papers/volume6/markatou05a/markatou05a.pdf>, Analysis of
-Variance of Cross-Validation Estimators of the Generalization Error, the authors
-also report the variance estimate as `S² * (1/J + n2/n1)`, where `S2` is the
-variance (squared standard deviation), `J` is the total number of folds, `n2` is the
-validation/test set and `n1` is the training set size. They also show that when `J`
-is appropriate (`10*10`), it provides a good variance estimate. Variance is
+In <https://www.jmlr.org/papers/volume6/markatou05a/markatou05a.pdf>, Analysis of Variance of
+Cross-Validation Estimators of the Generalization Error, the authors also report the variance
+estimate as `S² * (1/J + n2/n1)`, where `S2` is the variance (squared standard deviation), `J` is
+the total number of folds, `n2` is the validation/test set and `n1` is the training set size. They
+also show that when `J` is appropriate (`10*10`), it provides a good variance estimate. Variance is
 already in squared units, as its just the square of the standard deviation.
 
 ```{r calculate_ci}
@@ -101,35 +104,27 @@ calculate_nb_cis <- function(results_data, per_age_group = FALSE) {
 
 ### Calculate R2 and RMSE
 
-**Calculating descriptives**: First we import `n_train` and `n_test` from the
-results dataframe per fold, either grouped or not grouped by `age_group`. If
-grouped by `age_group`, we can import directly because the results dataframe is
-already binned by age group. Then, we import the mean Fletcher Index from the
-whole prediction dataset for each model/set of predictors, repeat, and fold. As
-a sanity check, because each model should have the same folds and repeats, I
-checked whether the mean Fletcher Index is always the same at repeat 1 fold 1
-(it is). The mean FI is then called in the summarize function using median(),
-which gives the same result as mean(), because all predicted/real values within
-a model, fold, and repeat have the same `mean_FI`, as told by the left_join
-function. Thereafter, we group over the 100 (10x10) folds per model to calculate
-the total number of predictions (on the testing data), the mean training data
-size, mean testing data size, R² (using sum of squares), MSE, and RMSE. For
-RMSE, we could either calculate it using `sqrt(mse)` or `sqrt(sse/n_predictions)`.
-It gives the same result.
+**Calculating descriptives**: First we import `n_train` and `n_test` from the results dataframe per
+fold, either grouped or not grouped by `age_group`. If grouped by `age_group`, we can import
+directly because the results dataframe is already binned by age group. Then, we import the mean
+Fletcher Index from the whole prediction dataset for each model/set of predictors, repeat, and fold.
+As a sanity check, because each model should have the same folds and repeats, I checked whether the
+mean Fletcher Index is always the same at repeat 1 fold 1 (it is). The mean FI is then called in the
+summarize function using median(), which gives the same result as mean(), because all predicted/real
+values within a model, fold, and repeat have the same `mean_FI`, dictated by the left_join function.
+Thereafter, we group over the 100 (10x10) folds per model to calculate the total number of
+predictions (on the testing data), the mean training data size, mean testing data size, R² (using
+sum of squares), MSE, and RMSE. For RMSE, we could either calculate it using `sqrt(mse)` or
+`sqrt(sse/n_predictions)`. It gives the same result.
 
-**Total sum of squares calculation when binning R² per age group**: It's
-imperative that for the age group stratified descriptives, the global mean is
-used. Otherwise it's as if the total sum of squares is calculated within each
-age-bin, which is as if a linear regression is fitted through the mean Fletcher
-Index per age group, explaining a lot of variation while it shouldn't. We want
-to assess the predictive effect on age, so the total sum of squares should be
-calculated by taking the distance from each Fletcher Index within an age group
-to the global mean. Of course, the models are trained on the whole dataset, not
-just one age group. We're just assessing performance per age group.
-
-<https://chatgpt.com/share/68da6507-0008-8010-857e-bc6e9b76df58> - see
-interpretation of R² differences
-
+**Total sum of squares calculation when binning R² per age group**: It's imperative that for the age
+group stratified descriptives, the global mean is used. Otherwise it's as if the total sum of
+squares is calculated within each age-bin, which is as if a linear regression is fitted through the
+mean Fletcher Index per age group, explaining a lot of variation while it shouldn't. We want to
+assess the predictive effect on age, so the total sum of squares should be calculated by taking the
+distance from each Fletcher Index within an age group to the global mean. Of course, the models are
+trained on the whole dataset, not just one age group. We're just assessing performance per age
+group.
 
 ```{r calculate_descr}
 calculate_RMSE_R2 <- function(
@@ -224,9 +219,26 @@ calculate_RMSE_R2 <- function(
 }
 ```
 
-### Calculate RMSE CIs
+### Calculate RMSE confidence intervals
 
-Calculates squared residuals (error) to be used for RMSE calculations and takes mean MSE per subject over the 10 repeats. Takes reference variable to be the full model or age model. Then for each predictor (and optionally each age group) subsets the data to a dataframe with the reference variable and with the target variable. These are equal length. Then takes random samples from the dataset with number of samples equal to the length of the subset (i.e., age group). The indices of each random sample is stored in a separate column, creating a matrix. The indices are then applied to the vector with squared residuals. The column mean is then calculated for each column (i.e., bootstrap sample) within the matrix. The square root is then taken from each mean to get the RMSE per sample. 2.5% and 97.5% quantiles are then computed to obtain 95% confidence intervals for both raw RMSEs and delta RMSEs. The selected rows are always the same for target and reference variables. Indices are calculated once for each age group and stored in a cache so that the next predictor uses the same indices as the other predictor per age group. Each bootstrap run creates a different sample of the data because observations are selected at random without requirement to be unique, so some observations are taken twice and others are omitted (set by replace = TRUE). If per_age_group = TRUE, iterate over each age group and subset df per age group. If per_age_group is FALSE, only iterate over the single "all" item that is not used (that is, run the code once and don't filter per age group). Compile into a dataframe (tidytable) at the end and insert values into the summary dataframes.
+Calculates squared residuals (error) to be used for RMSE calculations and takes mean MSE per subject
+over the 10 repeats. Takes reference variable to be the full model or age model. Then for each
+predictor (and optionally each age group) subsets the data to a dataframe with the reference
+variable and with the target variable. These are equal length. Then takes random samples from the
+dataset with number of samples equal to the length of the subset (i.e., age group). The indices of
+each random sample is stored in a separate column, creating a matrix. The indices are then applied
+to the vector with squared residuals. The column mean is then calculated for each column (i.e.,
+bootstrap sample) within the matrix. The square root is then taken from each mean to get the RMSE
+per sample. 2.5% and 97.5% quantiles are then computed to obtain 95% confidence intervals for both
+raw RMSEs and delta RMSEs. The selected rows are always the same for target and reference variables.
+Indices are calculated once for each age group and stored in a cache so that the next predictor uses
+the same indices as the other predictor per age group. Each bootstrap run creates a different sample
+of the data because observations are selected at random without requirement to be unique, so some
+observations are taken twice and others are omitted (set by `replace = TRUE`). If
+`per_age_group = TRUE`, iterate over each age group and subset df per age group. If
+`per_age_group = FALSE`, only iterate over the single "all" item that is not used (that is, run the
+code once and don't filter per age group). Compile into a dataframe (tidytable) at the end and
+insert values into the summary dataframes.
 
 ```{r calc_RMSE_CI}
 compute_rmse_CI <- function(
@@ -253,9 +265,9 @@ compute_rmse_CI <- function(
       squared_residuals = mean(squared_residuals),
       .groups = "drop"
     )
-  
+
   set.seed(43)
-  
+
   for (predictor in predictor_list) {
     for (age_bin in age_bins) {
       error_ref <- predictions %>%
@@ -326,8 +338,6 @@ compute_rmse_CI <- function(
 ```
 
 ### Run descriptive statistics calculation pipeline
-
-Debug using browser() placed in the functions or by using debugonce(function_name).
 
 ```{r discr_stat_pipeline}
 df_summary_bioage <- df_results_bioage %>%
@@ -408,14 +418,14 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-## Repeated Nadeau-Bengio Corrected T-Tests
+## Repeated Nadeau-Bengio corrected t-tests
 
 ### Check dependence
 
-Holm error correction is the best method to control family-wise error rate when
-comparisons are negatively dependent. However, if tests are either independent
-or positively dependent, we can use Hommel, which has more power. To test
-dependence, we correlate MSE of each metric over the same fold.
+Holm error correction is the best method to control family-wise error rate when comparisons are
+negatively dependent. However, if tests are either independent or positively dependent, we can use
+Hommel, which has more power. To test dependence, we correlate MSE of each metric over the same
+fold.
 
 ```{r assess_cor}
 test_correlation <- function(results_data, grouping_variables, exclusions = NULL) {
@@ -549,54 +559,48 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-All correlations trend positive. Overall bioage methods have positive
-dependence, so we can use Hommel, for the other comparisons, correlations center
-at 0 and are either mildly positively dependent or independent. There are some
-negative correlations but practically all are between -0.25 and 0.25, so there
-is probably no violation of the positive regression dependency in which it is
-unlikely that an increase in one test statistic would lead to a decrease in
-another. This also makes sense for bioage models. If phenoage works, kdm may
-also work a little, because they are based on the same blood markers. Similarly,
-if we get positive predictive value from one bioage method in one age group, it
-probably positively affects predictive power in another age group. For
-biomarkers, an increase in predictive power of one marker doesn't per se affect
-another. If one of two closely-related biomarkers has higher predictive power,
-it doesn't mean the other one won't. The only way to get a negative outcome is
-to get overfitting, and I don't see in which scenario a higher predictive power
-in one biomarker would increase the odds of overfitting for another biomarker,
-so we can assume independence and use Hommel.
+Correlations trend mostly positive. Overall bioage methods have positive dependence, so we can use
+Hommel, for the other comparisons, correlations center at 0 and are either mildly positively
+dependent or independent. There are some negative correlations but practically all are between -0.25
+and 0.25, so there is probably no violation of the positive regression dependency in which it is
+unlikely that an increase in one test statistic would lead to a decrease in another. This also makes
+sense for bioage models. If phenoage predicts hearing function, kdm may also predict hearing
+function, because they are based on the same blood markers. Similarly, if we get positive predictive
+value from one bioage method in one age group, it probably positively affects predictive power in
+another age group. For biomarkers, an increase in predictive power of one marker doesn't per se
+affect another. If one of two closely-related biomarkers has higher predictive power, it doesn't
+mean the other one won't. The only way to get a negative outcome is to get overfitting, which is
+possible. It is unlikely that a higher predictive power in one biomarker would increase the odds of
+overfitting for another biomarker, so Hommel may be used. However, if there are no differences in
+conclusion, it may be better to use Holm for simplicity.
 
 ### Calculate p-values
 
-Calculate t-statistic according to nadeau bengio, which is `t = m/(√(variance(1/n + n2/n1)))`. m is the difference between the sample mean and
-hypothesized population mean. In this case, we've normalized it to age so the
-null hypothesis (the hypothesized population mean) is 0, i.e., there is no
-difference from age only. The variance we already calculated. n is equivalent to
-the number of folds times the number of repeats. n2 is the number of
-testing/validation data and n1 the number of training data. We then calculate
-degrees of freedom by taking n - 1. Then we use pt (which automatically
-calculates the critical value) using a one-tailed t-test of the upper tail. This
-is because we're not interested in whether an age + bioage model is different
-from age-only. We only want to know if its better. We then adjust p values with
-Hommel or Holm error correction.
+Calculate t-statistic according to Nadeau Bengio, which is `t = m/(√(variance(1/n + n2/n1)))`. `m`
+is the difference between the sample mean and hypothesized population mean. In this case, we've
+normalized it to age, so the null hypothesis (the hypothesized population mean) is 0, i.e., there is
+no difference from age only. The variance was already calculated before. `n` is equivalent to the
+number of folds times the number of repeats. `n2` is the number of testing/validation data and `n1`
+the number of training data. We then calculate degrees of freedom by taking n - 1. Then we use
+`pt()` (which automatically calculates the critical value) using a one-tailed t-test of the upper
+tail. This is because we're not interested in whether an age + bioage model is different from
+age-only. We only want to know if its better. We then adjust p values with Hommel or Holm error
+correction.
 
-First, the question is, 'Does this bioage/biomarker add predictive value for
-hearing loss in the population while controlling for chronological age?', which
-we test with the overall comparisons. Only if it's significantly different do we
-look at per age-group tests, also to control power. Another option is to ask
-'Might bioage/biomarker only matter for specific age ranges, even if it doesn't
-have an overall predictive effect?', in which case we could consider doing
-pairwise on all, but we'd lose a lot of power and would have to use FDR and
-accept a 5% false discovery rate to salvage it.
+First, the question is, 'Does this bioage/biomarker add predictive value for hearing loss in the
+population while controlling for chronological age?', which we test with the overall comparisons.
+Only if it's significantly different do we look at per age-group tests. Another option is to ask
+'Might bioage/biomarker only matter for specific age ranges, even if it doesn't have an overall
+predictive effect?', in which case we could consider doing pairwise on all, but we'd lose a lot of
+power and would have to use FDR and accept a 5% false discovery rate to salvage it.
 
-The CorrectR library has an implementation of the Nadeau-Bengio corrected t-test
-(with support for repeated k-fold validations), but this makes the false
-assumption that fold sizes are always equal, so there's a small error in
-calculation of the sample mean and variance. The sample mean and variance should
-be weighted by fold size. This gets relevant for age-group delta MSEs, because
-for the 50-60 age group, some folds have a test size of 99 and others of 98.
-That means that some folds weigh 1% more than another. Not correcting for that
-could make the difference between significant or not signficant.
+The CorrectR library has an implementation of the Nadeau-Bengio corrected t-test (with support for
+repeated k-fold validations), but this makes the (false) assumption that fold sizes are always
+equal, so there's a small error in calculation of the sample mean and variance. The sample mean and
+variance should be weighted by fold size. This gets relevant for age-group delta MSEs, because for
+the 50-60 age group, some folds have a test size of 99 and others of 98. That means that some folds
+weigh 1% more than another. Not correcting for that could make the difference between significant or
+not signficant.
 
 ```{r t_test_models}
 nb_corrected_repeated_t_test <- function(summary_data,
@@ -693,35 +697,16 @@ if (isFALSE(params$telolength)) {
 ### Display p value tables
 
 ```{r show_p_tables}
-get_p_table <- function(comparisons, title) {
-      comparisons %>%
-        kable(
-          "html",
-          caption = title
-        ) %>%
-        kable_styling(
-          bootstrap_options = c("striped", "hover"),
-          full_width = FALSE,
-          position = "left",
-          font_size = 12,
-          fixed_thead = TRUE
-        ) %>%
-        scroll_box(width = "100%", height = "400px")
-}
-
-get_p_table(
-  pwc_bioage_overall,
-  "Overall Bioage Pairwise Comparisons"
+pwc_bioage_overall %>% construct_table(
+  title = "Overall Bioage Pairwise Comparisons"
 )
 
 if (isFALSE(params$telolength)) {
-  get_p_table(
-    pwc_biomarkers_overall,
-    "Overall Biomarker Pairwise Comparisons"
+  pwc_biomarkers_overall %>% construct_table(
+    title = "Overall Biomarker Pairwise Comparisons"
   )
-  get_p_table(
-    pwc_confounders_overall,
-    "Overall Confounder Pairwise Comparisons"
+  pwc_confounders_overall %>% construct_table(
+    title = "Overall Confounder Pairwise Comparisons"
   )
 }
 ```
@@ -793,9 +778,7 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-**It doesn't matter whether we use holm or hommel, so perhaps we should use hommel.**
-
-### Add raw Ns to dataframe
+### Add n training and testing datasets to dataframe
 
 ```{r add_n}
 add_n_age_groups <- function(summary_data, data, per_age_group = FALSE) {
@@ -882,11 +865,12 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-## Assess Rate of Aging
+## Assess rate of aging
 
-### Compare Linear vs Quadratic vs Smooth Age Fits
+### Compare linear vs quadratic vs smooth age fits
 
-We do a partial F-test to compare a full model with a constrained model, to see if the added term significantly improves fit.
+We do a partial F-test to compare a full model with a constrained model, to see if the added term
+significantly improves fit.
 
 ```{r compare_aging_models}
 anova(
@@ -916,56 +900,60 @@ c(
     )
   )
 ) %>%
-  get_p_table(title = "RMSE (In-Sample)")
+  construct_table(
+    title = "RMSE (In-Sample)"
+  )
 ```
 
-*We see that the quadratic curve fits better than the linear one, so the rate of
-aging is not linear, and the smooth curve fits better than the quadratic one, so there are deviations from a quadratic pattern*
+**We see that the quadratic curve fits better than the linear one, so the rate of aging is not
+linear, and the smooth curve fits better than the quadratic one, so there are deviations from a
+quadratic pattern**
 
-### Assess Where Rate of Aging Differs
+### Assess where rate of aging differs
 
-By taking the derivative of the full model (with smooth) and subtracting the derivative of the nested quadratic model, we can test against zero to test deviations from a quadratic pattern.
+By taking the derivative of the full model (with smooth) and subtracting the derivative of the
+nested quadratic model, we can test against zero to test deviations from a quadratic pattern.
 
-When making a smooth (or linear) model, we
-fit a line to noisy data as best we can, but other lines with different
-coefficients might fit almost as well and be better for some data points then
-for others. Therefore, there is an uncertainty. We can say that, for example,
-the best-guess slope is 5 (5 increase fletcher index per year). But because the
-data is noisy, assuming a normal distribution, we know that the true slope that
-would actually fit the sampling population may be something different within a
-certain range of uncertainty (say, 2), which we can express as a standard error.
-When figuring out the derivative, we inherent this uncertainty. This standard
-error is what we can use to assess the likelihood of the null-hypothesis:
+When making a smooth (or linear) model, we fit a line to noisy data as best we can, but other lines
+with different coefficients might fit almost as well and be better for some data points then for
+others. Therefore, there is an uncertainty. We can say that, for example, the best-guess slope is 5
+(5 increase fletcher index per year). But because the data is noisy, assuming a normal distribution,
+we know that the true slope that would actually fit the sampling population may be something
+different within a certain range of uncertainty (say, 2), which we can express as a standard error.
+When figuring out the derivative, we inherent this uncertainty. This standard error is what we can
+use to assess the likelihood of the null-hypothesis:
 
-H0: The rate of aging is quadratic, so the GAM derivative minus the quadratic coefficients equals 0. H1: The rate of aging is non-quadratic, so the GAM derivative minus the quadratic coefficients is not 0.
+**H0**: The rate of aging is quadratic, so the GAM derivative minus the quadratic coefficients
+equals 0.
 
-With a p-value of 0.05, we can say that if we randomly sample 100 times from the
-population and the rate of aging IS linear, then 5 times we'll see a significant
-non-zero smooth term.
+**H1**: The rate of aging is non-quadratic, so the GAM derivative minus the quadratic coefficients
+is not 0.
 
-Depending on the variation/noise in the data, the smooth term derivative needs
-to be larger or smaller compared to 0 to get a p-value of 0.05. If the variation
-in the data is higher, the standard error is higher, and the derivative of the
-smooth term must be higher to get a p-value of 0.05 or lower.
+With a p-value of 0.05, we can say that if we randomly sample 100 times from the population and the
+rate of aging **is** quadratic, then 5 times we'll see a significant non-zero smooth term.
 
-Of course, we want to know at which age ranges we have a non-zero slope, so we
-can either test for each 10 year age group or test for each individual age
-integer with correct pairwise comparison corrections.
+Depending on the variation/noise in the data, the smooth term derivative needs to be larger or
+smaller compared to 0 to get a p-value of 0.05. If the variation in the data is higher, the standard
+error is higher, and the derivative of the smooth term must be higher to get a p-value of 0.05 or
+lower.
 
-A two-tailed p-value can be calculated when we know a z-score, which is
-calculated as sample mean - hypothesized mean divided by the standard error. The
-hypothesized mean is 0. For a two-tailed t-test, we then take `2 * pnorm(abs(z_score), lower.tail = FALSE)`. If we'd want to only know the left
-tail, we'd use `lower.tail = TRUE`.
+We want to know at which age ranges we have a non-zero slope, so we can either test for each 10 year
+age group or test for each individual age integer with correct pairwise comparison corrections.
 
-Because the t-tests are dependent and are likely to be either higher or lower
-when one is higher (because ages are adjacent and the aging rate can be either
-higher or lower), we should use Holm's correction.
+A two-tailed p-value can be calculated when we know a z-score, which is calculated as sample mean -
+hypothesized mean divided by the standard error. The hypothesized mean is 0. For a two-tailed
+t-test, we then take `2 * pnorm(abs(z_score), lower.tail = FALSE)`. If we'd want to only know the
+left tail, we'd use `lower.tail = TRUE`.
 
-To identify significant boundaries, check which pairwise comparisons are
-significant, then check if the previous row was significant, then whenever a row
-is significant but the previous one was, change the value by 1 (using cumsum),
-or if the previous row was not significant but the current one is, also change
-by 1 to identify stretches. Then take the first and last values of the stretches
+Because the t-tests are dependent and are likely to be either higher or lower when one is higher
+(because ages are adjacent and the aging rate can be either higher or lower), we should use Holm's
+correction, which will be too strict as pairwise comparisons are not independent, so type II error
+rate is high.
+
+To identify significant boundaries, check which pairwise comparisons are significant, then check if
+the previous row was significant, then whenever a row is significant but the previous one was,
+change the value by 1 (using `cumsum()`), or if the previous row was not significant but the current
+one is, also change by 1 to identify stretches. Then take the first and last values of the stretches
 to identify boundaries. Only keep the significant stretches.
 
 ```{r find_sig_ages}
@@ -1017,5 +1005,7 @@ pwc_age_rate_boundaries <- pwc_age_rate %>%
 
 pwc_age_rate_boundaries %>%
   select(`Significantly non-linear age ranges`) %>%
-  get_p_table(title = "Boundaries")
+  construct_table(
+    title = "Boundaries"
+  )
 ```
