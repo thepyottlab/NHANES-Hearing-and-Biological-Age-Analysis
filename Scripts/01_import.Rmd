@@ -67,5 +67,28 @@ confounder_vars <- confounder_interactions[!grepl(",", confounder_interactions)]
 ## Import data
 
 ```{r import_data}
-df_raw <- read.csv(here("Data", "dataset_bioage.csv"))
+  import_nhanes_data <- function(data_path) {
+    files <- list.files(
+      data_path,
+      pattern = "\\.xpt$",
+      full.names = TRUE,
+      ignore.case = TRUE
+    )
+    tibble(
+      file = files,
+      year = str_extract(
+        tools::file_path_sans_ext(
+          basename(files)
+        ),
+        "\\d{4}-\\d{4}$"
+      ),
+      cohort = substr(year, 1, 4),
+      data = map(
+        file, ~ read_xpt(.x)
+      )
+    )
+  }
+  df_raw <- import_nhanes_data(here("Data", "Raw data"))
+
+  # df_raw <- read.csv(here("Data", "dataset_bioage.csv"))
 ```

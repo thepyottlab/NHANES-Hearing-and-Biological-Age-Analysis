@@ -14,52 +14,19 @@ don't match according to SEQN (ID) and create a `year` column and `cohort` colum
 first 4 characters from `year`. `imap_dfr()` applies this to each year (map), returns the index (i)
 and row-binds into a dataframe (dfr).
 
+### Select columns
+
 ```{r}
-import_nhanes_data <- function(data_path, column_path, column_name_path) {
-  files <- list.files(
-    data_path,
-    pattern = "\\.xpt$",
-    full.names = TRUE,
-    ignore.case = TRUE
-  )
+select_columns <- function(data_map, column_path, column_name_path) {
   # Read columns to select from text file
-  col_spec <- readLines(column_path)
+  col_spec <- read.csv(column_path)
 
-  # Build column spec sheet with metadata to select columns on
-  col_spec <- tibble(line = col_spec) %>%
-    mutate(
-      dataset = str_extract(line, "^[^_]+"),
-      year_group = str_extract(line, "\\d{4}"),
-      cols = str_extract(line, "(?<=select\\().*(?=\\))") %>% str_split(",\\s*")
-    ) %>%
-      unnest(., cols)  %>% select(-line)
-  
-  # 
-  # %>%
-  #   group_by(year_group) %>%
-  #   summarize(
-  #     select_cols = list(unique(unlist(cols))),
-  #     .groups = "drop"
-  #   )
-  # 
-  col_name_spec <- readLines(column_name_path)
-
-  browser()
-
-  # Load data with metadata from filename
-  data_map <- tibble(
-    file = files,
-    year = str_extract(
-      tools::file_path_sans_ext(
-        basename(files)
-      ),
-      "\\d{4}-\\d{4}$"
-    ),
-    cohort = substr(year, 1, 4),
-    data = map(
-      file, ~ read_xpt(.x)
+  col_spec <- col_spec %>%
+    group_by(year_group) %>%
+    summarize(
+      select_cols = list(unique(cols)),
+      .groups = "drop"
     )
-  )
 
   # Merge data from the same year into one dataframe
   data_map <- data_map %>%
@@ -70,7 +37,7 @@ import_nhanes_data <- function(data_path, column_path, column_name_path) {
     )
 
   # Select columns to keep per year
-  data_map <- data_map %>%
+  data_map %>%
     mutate(
       data = map2(data, cohort, \(df, yr) {
         cols_to_keep <- unlist(
@@ -83,18 +50,54 @@ import_nhanes_data <- function(data_path, column_path, column_name_path) {
           select(all_of(cols_to_keep))
       })
     )
-
-
-  browser()
 }
+```
+
+### Rename columns
+
+```{r}
+parse_rename_file <- function(path) {
+  lines <- readLines(path, warn = FALSE)
+
+  year <- NA_character_
+  out <- list()
+  k <- 1
+
+  for (line in lines) {
+    line <- str_trim(line)
+    # Skip empty lines
+    if (line == "") next
+
+    # Detect start of a dataset block, e.g. dataset_1999 <- dataset_1999 %>%
+    m_year <- str_match(line, "^dataset_(\\d+)\\s*<-")
+    if (!is.na(m_year[1, 2])) {
+      year <- m_year[1, 2]
+      next
+    }
+
+    # Detect rename pairs like: firearm = AUQ210,
+    m_map <- str_match(line, "^([A-Za-z0-9_]+)\\s*=\\s*([A-Za-z0-9_]+)\\s*,?$")
+    if (!is.na(m_map[1, 2]) && !is.na(year)) {
+      out[[k]] <- tibble(
+        year = as.integer(year),
+        new_name = m_map[1, 2],
+        old_name = m_map[1, 3]
+      )
+      k <- k + 1
+    }
+  }
+
+  bind_rows(out)
+}
+
+df_map <- parse_rename_file(here("Data", "column_names_per_year.txt"))
 
 ```
 
 ```{r}
-df_raw <- import_nhanes_data(
-  data_path = here("Data", "Raw data"),
-  column_path = here("Data", "columns_per_year.txt"),
-  column_name_path = here("Data", "column_names_per_year.txt")
+df <- select_columns(
+  data_map = df_raw,
+  column_path = here("Specs", "column_spec.csv"),
 )
 ```
 
