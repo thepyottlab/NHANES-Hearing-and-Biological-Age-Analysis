@@ -38,7 +38,7 @@ library(tidytable) # for fast data loading
 ## Import helpers
 
 ```{r get_helpers}
-source(here("Scripts", "helpers.R"))
+source(here("Scripts", "Helpers", "helpers.R"))
 ```
 
 ## Print params for knitted reports
@@ -49,6 +49,19 @@ kable(
     unclass(params)
   )
 )
+```
+
+## Unpack confounders list
+
+We take the param value for confounders and build one lists with all included interactions with age
+and one with just the variables.
+
+```{r confounder_list}
+confounder_interactions <- trimws(
+  strsplit(params$confounders, "_")[[1]]
+)
+
+confounder_vars <- confounder_interactions[!grepl(",", confounder_interactions)]
 ```
 
 ## Import data

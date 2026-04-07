@@ -5,7 +5,7 @@ date: "`r format(Sys.Date(), '%B %d, %Y')`"
 
 knit: 
   (function(inputFile, encoding) { 
-    source(here::here('Scripts','rmd_param_knitter.R'));
+    source(here::here('Scripts', 'Helpers', 'rmd_param_knitter.R'));
   
     filename_constructor <- function(params, inputFile) {
       parts <- c(
@@ -51,16 +51,16 @@ params:
   telolength:
     label: "Analyze telomere length"
     input: checkbox
-    value: TRUE
+    value: FALSE
     help: "Check to use telolength dataset with smaller N"
   global_k:
     label: "K (n BAM base functions)"
-    value: 50
+    value: 50 
     input: numeric
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   global_discrete: 
     label: "Discretize BAM"
-    value: TRUE
+    value: FALSE
     input: checkbox
     help: "Check to speed up fitting but create larger models that perform a little worse"
   global_folds: 
@@ -75,12 +75,12 @@ params:
     help: "Set repeat number"
   store_model_results:
     label: "Store model results"
-    value: FALSE
+    value: TRUE
     input: checkbox
     help: "Set to save large model results locally for fast reloading"
   load_model_results:
     label: "Load model results"
-    value: TRUE
+    value: FALSE
     input: checkbox
     help: "Set to skip refitting of k-fold validation if model results are present"
   keep_models:
@@ -128,8 +128,8 @@ params:
 
 # Set-up
 
-We set graphics device to ragg, set wd to here::here(), set contrasts by default to compare each
-level to the overall mean as opposed to reference, and import packages. The run_module() function
+We set graphics device to ragg, set wd to `here::here()`, set contrasts by default to compare each
+level to the overall mean as opposed to reference, and import packages. The `run_module()` function
 checks if knitting or interactive session is in progress. If knitting, return markdown output, if
 interactive, only run code in environment and print a time message.
 

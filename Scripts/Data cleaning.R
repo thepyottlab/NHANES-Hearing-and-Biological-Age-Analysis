@@ -1044,6 +1044,10 @@ dataset_all_clean <- subset(dataset_all_clean, pta_diff < 15)
 drop <- c("BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4", "LBXHSCRP", "BPXOSY1", "BPXOSY2", "BPXOSY3", "LBXSCR", "LBDSCRSI")
 dataset_all_clean <- dataset_all_clean[, !(names(dataset_all_clean) %in% drop)]
 
+
+# Remove subjects with missing biomarkers
+biomarkers <- c("albumin", "albumin_gL", "alp", "lncrp", "totchol", "creat", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc")
+
 # Removing NAs
 dataset_all_clean <- dataset_all_clean[complete.cases(dataset_all_clean[, c("albumin", "alp", "totchol", "crp", "creat", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc")]), ]
 
@@ -1143,12 +1147,15 @@ female_new <- subset(female, albumin >= albumin_mean_f - 5 * albumin_sd_f & albu
 
 dataset_all_clean <- rbind(male_new, female_new)
 
+
+dataset_all_clean 
+
 # Calculate biological age ----------------------------------------------------------
 library(dplyr)
-r_files <- list.files(here("Scripts", "Modified Kwon Scripts"),
+r_files <- list.files(here("Scripts", "Bioage Package"),
   pattern = "\\.R$", full.names = TRUE
 )
-lapply(r_files, source, local = TRUE, echo = FALSE)
+lapply(r_files, source)
 
 load(here("Data", "NHANES3.rda"))
 load(here("Data", "NHANES3_HDTrain.rda"))

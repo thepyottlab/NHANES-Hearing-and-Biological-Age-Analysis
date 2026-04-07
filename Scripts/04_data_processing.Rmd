@@ -82,11 +82,11 @@ emtrends we can calculate simultaneous intervals with "mvt". Emtrends also works
 
 ```{r predict_aging}
 predict_age_rate <- function(
-    df, 
-    model, 
-    predictor = "age", 
-    type = c("predict", "predict_derivative")
-    ) {
+  df,
+  model,
+  predictor = "age",
+  type = c("predict", "predict_derivative")
+) {
   ages <- setNames(
     list(
       seq(

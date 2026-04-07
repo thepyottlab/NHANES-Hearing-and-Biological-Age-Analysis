@@ -437,13 +437,13 @@ plot_theme <- function(global_params = params) {
     theme_few(),
     theme(
       axis.text.x = element_markdown(
-        "sans", 
+        "sans",
         size = config$text_size_primary
-        ),
+      ),
       axis.text.y = element_markdown(
-        "sans", 
+        "sans",
         size = config$text_size_primary
-        ),
+      ),
       strip.text.x = element_markdown(
         "sans",
         size = config$text_size_secondary,
@@ -523,6 +523,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         config = config,
         axis = "x",
         type = "continuous",
+        breaks = seq(0, 20, 20),
         limits = c(-20, 20),
         name = "Age Acceleration",
         unit = "PhenoAge – Age (Years)"

@@ -468,13 +468,13 @@ regular predictors (which exclude covariates in the label).
 
 ```{r fun_CV}
 cross_validation <- function(
-    data, 
-    formulas, 
-    k, 
-    repeats, 
-    discrete = FALSE, 
-    keep_models = FALSE, 
-    confounder_analysis = FALSE
+  data,
+  formulas,
+  k,
+  repeats,
+  discrete = FALSE,
+  keep_models = FALSE,
+  confounder_analysis = FALSE
 ) {
   # Initialize age groups to stratify by and repeat column names that contain fold specification
   age_groups <- c(
@@ -1120,7 +1120,7 @@ See the link below for more info on constructing interaction terms:
 
 ```{r compare_wiggliness}
 if (isTRUE(params$run_optional_chunks)) {
-  compare_wiggliness <- function(df, k) {
+  compare_wiggliness <- function(df, k, discrete = FALSE) {
     m1 <- bam(
       as.formula(
         paste0(
@@ -1134,7 +1134,8 @@ if (isTRUE(params$run_optional_chunks)) {
         )
       ),
       data = df,
-      method = "REML"
+      method = if (isTRUE(discrete)) "fREML" else "REML",
+      discrete = if (isTRUE(discrete)) TRUE else FALSE
     )
 
     m2 <- bam(
@@ -1151,7 +1152,8 @@ if (isTRUE(params$run_optional_chunks)) {
         )
       ),
       data = df,
-      method = "REML"
+      method = if (isTRUE(discrete)) "fREML" else "REML",
+      discrete = if (isTRUE(discrete)) TRUE else FALSE
     )
 
     print(
@@ -1169,7 +1171,10 @@ if (isTRUE(params$run_optional_chunks)) {
     )
   }
 
-  compare_wiggliness(df, k = params$global_k)
+  compare_wiggliness(
+    df, 
+    k = params$global_k, 
+    discrete = params$global_discrete)
 }
 ```
 
@@ -1180,7 +1185,7 @@ deviance. The improvement in fit is not significant, so enforce shared smoothing
 
 ```{r conf_interactions}
 if (isTRUE(params$run_optional_chunks)) {
-  compare_confounder_interactions <- function(df, k, equal_wiggliness, return_model = FALSE) {
+  compare_confounder_interactions <- function(df, k, equal_wiggliness, discrete = FALSE, return_model = FALSE) {
     # Pull confounders, cross them, keep copy with var1 being first (alphabetical), paste by comma
     terms <- c(
       confounder_vars,
@@ -1201,7 +1206,7 @@ if (isTRUE(params$run_optional_chunks)) {
           ", bs = 'sz', k = ",
           k,
           ", id = ",
-          seq_along(smooth_terms),
+          seq_along(terms),
           ")"
         )
       )
@@ -1228,7 +1233,8 @@ if (isTRUE(params$run_optional_chunks)) {
         )
       ),
       data = df,
-      method = "REML"
+      method = if (isTRUE(discrete)) "fREML" else "REML",
+      discrete = if (isTRUE(discrete)) TRUE else FALSE
     )
 
     print(summary(m0))
@@ -1243,7 +1249,8 @@ if (isTRUE(params$run_optional_chunks)) {
     compare_confounder_interactions(
       df,
       k = 5,
-      equal_wiggliness = TRUE
+      equal_wiggliness = TRUE,
+      discrete = params$global_discrete
     )
   })
 }
@@ -1323,18 +1330,8 @@ if (isTRUE(params$run_optional_chunks)) {
     subsample = 5000,
     reps = 400
   ) %>%
-    kable(
-      "html",
-      caption = "Inspect K Bioage"
-    ) %>%
-    kable_styling(
-      bootstrap_options = c("striped", "hover"),
-      full_width = FALSE,
-      position = "left",
-      font_size = 12,
-      fixed_thead = TRUE
-    ) %>%
-    scroll_box(width = "100%", height = "400px")
+    construct_table(title = "Inspect K Bioage")
+
 
   inspect_k_values(df,
     formula_list_biomarkers,
@@ -1342,18 +1339,7 @@ if (isTRUE(params$run_optional_chunks)) {
     subsample = 5000,
     reps = 400
   ) %>%
-    kable(
-      "html",
-      caption = "Inspect K Biomarkers"
-    ) %>%
-    kable_styling(
-      bootstrap_options = c("striped", "hover"),
-      full_width = FALSE,
-      position = "left",
-      font_size = 12,
-      fixed_thead = TRUE
-    ) %>%
-    scroll_box(width = "100%", height = "400px")
+    construct_table(title = "Inspect K Biomarkers")
 }
 ```
 
@@ -1385,6 +1371,6 @@ if (isTRUE(params$run_optional_chunks)) {
     }
   }
 
-  test_cv(run = TRUE, k = 5)
+  test_cv(run = FALSE, k = 5)
 }
 ```

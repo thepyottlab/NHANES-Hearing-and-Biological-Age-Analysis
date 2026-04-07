@@ -6,10 +6,97 @@ editor_options:
 
 # Data Preprocessing
 
-## Unpack confounders list
+## Data cleaning
 
-We take the param value for confounders and build one lists with all included interactions with age
-and one with just the variables
+We make a list of files, store the year and filename from each file, then append the data to the
+row. Next, we take all the files from one year and join the rows if they match or columns if they
+don't match according to SEQN (ID) and create a `year` column and `cohort` column that takes the
+first 4 characters from `year`. `imap_dfr()` applies this to each year (map), returns the index (i)
+and row-binds into a dataframe (dfr).
+
+```{r}
+import_nhanes_data <- function(data_path, column_path, column_name_path) {
+  files <- list.files(
+    data_path,
+    pattern = "\\.xpt$",
+    full.names = TRUE,
+    ignore.case = TRUE
+  )
+  # Read columns to select from text file
+  col_spec <- readLines(column_path)
+
+  # Build column spec sheet with metadata to select columns on
+  col_spec <- tibble(line = col_spec) %>%
+    mutate(
+      dataset = str_extract(line, "^[^_]+"),
+      year_group = str_extract(line, "\\d{4}"),
+      cols = str_extract(line, "(?<=select\\().*(?=\\))") %>% str_split(",\\s*")
+    ) %>%
+      unnest(., cols)  %>% select(-line)
+  
+  # 
+  # %>%
+  #   group_by(year_group) %>%
+  #   summarize(
+  #     select_cols = list(unique(unlist(cols))),
+  #     .groups = "drop"
+  #   )
+  # 
+  col_name_spec <- readLines(column_name_path)
+
+  browser()
+
+  # Load data with metadata from filename
+  data_map <- tibble(
+    file = files,
+    year = str_extract(
+      tools::file_path_sans_ext(
+        basename(files)
+      ),
+      "\\d{4}-\\d{4}$"
+    ),
+    cohort = substr(year, 1, 4),
+    data = map(
+      file, ~ read_xpt(.x)
+    )
+  )
+
+  # Merge data from the same year into one dataframe
+  data_map <- data_map %>%
+    group_by(cohort) %>%
+    summarise(
+      data = list(reduce(data, full_join, by = "SEQN")),
+      .groups = "drop"
+    )
+
+  # Select columns to keep per year
+  data_map <- data_map %>%
+    mutate(
+      data = map2(data, cohort, \(df, yr) {
+        cols_to_keep <- unlist(
+          col_spec %>%
+            filter(year_group == yr) %>%
+            pull(select_cols)
+        )
+
+        df %>%
+          select(all_of(cols_to_keep))
+      })
+    )
+
+
+  browser()
+}
+
+```
+
+```{r}
+df_raw <- import_nhanes_data(
+  data_path = here("Data", "Raw data"),
+  column_path = here("Data", "columns_per_year.txt"),
+  column_name_path = here("Data", "column_names_per_year.txt")
+)
+```
 
 ## Filter & rename columns
 
