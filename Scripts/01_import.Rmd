@@ -30,9 +30,10 @@ library(cowplot) # for combined plots
 library(sameplot) # for plotting consistently
 
 # Data operations
+library(flexsurv) # for calculating phenoage
 library(data.table) # for speedy dataframes
 library(tidyverse) # for general data operations
-library(tidytable) # for fast data loading
+#library(tidytable) # for fast data loading
 ```
 
 ## Import helpers

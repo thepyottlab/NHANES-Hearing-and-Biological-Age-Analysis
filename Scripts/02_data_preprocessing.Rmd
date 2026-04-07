@@ -4,9 +4,9 @@ editor_options:
     wrap: 100
 ---
 
-# Data Preprocessing
+# Data preprocessing
 
-## Data cleaning
+## Data selection & standardization
 
 We make a list of files, store the year and filename from each file, then append the data to the
 row. Next, we take all the files from one year and join the rows if they match or columns if they
@@ -16,9 +16,11 @@ and row-binds into a dataframe (dfr).
 
 ### Select columns
 
+We intentionally do not select creat_umol columns ([;) if we have to restandardize them later (1999
+and 2005)
+
 ```{r}
-select_columns <- function(data_map, column_path, column_name_path) {
-  # Read columns to select from text file
+select_columns <- function(data_map, column_path) {
   col_spec <- read.csv(column_path)
 
   col_spec <- col_spec %>%
@@ -47,7 +49,8 @@ select_columns <- function(data_map, column_path, column_name_path) {
         )
 
         df %>%
-          select(all_of(cols_to_keep))
+          select(all_of(cols_to_keep)) %>%
+          mutate(year = factor(yr))
       })
     )
 }
@@ -56,49 +59,446 @@ select_columns <- function(data_map, column_path, column_name_path) {
 ### Rename columns
 
 ```{r}
-parse_rename_file <- function(path) {
-  lines <- readLines(path, warn = FALSE)
+rename_columns <- function(data_map, column_name_path) {
+  col_name_spec <- read.csv(column_name_path)
 
-  year <- NA_character_
-  out <- list()
-  k <- 1
+  data_map %>%
+    mutate(
+      data = map2(data, cohort, \(df, yr) {
+        rename_spec <- col_name_spec %>%
+          filter(year == yr)
 
-  for (line in lines) {
-    line <- str_trim(line)
-    # Skip empty lines
-    if (line == "") next
+        df %>%
+          rename_with(
+            ~ rename_spec$new_name[which(rename_spec$old_name == .x)], 
+            .cols = rename_spec$old_name
+            )
+      })
+    )
+}
+```
 
-    # Detect start of a dataset block, e.g. dataset_1999 <- dataset_1999 %>%
-    m_year <- str_match(line, "^dataset_(\\d+)\\s*<-")
-    if (!is.na(m_year[1, 2])) {
-      year <- m_year[1, 2]
-      next
-    }
+### Merge dataframe and create ID vars
 
-    # Detect rename pairs like: firearm = AUQ210,
-    m_map <- str_match(line, "^([A-Za-z0-9_]+)\\s*=\\s*([A-Za-z0-9_]+)\\s*,?$")
-    if (!is.na(m_map[1, 2]) && !is.na(year)) {
-      out[[k]] <- tibble(
-        year = as.integer(year),
-        new_name = m_map[1, 2],
-        old_name = m_map[1, 3]
+```{r}
+merge_data <- function(data_map) {
+  data_map %>%
+  pull(data) %>%
+  bind_rows() %>%
+    mutate(sampleID = paste(year, SEQN, sep = "_")) %>%
+    relocate(SEQN, sampleID, year)
+}
+```
+
+### Standardize values
+
+Creatinine in 1999 and 2005 and CRP in 2015 and 2017 are standardized. SBP is averaged over multiple
+measurements.
+
+```{r}
+standardize_values <- function(data_map) {
+#  browser()
+  data_map %>%
+    mutate(
+      creat = case_when(
+        year == 1999 ~ LBXSCR * 1.013 + 0.147,
+        year == 2005 ~ LBXSCR * 0.978 - 0.016,
+        TRUE ~ creat
+      ),
+      creat_umol = case_when(
+        year %in% c(1999, 2005) ~ creat * 88.4,
+        TRUE ~ creat_umol
+      ),
+      crp = case_when(
+        year %in% c(2015, 2017) ~ LBXHSCRP / 10,
+        TRUE ~ crp
+      ),
+      lncrp = log(crp + 1),
+      lncreat = log(creat + 1),
+      lncreat_umol = log(creat_umol + 1),
+      telolength_log = log(telolength)
+      ) %>%
+    rowwise() %>%
+    mutate(
+      sbp = case_when(
+        year == 2017 ~ mean(c(BPXOSY1, BPXOSY2, BPXOSY3), na.rm = TRUE),
+        TRUE ~ mean(c(BPXSY1, BPXSY2, BPXSY3, BPXSY4), na.rm = TRUE)
       )
-      k <- k + 1
-    }
-  }
+    ) %>%
+    ungroup() %>%
+    select(
+      -LBXSCR,
+      -LBXHSCRP,
+      -BPXSY1,
+      -BPXSY2,
+      -BPXSY3,
+      -BPXSY4,
+      -BPXOSY1, 
+      -BPXOSY2,
+      -BPXOSY3
+    )
+}
+```
 
-  bind_rows(out)
+### Data selection & renaming pipeline
+
+```{r}
+df_unfiltered <- df_raw %>%
+  select_columns(
+    column_path = here("Specs", "column_spec.csv")
+  ) %>%
+  rename_columns(
+    column_name_path = here("Specs", "column_name_spec.csv")
+  ) %>%
+  merge_data() %>%
+  standardize_values()
+```
+
+#### Function to construct table
+
+Takes a dataframe and title and makes a scrollable table.
+
+```{r fun_formula_table}
+construct_table <- function(formula_list, title) {
+  formula_list %>%
+    kable(
+      "html",
+      caption = title
+    ) %>%
+    kable_styling(
+      bootstrap_options = c("striped", "hover"),
+      full_width = FALSE,
+      position = "left",
+      font_size = 12,
+      fixed_thead = TRUE
+    ) %>%
+    scroll_box(width = "100%", height = "400px")
+}
+```
+
+#### Check completeness
+
+```{r}
+ df_unfiltered %>%
+  group_by(year) %>%
+  summarise(across(everything(), ~ sum(!is.na(.)), .names = "n_{.col}")) %>%
+  select(year, where(~ any(. == 0))) %>% 
+   construct_table(title = "Check missingness")
+```
+
+Income is missing in 2017 but should be there according to the website as INDFMIN2. CRP is missing
+in 2011, which seems to be correct. Telomere length was only assessed in early cohorts. Dialysis and
+job exposure were only assessed in later cohorts.
+
+## Calculate hearing metrics
+
+```{r}
+calculate_hearing <- function(data) {
+  data %>%
+    rowwise() %>%
+    mutate(
+      test_retest_diff_left = abs(audio_left_1000 - audio_left_1000_retest),
+      test_retest_diff_right = abs(audio_right_1000 - audio_right_1000_retest),
+      audio_right_1000_mean = mean(c(audio_right_1000, audio_right_1000_retest), na.rm = TRUE),
+      audio_left_1000_mean = mean(c(audio_left_1000, audio_left_1000_retest), na.rm = TRUE),
+      fi_low_r = mean(c(audio_right_500, audio_right_1000, audio_right_2000), na.rm = TRUE),
+      fi_low_l = mean(c(audio_left_500, audio_left_1000, audio_left_2000), na.rm = TRUE),
+      fi_low = mean(c(fi_low_r, fi_low_l), na.rm = TRUE),
+      fi_high_r = mean(c(audio_right_4000, audio_right_6000, audio_right_8000), na.rm = TRUE),
+      fi_high_l = mean(c(audio_left_4000, audio_left_6000, audio_left_8000), na.rm = TRUE),
+      fi_high = mean(c(fi_high_r, fi_high_l), na.rm = TRUE),
+      pta_r = mean(c(
+        audio_right_500,
+        audio_right_1000,
+        audio_right_2000,
+        audio_right_4000
+      ), na.rm = TRUE),
+      pta_l = mean(c(
+        audio_left_500,
+        audio_left_1000,
+        audio_left_2000,
+        audio_left_4000
+      ), na.rm = TRUE),
+      pta = mean(c(pta_r, pta_l)),
+      pta_diff = abs(pta_r - pta_l)
+    ) %>%
+    ungroup()
 }
 
-df_map <- parse_rename_file(here("Data", "column_names_per_year.txt"))
+df_unfiltered <- df_unfiltered %>% calculate_hearing()
+```
+
+## Data filtering
+
+We keep any columns we may need at this stage or have already used, such as the individual
+audiometry columns.
+
+```{r}
+filter_data <- function(data) {
+  verbose_filter <- function(data, ..., label) {
+    start_n <- nrow(data)
+    data_filtered <- data %>% filter(...)
+    message(start_n - nrow(data_filtered), "/", start_n, " excluded due to ", label)
+
+    data_filtered
+  }
+
+  audiometry_cols <- data %>%
+    select(contains("audio")) %>%
+    colnames()
+
+  biomarkers <- c(
+    "albumin", 
+    "alp", 
+    "lncrp", 
+    "totchol", 
+    "lncreat", 
+    "hba1c", 
+    "sbp", 
+    "bun", 
+    "uap", 
+    "lymph", 
+    "mcv", 
+    "wbc"
+    )
+
+  data <- data %>%
+    verbose_filter(
+      case_when(
+        year %in% c(1999, 2001, 2003, 2005) ~ age < 85,
+        TRUE ~ age < 80
+      ),
+      label = "too old age."
+    ) %>%
+    verbose_filter(
+      age >= 20,
+      label = "too young age."
+    ) %>%
+    verbose_filter(
+      !if_any(all_of(audiometry_cols), ~ . == 888),
+      !if_any(all_of(audiometry_cols), ~ . == 666),
+      !if_any(all_of(audiometry_cols), ~ is.na(.)),
+      label = "missing audiometry data."
+    ) %>%
+    verbose_filter(
+      test_retest_diff_left < 10,
+      test_retest_diff_right < 10,
+      label = "too large test-retest difference."
+    ) %>%
+    verbose_filter(
+      pta_diff < 15,
+      label = "too large imbalance in left/right hearing loss."
+    ) %>%
+    verbose_filter(
+      pregnant != 1 | is.na(pregnant),
+      label = "pregnancy."
+    ) %>%
+    verbose_filter(
+      !if_any(all_of(biomarkers), ~ is.na(.)),
+      label = "missing biomarkers."
+    ) %>%
+    group_by(gender) %>%
+    verbose_filter(
+      !if_any(
+        all_of(biomarkers),
+        ~ {
+          m <- mean(.x, na.rm = TRUE)
+          s <- sd(.x, na.rm = TRUE)
+          abs(.x - m) > 5 * s
+        }
+      ),
+      label = "biomarker outlier (greater or smaller than 5 SDs)."
+    ) %>%
+    ungroup()
+}
+
+df <- df_unfiltered %>% filter_data()
+```
+
+### Check data issues
+
+```{r}
+df_unfiltered %>%
+  mutate(
+    age_group = case_when(
+      age < 12              ~ "0–12",
+      age >= 12 & age <= 19  ~ "12–19",
+      age > 19 & age < 70  ~ "19–75",
+      age >= 70             ~ "75+",
+      TRUE                  ~ NA_character_
+    )
+  ) %>%
+  filter(!year %in% c(2007, 2011)) %>%
+  group_by(year, age_group) %>%
+  summarise(n_na = sum(is.na(audio_left_1000)),
+            n = n(),
+            .groups = "drop") %>%
+  mutate(prop_present = paste0(100 * round(1 - n_na / n, 2), "%")) %>%
+  select(-n_na, -n) %>%
+  pivot_wider(names_from = age_group, values_from = prop_present) %>% 
+  construct_table(title = "Show proportion audiometry present")
+
+df %>%
+  group_by(year) %>%
+  summarize(
+    age = paste0(round(mean(age), 1), "(", round(sd(age), 1), ")"),
+    fi_high = paste0(round(mean(fi_high), 1), "(", round(sd(fi_high), 1), ")"),
+    fi_low = paste0(round(mean(fi_low), 1), "(", round(sd(fi_low), 1), ")"),
+    albumin = paste0(round(mean(albumin), 1), "(", round(sd(albumin), 1), ")"),
+    alp = paste0(round(mean(alp), 1), "(", round(sd(alp), 1), ")"),
+    lncrp = paste0(round(mean(lncrp), 1), "(", round(sd(lncrp), 1), ")"),
+    totchol = paste0(round(mean(totchol), 1), "(", round(sd(totchol), 1), ")"),
+    creat = paste0(round(mean(creat), 1), "(", round(sd(creat), 1), ")"),
+    hba1c = paste0(round(mean(hba1c), 1), "(", round(sd(hba1c), 1), ")"),
+    sbp = paste0(round(mean(sbp), 1), "(", round(sd(sbp), 1), ")"),
+    bun = paste0(round(mean(bun), 1), "(", round(sd(bun), 1), ")"),
+    uap = paste0(round(mean(uap), 1), "(", round(sd(uap), 1), ")"),
+    lymph = paste0(round(mean(lymph), 1), "(", round(sd(lymph), 1), ")"),
+    mcv = paste0(round(mean(mcv), 1), "(", round(sd(mcv), 1), ")"),
+    wbc = paste0(round(mean(wbc), 1), "(", round(sd(wbc), 1), ")"),
+    .groups = "drop"
+  ) %>% construct_table(title = "Check cohort balance issues")
 
 ```
 
+Audiometry was not performed on main cohort for 2005, 2009 and 2017, so only people \>= 70 years
+were included from these years. Audiometry was only performed in 12-19 year olds in 2007-2008, so
+none are include from this cohort. ALP was much higher in 1999 despite age being normal. CRP was not
+collected in 2011, so none are included from this cohort. Totchol is lower in newer cohorts (even
+when included population is older).
+
+## Calculate biological age metrics
+
 ```{r}
-df <- select_columns(
-  data_map = df_raw,
-  column_path = here("Specs", "column_spec.csv"),
+bioage_calc <- function(data, training_data_path, HD_training_data_path, bioage_scripts_path) {
+  r_files <- list.files(bioage_scripts_path,
+    pattern = "\\.R$", full.names = TRUE
+  )
+  lapply(r_files, source)
+
+  v1_biomarkers <- c(
+    "fev",
+    "sbp",
+    "totchol",
+    "hba1c",
+    "albumin",
+    "creat",
+    "lncrp",
+    "alp",
+    "bun"
+  )
+  v2_biomarkers <- c(
+    "albumin",
+    "alp",
+    "lncrp",
+    "totchol",
+    "lncreat",
+    "hba1c",
+    "sbp",
+    "bun",
+    "uap",
+    "lymph",
+    "mcv",
+    "wbc"
+  )
+  v2_biomarkers_phenoage <- c(
+    "albumin_gL",
+    "alp",
+    "lncrp",
+    "totchol",
+    "lncreat_umol",
+    "hba1c",
+    "sbp",
+    "bun",
+    "uap",
+    "lymph",
+    "mcv",
+    "wbc"
+  )
+
+  load(training_data_path)
+  load(HD_training_data_path)
+
+  train_fem_kdm <- kdm_calc(
+    data = NHANES3 %>%
+      filter(gender == 2 & age >= 30 & age <= 75 & pregnant == 0),
+    v2_biomarkers, fit = NULL, s_ba2 = NULL, n_allowed_missing_biomarkers = 0
+  )
+  train_male_kdm <- kdm_calc(
+    data = NHANES3 %>%
+      filter(gender == 1 & age >= 30 & age <= 75),
+    v2_biomarkers, fit = NULL, s_ba2 = NULL, n_allowed_missing_biomarkers = 0
+  )
+  test_fem_kdm <- kdm_calc(
+    data = data %>%
+      filter(gender == 2),
+    v2_biomarkers, fit = train_fem_kdm$fit, s_ba2 = train_fem_kdm$fit$s_ba2, n_allowed_missing_biomarkers = 0
+  )
+
+  test_male_kdm <- kdm_calc(
+    data = data %>%
+      filter(gender == 1),
+    v2_biomarkers, fit = train_male_kdm$fit, s_ba2 = train_male_kdm$fit$s_ba2, n_allowed_missing_biomarkers = 0
+  )
+
+  test_kdm <- rbind(test_fem_kdm$data, test_male_kdm$data) 
+
+  data <- left_join(data, test_kdm[, c("sampleID", "kdm", "kdm_advance")], by = "sampleID")
+
+  train_phenoage <- phenoage_calc(
+    data = NHANES3 %>%
+      filter(age >= 20 & age <= 84),
+      biomarkers = v2_biomarkers_phenoage, 
+    fit = NULL
+  )
+
+  test_phenoage <- phenoage_calc(
+    data = data,
+     biomarkers = v2_biomarkers_phenoage, 
+    fit = train_phenoage$fit
+  )
+
+  test_kdm <- rbind(test_fem_kdm$data, test_male_kdm$data) %>%
+    rename(
+      kdm0 = kdm,
+      kdm_advance0 = kdm_advance
+    )
+
+  data <- left_join(data, test_phenoage$data[,c("sampleID", "phenoage", "phenoage_advance")], by = "sampleID")
+  
+  fem_hd <- hd_calc(
+    data = data %>%
+      filter(gender == 2),
+    reference = NHANES3_HDTrain %>%
+      filter(gender == 2),
+    v2_biomarkers
+  )
+  male_hd <- hd_calc(
+data = data %>%
+      filter(gender == 1),
+    reference = NHANES3_HDTrain %>%
+      filter(gender == 1),
+    v2_biomarkers
+  )
+
+  hd <- rbind(fem_hd$data, male_hd$data) 
+
+  data <- left_join(data, hd[, c("sampleID", "hd", "hd_log")], by = "sampleID")
+  
+  data
+}
+
+if ("tidytable" %in% loadedNamespaces()) {
+  unloadNamespace("tidytable")
+}
+
+df <- df %>% bioage_calc(
+  training_data_path = here("Data", "NHANES3.rda"),
+  HD_training_data_path = here("Data", "NHANES3_HDTrain.rda"),
+  bioage_scripts_path = here("Scripts", "Bioage Package")
 )
+
+suppressPackageStartupMessages(library(tidytable))
 ```
 
 ## Filter & rename columns
