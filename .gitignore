@@ -8,10 +8,11 @@
 .RDataTmp
 
 # Backups
-Bak/
+/Bak/
 
 # Output
 *.pptx
+/Output/
 
 # Environment/state
 /Models/

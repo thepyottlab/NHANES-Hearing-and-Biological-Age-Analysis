@@ -428,7 +428,7 @@ older).
 ## Calculate biological age metrics
 
 ```{r warning=FALSE}
-bioage_calc <- function(data, training_data_path, HD_training_data_path, bioage_scripts_path) {
+bioage_calc <- function(data, training_data_path, HD_training_data_path) {
   v1_biomarkers <- c(
     "fev", "sbp", "totchol", "hba1c", "albumin", "creat", "lncrp", "alp", "bun"
   )
@@ -525,9 +525,8 @@ if ("tidytable" %in% loadedNamespaces()) {
 }
 
 df <- df %>% bioage_calc(
-  training_data_path = here("Data", "NHANES3.rda"),
-  HD_training_data_path = here("Data", "NHANES3_HDTrain.rda"),
-  bioage_scripts_path = here("Scripts", "Bioage Package")
+  training_data_path = here("Data", "Training data", "NHANES3.rda"),
+  HD_training_data_path = here("Data", "Training data", "NHANES3_HDTrain.rda")
 )
 
 suppressPackageStartupMessages(library(tidytable))
@@ -590,7 +589,7 @@ df <- df %>%
     smoking %in% c(1, 2)
   ) %>%
   mutate(
-    race = case_when(race == 2 ~ 1, TRUE ~ race),
+    race = case_when(race == "2" ~ "1", TRUE ~ race),
   )
 ```
 
@@ -620,4 +619,3 @@ df <- df %>% mutate(
   confounders = interaction(gender, smoking)
 )
 ```
-

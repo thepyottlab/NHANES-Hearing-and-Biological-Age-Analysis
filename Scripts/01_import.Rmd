@@ -92,5 +92,5 @@ import_nhanes_data <- function(data_path) {
     )
   )
 }
-df_raw <- import_nhanes_data(here("Data", "Raw data"))
+df_raw <- import_nhanes_data(here("Data"))
 ```
