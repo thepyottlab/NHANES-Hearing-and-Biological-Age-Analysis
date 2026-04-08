@@ -70,9 +70,9 @@ rename_columns <- function(data_map, column_name_path) {
 
         df %>%
           rename_with(
-            ~ rename_spec$new_name[which(rename_spec$old_name == .x)], 
+            ~ rename_spec$new_name[which(rename_spec$old_name == .x)],
             .cols = rename_spec$old_name
-            )
+          )
       })
     )
 }
@@ -83,8 +83,8 @@ rename_columns <- function(data_map, column_name_path) {
 ```{r}
 merge_data <- function(data_map) {
   data_map %>%
-  pull(data) %>%
-  bind_rows() %>%
+    pull(data) %>%
+    bind_rows() %>%
     mutate(sampleID = paste(year, SEQN, sep = "_")) %>%
     relocate(SEQN, sampleID, year)
 }
@@ -97,7 +97,7 @@ measurements.
 
 ```{r}
 standardize_values <- function(data_map) {
-#  browser()
+  # browser()
   data_map %>%
     mutate(
       creat = case_when(
@@ -117,7 +117,7 @@ standardize_values <- function(data_map) {
       lncreat = log(creat + 1),
       lncreat_umol = log(creat_umol + 1),
       telolength_log = log(telolength)
-      ) %>%
+    ) %>%
     rowwise() %>%
     mutate(
       sbp = case_when(
@@ -133,7 +133,7 @@ standardize_values <- function(data_map) {
       -BPXSY2,
       -BPXSY3,
       -BPXSY4,
-      -BPXOSY1, 
+      -BPXOSY1,
       -BPXOSY2,
       -BPXOSY3
     )
@@ -179,11 +179,11 @@ construct_table <- function(formula_list, title) {
 #### Check completeness
 
 ```{r}
- df_unfiltered %>%
+df_unfiltered %>%
   group_by(year) %>%
   summarise(across(everything(), ~ sum(!is.na(.)), .names = "n_{.col}")) %>%
-  select(year, where(~ any(. == 0))) %>% 
-   construct_table(title = "Check missingness")
+  select(year, where(~ any(. == 0))) %>%
+  construct_table(title = "Check missingness")
 ```
 
 Income is missing in 2017 but should be there according to the website as INDFMIN2. CRP is missing
@@ -201,12 +201,12 @@ calculate_hearing <- function(data) {
       test_retest_diff_right = abs(audio_right_1000 - audio_right_1000_retest),
       audio_right_1000_mean = mean(c(audio_right_1000, audio_right_1000_retest), na.rm = TRUE),
       audio_left_1000_mean = mean(c(audio_left_1000, audio_left_1000_retest), na.rm = TRUE),
-      fi_low_r = mean(c(audio_right_500, audio_right_1000, audio_right_2000), na.rm = TRUE),
-      fi_low_l = mean(c(audio_left_500, audio_left_1000, audio_left_2000), na.rm = TRUE),
-      fi_low = mean(c(fi_low_r, fi_low_l), na.rm = TRUE),
-      fi_high_r = mean(c(audio_right_4000, audio_right_6000, audio_right_8000), na.rm = TRUE),
-      fi_high_l = mean(c(audio_left_4000, audio_left_6000, audio_left_8000), na.rm = TRUE),
-      fi_high = mean(c(fi_high_r, fi_high_l), na.rm = TRUE),
+      FI_low_r = mean(c(audio_right_500, audio_right_1000, audio_right_2000), na.rm = TRUE),
+      FI_low_l = mean(c(audio_left_500, audio_left_1000, audio_left_2000), na.rm = TRUE),
+      FI_low = mean(c(FI_low_r, FI_low_l), na.rm = TRUE),
+      FI_high_r = mean(c(audio_right_4000, audio_right_6000, audio_right_8000), na.rm = TRUE),
+      FI_high_l = mean(c(audio_left_4000, audio_left_6000, audio_left_8000), na.rm = TRUE),
+      FI_high = mean(c(FI_high_r, FI_high_l), na.rm = TRUE),
       pta_r = mean(c(
         audio_right_500,
         audio_right_1000,
@@ -248,19 +248,19 @@ filter_data <- function(data) {
     colnames()
 
   biomarkers <- c(
-    "albumin", 
-    "alp", 
-    "lncrp", 
-    "totchol", 
-    "lncreat", 
-    "hba1c", 
-    "sbp", 
-    "bun", 
-    "uap", 
-    "lymph", 
-    "mcv", 
+    "albumin",
+    "alp",
+    "lncrp",
+    "totchol",
+    "lncreat",
+    "hba1c",
+    "sbp",
+    "bun",
+    "uap",
+    "lymph",
+    "mcv",
     "wbc"
-    )
+  )
 
   data <- data %>%
     verbose_filter(
@@ -315,35 +315,65 @@ filter_data <- function(data) {
 df <- df_unfiltered %>% filter_data()
 ```
 
+### Set data types
+
+```{r}
+df <- df %>%
+  mutate(
+    SEQN = as.character(SEQN),
+    sampleID = as.character(sampleID),
+    gender = factor(gender),
+    pregnant = factor(pregnant),
+    race = factor(race),
+    education = factor(education),
+    income = factor(income),
+    angina = factor(angina),
+    mi = factor(mi),
+    stroke = factor(stroke),
+    smoking = factor(smoking),
+    diabetes = factor(diabetes),
+    htn = factor(htn),
+    kid_failure = factor(kid_failure),
+    firearm = factor(firearm),
+    offwork_exposure = factor(offwork_exposure),
+    dialysis = factor(dialysis),
+    job_exposure_loud = factor(job_exposure_loud),
+    job_exposure_very_loud = factor(job_exposure_very_loud)
+  )
+```
+
 ### Check data issues
 
 ```{r}
 df_unfiltered %>%
   mutate(
     age_group = case_when(
-      age < 12              ~ "0–12",
-      age >= 12 & age <= 19  ~ "12–19",
-      age > 19 & age < 70  ~ "19–75",
-      age >= 70             ~ "75+",
-      TRUE                  ~ NA_character_
+      age < 6 ~ "00–06",
+      age >= 6 & age <= 11 ~ "06–12",
+      age >= 12 & age <= 19 ~ "12–19",
+      age > 19 & age < 70 ~ "19–75",
+      age >= 70 ~ "75+",
+      TRUE ~ NA_character_
     )
   ) %>%
   filter(!year %in% c(2007, 2011)) %>%
   group_by(year, age_group) %>%
-  summarise(n_na = sum(is.na(audio_left_1000)),
-            n = n(),
-            .groups = "drop") %>%
+  summarise(
+    n_na = sum(is.na(audio_left_1000)),
+    n = n(),
+    .groups = "drop"
+  ) %>%
   mutate(prop_present = paste0(100 * round(1 - n_na / n, 2), "%")) %>%
   select(-n_na, -n) %>%
-  pivot_wider(names_from = age_group, values_from = prop_present) %>% 
+  pivot_wider(names_from = age_group, values_from = prop_present) %>%
   construct_table(title = "Show proportion audiometry present")
 
 df %>%
   group_by(year) %>%
   summarize(
     age = paste0(round(mean(age), 1), "(", round(sd(age), 1), ")"),
-    fi_high = paste0(round(mean(fi_high), 1), "(", round(sd(fi_high), 1), ")"),
-    fi_low = paste0(round(mean(fi_low), 1), "(", round(sd(fi_low), 1), ")"),
+    FI_high = paste0(round(mean(FI_high), 1), "(", round(sd(FI_high), 1), ")"),
+    FI_low = paste0(round(mean(FI_low), 1), "(", round(sd(FI_low), 1), ")"),
     albumin = paste0(round(mean(albumin), 1), "(", round(sd(albumin), 1), ")"),
     alp = paste0(round(mean(alp), 1), "(", round(sd(alp), 1), ")"),
     lncrp = paste0(round(mean(lncrp), 1), "(", round(sd(lncrp), 1), ")"),
@@ -357,134 +387,136 @@ df %>%
     mcv = paste0(round(mean(mcv), 1), "(", round(sd(mcv), 1), ")"),
     wbc = paste0(round(mean(wbc), 1), "(", round(sd(wbc), 1), ")"),
     .groups = "drop"
-  ) %>% construct_table(title = "Check cohort balance issues")
+  ) %>%
+  construct_table(title = "Check cohort age and biomarker balance")
 
+p <- df %>%
+  group_by(age, gender) %>%
+  summarize(n = n(), .groups = "drop") %>%
+  group_by(age) %>%
+  mutate(prop = n / sum(n)) %>%
+  filter(gender == 1) %>%
+  ggplot(aes(x = age, y = prop, colour = gender)) +
+  geom_smooth(se = FALSE, span = 0.5, show.legend = FALSE) +
+  geom_line(show.legend = FALSE) +
+  coord_cartesian(ylim = c(0, 1)) +
+  scale_color_manual(values = "#2986cc") +
+  labs(title = "Proportion males in filtered dataset", x = "Age", y = "Proportion")
+
+sameplot(p)
+
+p <- df %>%
+  group_by(age, gender) %>%
+  summarize(n = n(), .groups = "drop") %>%
+  ggplot(aes(x = age, y = n, group = gender, color = gender)) +
+  geom_line(show.legend = FALSE) +
+  scale_y_continuous(breaks = seq(0, 100, 10)) +
+  coord_cartesian(ylim = c(0, 110)) +
+  scale_color_manual(values = c("1" = "#2986cc", "2" = "#c90076")) +
+  labs(title = "Count of males and females in filtered dataset", x = "Age", y = "Count")
+
+sameplot(p)
 ```
 
 Audiometry was not performed on main cohort for 2005, 2009 and 2017, so only people \>= 70 years
-were included from these years. Audiometry was only performed in 12-19 year olds in 2007-2008, so
-none are include from this cohort. ALP was much higher in 1999 despite age being normal. CRP was not
-collected in 2011, so none are included from this cohort. Totchol is lower in newer cohorts (even
-when included population is older).
+were included from these years. Audiometry was only performed in 12-19 year olds in 2007 so none are
+include from this cohort. 1/2 of the sample was included for audiometry in 1999, 2001, and 2003. ALP
+was much higher in 1999 despite age being normal. CRP was not collected in 2011, so none are
+included from this cohort. Totchol is lower in newer cohorts (even when included population is
+older).
 
 ## Calculate biological age metrics
 
-```{r}
+```{r warning=FALSE}
 bioage_calc <- function(data, training_data_path, HD_training_data_path, bioage_scripts_path) {
-  r_files <- list.files(bioage_scripts_path,
-    pattern = "\\.R$", full.names = TRUE
-  )
-  lapply(r_files, source)
-
   v1_biomarkers <- c(
-    "fev",
-    "sbp",
-    "totchol",
-    "hba1c",
-    "albumin",
-    "creat",
-    "lncrp",
-    "alp",
-    "bun"
+    "fev", "sbp", "totchol", "hba1c", "albumin", "creat", "lncrp", "alp", "bun"
   )
   v2_biomarkers <- c(
-    "albumin",
-    "alp",
-    "lncrp",
-    "totchol",
-    "lncreat",
-    "hba1c",
-    "sbp",
-    "bun",
-    "uap",
-    "lymph",
-    "mcv",
-    "wbc"
+    "albumin", "alp", "lncrp", "totchol", "lncreat", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc"
   )
   v2_biomarkers_phenoage <- c(
-    "albumin_gL",
-    "alp",
-    "lncrp",
-    "totchol",
-    "lncreat_umol",
-    "hba1c",
-    "sbp",
-    "bun",
-    "uap",
-    "lymph",
-    "mcv",
-    "wbc"
+    "albumin_gL", "alp", "lncrp", "totchol", "lncreat_umol", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc"
   )
 
   load(training_data_path)
   load(HD_training_data_path)
 
-  train_fem_kdm <- kdm_calc(
+  # Calculate KDM V2
+  train_fem_kdm_v2 <- kdm_calc(
     data = NHANES3 %>%
       filter(gender == 2 & age >= 30 & age <= 75 & pregnant == 0),
-    v2_biomarkers, fit = NULL, s_ba2 = NULL, n_allowed_missing_biomarkers = 0
+    biomarkers = v2_biomarkers,
+    fit = NULL,
+    s_ba2 = NULL,
+    n_allowed_missing_biomarkers = 0
   )
-  train_male_kdm <- kdm_calc(
+  train_male_kdm_v2 <- kdm_calc(
     data = NHANES3 %>%
       filter(gender == 1 & age >= 30 & age <= 75),
-    v2_biomarkers, fit = NULL, s_ba2 = NULL, n_allowed_missing_biomarkers = 0
+    biomarkers = v2_biomarkers,
+    fit = NULL,
+    s_ba2 = NULL,
+    n_allowed_missing_biomarkers = 0
   )
-  test_fem_kdm <- kdm_calc(
+  test_fem_kdm_v2 <- kdm_calc(
     data = data %>%
       filter(gender == 2),
-    v2_biomarkers, fit = train_fem_kdm$fit, s_ba2 = train_fem_kdm$fit$s_ba2, n_allowed_missing_biomarkers = 0
+    biomarkers = v2_biomarkers,
+    fit = train_fem_kdm_v2$fit,
+    s_ba2 = train_fem_kdm_v2$fit$s_ba2,
+    n_allowed_missing_biomarkers = 0
   )
-
-  test_male_kdm <- kdm_calc(
+  test_male_kdm_v2 <- kdm_calc(
     data = data %>%
       filter(gender == 1),
-    v2_biomarkers, fit = train_male_kdm$fit, s_ba2 = train_male_kdm$fit$s_ba2, n_allowed_missing_biomarkers = 0
+    biomarkers = v2_biomarkers,
+    fit = train_male_kdm_v2$fit,
+    s_ba2 = train_male_kdm_v2$fit$s_ba2,
+    n_allowed_missing_biomarkers = 0
   )
 
-  test_kdm <- rbind(test_fem_kdm$data, test_male_kdm$data) 
+  test_kdm_v2 <- rbind(test_fem_kdm_v2$data, test_male_kdm_v2$data)
 
-  data <- left_join(data, test_kdm[, c("sampleID", "kdm", "kdm_advance")], by = "sampleID")
+  data <- left_join(data, test_kdm_v2[, c("sampleID", "kdm", "kdm_advance")], by = "sampleID")
 
-  train_phenoage <- phenoage_calc(
+  # Calculate PhenoAge V2
+  train_phenoage_v2 <- phenoage_calc(
     data = NHANES3 %>%
       filter(age >= 20 & age <= 84),
-      biomarkers = v2_biomarkers_phenoage, 
-    fit = NULL
+    biomarkers = NULL,
+    fit = NULL,
+    orig = TRUE
   )
 
-  test_phenoage <- phenoage_calc(
+  test_phenoage_v2 <- phenoage_calc(
     data = data,
-     biomarkers = v2_biomarkers_phenoage, 
-    fit = train_phenoage$fit
+    biomarkers = v2_biomarkers_phenoage,
+    fit = train_phenoage_v2$fit
   )
 
-  test_kdm <- rbind(test_fem_kdm$data, test_male_kdm$data) %>%
-    rename(
-      kdm0 = kdm,
-      kdm_advance0 = kdm_advance
-    )
+  data <- left_join(data, test_phenoage_v2$data[, c("sampleID", "phenoage", "phenoage_advance")], by = "sampleID")
 
-  data <- left_join(data, test_phenoage$data[,c("sampleID", "phenoage", "phenoage_advance")], by = "sampleID")
-  
+  # Calculate HD
   fem_hd <- hd_calc(
     data = data %>%
       filter(gender == 2),
     reference = NHANES3_HDTrain %>%
       filter(gender == 2),
-    v2_biomarkers
+    biomarkers = v2_biomarkers
   )
   male_hd <- hd_calc(
-data = data %>%
+    data = data %>%
       filter(gender == 1),
     reference = NHANES3_HDTrain %>%
       filter(gender == 1),
-    v2_biomarkers
+    biomarkers = v2_biomarkers
   )
 
-  hd <- rbind(fem_hd$data, male_hd$data) 
+  hd <- rbind(fem_hd$data, male_hd$data)
 
   data <- left_join(data, hd[, c("sampleID", "hd", "hd_log")], by = "sampleID")
-  
+
   data
 }
 
@@ -501,21 +533,17 @@ df <- df %>% bioage_calc(
 suppressPackageStartupMessages(library(tidytable))
 ```
 
-## Filter & rename columns
+## Cleanup environment
 
-We filter out education level 9 because there are only 2 occurrences. Smoking has more than 2 levels
-but we only need two. Race 1 (Mexican American) and 2 (other Hispanic) are merged. Income could be
-added but we'd have to exclude 12, 13, 77, 99 and missing. 12 is over 20k, 13 is under 20k, 77 is
-refused and 99 is don't know. This would drop the size of the data set by about 20%.
+From this point onward, we only keep what will actually be used for analysis. We remove df_raw and
+df_unfiltered, but don't run `gc()`, as the objects being removed from the environment already
+labels the RAM as free to be allocated, thus it's not needed to run garbage collection manually.
 
-Code levels: **Smoking** 1. Smoker (L1) 2. Non-smoker L2) 7. Refused 9. Don't know **Gender** 1.
-Male (L1) 2. Female (L2) **Race** 1. Mexican/other Hispanic (L1) 3. White (L2) 4. Black (L3) 5.
-Other (L4) **Education** 1. Less than 9th grade (L1) 2. 9-11th grade (includes 12th grade with no
-diploma) (L2) 3. High school (L3) 4. Some college or AA degree (L4) 5. College graduate or above 7.
-Refused 9. Don't know
+```{r}
+rm(df_raw)
+rm(df_unfiltered)
 
-```{r format_df}
-df <- df_raw %>%
+df <- df %>%
   select(
     SEQN,
     age,
@@ -539,18 +567,30 @@ df <- df_raw %>%
     totchol,
     wbc,
     uap
-  ) %>%
+  )
+```
+
+## Recode variables
+
+We filter out education level 9 because there are only 2 occurrences. Smoking has more than 2 levels
+but we only need two. Race 1 (Mexican American) and 2 (other Hispanic) are merged. Income could be
+added but we'd have to exclude 12, 13, 77, 99 and missing. 12 is over 20k, 13 is under 20k, 77 is
+refused and 99 is don't know. This would drop the size of the data set by about 20%.
+
+Code levels: **Smoking** 1. Smoker (L1) 2. Non-smoker L2) 7. Refused 9. Don't know **Gender** 1.
+Male (L1) 2. Female (L2) **Race** 1. Mexican/other Hispanic (L1) 3. White (L2) 4. Black (L3) 5.
+Other (L4) **Education** 1. Less than 9th grade (L1) 2. 9-11th grade (includes 12th grade with no
+diploma) (L2) 3. High school (L3) 4. Some college or AA degree (L4) 5. College graduate or above 7.
+Refused 9. Don't know
+
+```{r format_df}
+df <- df %>%
   filter(
     education != 9,
     smoking %in% c(1, 2)
   ) %>%
   mutate(
-    gender = factor(gender),
-    smoking = factor(smoking),
     race = case_when(race == 2 ~ 1, TRUE ~ race),
-    race = factor(race),
-    education = factor(education),
-    phenoage_advance = phenoage - age
   )
 ```
 
@@ -580,3 +620,4 @@ df <- df %>% mutate(
   confounders = interaction(gender, smoking)
 )
 ```
+

@@ -33,13 +33,16 @@ library(sameplot) # for plotting consistently
 library(flexsurv) # for calculating phenoage
 library(data.table) # for speedy dataframes
 library(tidyverse) # for general data operations
-#library(tidytable) # for fast data loading
+# library(tidytable) # for fast data loading
 ```
 
-## Import helpers
+## Import scripts
 
 ```{r get_helpers}
 source(here("Scripts", "Helpers", "helpers.R"))
+source(here("Scripts", "Bioage Package", "hd_calc.R"))
+source(here("Scripts", "Bioage Package", "kdm_calc.R"))
+source(here("Scripts", "Bioage Package", "phenoage_calc.R"))
 ```
 
 ## Print params for knitted reports
@@ -68,28 +71,26 @@ confounder_vars <- confounder_interactions[!grepl(",", confounder_interactions)]
 ## Import data
 
 ```{r import_data}
-  import_nhanes_data <- function(data_path) {
-    files <- list.files(
-      data_path,
-      pattern = "\\.xpt$",
-      full.names = TRUE,
-      ignore.case = TRUE
-    )
-    tibble(
-      file = files,
-      year = str_extract(
-        tools::file_path_sans_ext(
-          basename(files)
-        ),
-        "\\d{4}-\\d{4}$"
+import_nhanes_data <- function(data_path) {
+  files <- list.files(
+    data_path,
+    pattern = "\\.xpt$",
+    full.names = TRUE,
+    ignore.case = TRUE
+  )
+  tibble(
+    file = files,
+    year = str_extract(
+      tools::file_path_sans_ext(
+        basename(files)
       ),
-      cohort = substr(year, 1, 4),
-      data = map(
-        file, ~ read_xpt(.x)
-      )
+      "\\d{4}-\\d{4}$"
+    ),
+    cohort = substr(year, 1, 4),
+    data = map(
+      file, ~ read_xpt(.x)
     )
-  }
-  df_raw <- import_nhanes_data(here("Data", "Raw data"))
-
-  # df_raw <- read.csv(here("Data", "dataset_bioage.csv"))
+  )
+}
+df_raw <- import_nhanes_data(here("Data", "Raw data"))
 ```

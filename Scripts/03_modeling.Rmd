@@ -1150,9 +1150,10 @@ if (isTRUE(params$run_optional_chunks)) {
   }
 
   compare_wiggliness(
-    df, 
-    k = params$global_k, 
-    discrete = params$global_discrete)
+    df,
+    k = params$global_k,
+    discrete = params$global_discrete
+  )
 }
 ```
 
