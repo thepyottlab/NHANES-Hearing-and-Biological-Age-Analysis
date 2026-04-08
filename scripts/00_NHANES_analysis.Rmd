@@ -1,0 +1,212 @@
+---
+title: "Predictive Modelling of Hearing Effect of Bioage"
+author: "Landy Qu & Tom Naber"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+
+knit: 
+  (function(inputFile, encoding) { 
+    source(here::here('scripts', 'helpers', 'rmd_param_knitter.R'));
+  
+    filename_constructor <- function(params, inputFile) {
+      parts <- c(
+        params$hearing_var,
+        paste0("k=", params$global_k),
+        if (params$global_discrete) "discrete" else NULL,
+        if (params$telolength) "telolength" else NULL,
+        paste0(params$global_repeats, "r×", params$global_folds, "f"),
+        if (params$run_optional_chunks) "incl_optional" else NULL
+      );
+      
+      here::here("output", "html", paste(parts, collapse = "_"));
+    };
+  
+    smart_knitter(inputFile, out_path = filename_constructor, auto_close = TRUE);
+  })
+  
+output:
+  html_document:
+    theme: cosmo
+    toc: true
+    toc_float: true
+    number_sections: true
+    df_ppi_print: paged
+    highlight: tango
+    self_contained: true
+    fig_width: 7
+    fig_height: 4
+    code_folding: hide
+    
+editor_options:
+  markdown:
+    wrap: 100
+  chunk_output_type: inline
+  
+params:
+  hearing_var:
+    label: "Hearing predictor variable"
+    value: "FI_high"
+    input: select
+    choices: ["FI_high", "FI_low"]
+    help: "Set predictor variable"
+  telolength:
+    label: "Analyze telomere length"
+    input: checkbox
+    value: FALSE
+    help: "Check to use telolength dataset with smaller N"
+  global_k:
+    label: "K (n BAM base functions)"
+    value: 10
+    input: numeric
+    help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
+  global_discrete: 
+    label: "Discretize BAM"
+    value: TRUE
+    input: checkbox
+    help: "Check to speed up fitting but create larger models that perform a little worse"
+  global_folds: 
+    label: "Number of folds"
+    value: 5
+    input: numeric
+    help: "Set fold number"
+  global_repeats: 
+    label: "Number of repeats"
+    value: 5
+    input: numeric
+    help: "Set repeat number"
+  store_model_results:
+    label: "Store model results"
+    value: FALSE
+    input: checkbox
+    help: "Set to save large model results locally for fast reloading"
+  load_model_results:
+    label: "Load model results"
+    value: FALSE
+    input: checkbox
+    help: "Set to skip refitting of k-fold validation if model results are present"
+  keep_models:
+    label: "Store models"
+    value: FALSE
+    input: checkbox
+    help: "Set to store models, creating large files and filling memory if discrete = TRUE"
+  confounders:
+    label: "Included confounders"
+    value: "gender_smoking_race_education_gender, race"
+    input: text
+    help: "Set confounder factor variables and interaction to be included in analysis separated by underscore"
+  n_boot:
+    label: "RMSE bootstrap N"
+    value: 2000
+    input: numeric
+    help: "Set number of samples to take when bootstrapping RMSEs for CI calculations"
+  run_optional_chunks:
+    label: "Run tests and validations"
+    value: FALSE
+    input: checkbox
+    help: "Set to run tests and validations, which can take a long time to compute"
+  save_figures:
+    label: "Save figures"
+    value: FALSE
+    input: checkbox
+    help: "Set to store figures and overwrite old figures"
+  single_column_width:
+    label: "Single column figure width"
+    value: 3.19
+    input: numeric
+    help: "Set single column figure width in inches"
+  double_column_width:
+    label: "Double column figure width"
+    value: 6.96
+    input: numeric   
+    help: "Set double column figure width in inches"
+  plot_output_type:
+    label: "Set plot theme"
+    value: "paper"
+    input: radio
+    choices: ["paper", "poster"]
+    help: "Set theme preset to use for plots"
+---
+
+# Set-up
+
+We set graphics device to ragg, set wd to `here::here()`, set contrasts by default to compare each
+level to the overall mean as opposed to reference, and import packages. The `run_module()` function
+checks if knitting or interactive session is in progress. If knitting, return markdown output, if
+interactive, only run code in environment and print a time message.
+
+```{r setup, include = FALSE, cache = FALSE}
+knitr::opts_chunk$set(
+  fig.width = 6.4,
+  fig.height = 4.8,
+  dpi = 600,
+  fig.retina = 1,
+  out.width = "100%",
+  out.height = "100%",
+  dev = "ragg_png",
+  error = FALSE
+)
+
+knitr::opts_knit$set(
+  root.dir = here::here()
+)
+
+options(
+  contrasts = c("contr.sum", "contr.poly"),
+  knitr.duplicate.label = "allow"
+)
+
+run_module <- function(path) {
+  if (isTRUE(getOption("knitr.in.progress"))) {
+    cat(
+      knitr::knit_child(
+        path,
+        quiet = TRUE
+      )
+    )
+  } else {
+    runtime <- system.time(
+      tryCatch(
+        {
+          knitr::knit_child(
+            path,
+            quiet = TRUE
+          )
+        },
+        error = function(e) {
+          stop(e)
+        }
+      )
+    )
+
+    cat(
+      basename(path),
+      " completed in ",
+      round(runtime["elapsed"], 1),
+      "s.\n",
+      sep = ""
+    )
+  }
+}
+```
+
+# Run modules
+
+```{r run_modules, results='asis', echo=FALSE}
+run_module(
+  here::here("scripts", "01_import.Rmd")
+)
+run_module(
+  here::here("scripts", "02_data_preprocessing.Rmd")
+)
+run_module(
+  here::here("scripts", "03_modeling.Rmd")
+)
+run_module(
+  here::here("scripts", "04_data_processing.Rmd")
+)
+run_module(
+  here::here("scripts", "05_statistics.Rmd")
+)
+run_module(
+  here::here("scripts", "06_visualization.Rmd")
+)
+```

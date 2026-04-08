@@ -1,0 +1,96 @@
+---
+editor_options:
+  markdown:
+    wrap: 100
+---
+
+# Import
+
+## Load libraries
+
+```{r libraries, message=FALSE, warning=FALSE}
+# General
+library(ragg) # graphics device
+library(here) # for file access
+library(haven) # for importing .xpt
+
+# Statistics
+library(matrixStats) # used for weighted variance calculation
+library(emmeans) # for pairwise comparisons
+library(mgcv) # used to train model
+
+# Visualization
+library(kableExtra) # for pretty tables
+library(ggthemes) # for theme_few()
+library(ggtext) # for element_markdown()
+library(ggh4x) # for element_rect()
+library(ggridges) # for geom_density_ridges()
+library(ggpubr) # for ggarrange()
+library(cowplot) # for combined plots
+library(sameplot) # for plotting consistently
+
+# Data operations
+library(flexsurv) # for calculating phenoage
+library(data.table) # for speedy dataframes
+library(tidyverse) # for general data operations
+library(tidytable) # for fast data loading
+```
+
+## Import scripts
+
+```{r get_helpers}
+source(here("scripts", "helpers", "helpers.R"))
+source(here("scripts", "bioage_package", "hd_calc.R"))
+source(here("scripts", "bioage_package", "kdm_calc.R"))
+source(here("scripts", "bioage_package", "phenoage_calc.R"))
+```
+
+## Print params for knitted reports
+
+```{r print_params}
+kable(
+  as.data.frame(
+    unclass(params)
+  )
+)
+```
+
+## Unpack confounders list
+
+We take the param value for confounders and build one lists with all included interactions with age
+and one with just the variables.
+
+```{r confounder_list}
+confounder_interactions <- trimws(
+  strsplit(params$confounders, "_")[[1]]
+)
+
+confounder_vars <- confounder_interactions[!grepl(",", confounder_interactions)]
+```
+
+## Import data
+
+```{r import_data}
+import_nhanes_data <- function(data_path) {
+  files <- list.files(
+    data_path,
+    pattern = "\\.xpt$",
+    full.names = TRUE,
+    ignore.case = TRUE
+  )
+  tibble(
+    file = files,
+    year = str_extract(
+      tools::file_path_sans_ext(
+        basename(files)
+      ),
+      "\\d{4}-\\d{4}$"
+    ),
+    cohort = substr(year, 1, 4),
+    data = map(
+      file, ~ read_xpt(.x)
+    )
+  )
+}
+df_raw <- import_nhanes_data(here("data"))
+```

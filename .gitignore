@@ -8,15 +8,15 @@
 .RDataTmp
 
 # Backups
-/Bak/
+/bak/
 
 # Output
 *.pptx
-/Output/
+/output/
 
 # Environment/state
-/Models/
-/Savestates/
+/models/
+/savestates/
 
 # Others
 desktop.ini
