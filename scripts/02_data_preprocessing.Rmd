@@ -329,7 +329,6 @@ df_unfiltered %>%
       TRUE ~ NA_character_
     )
   ) %>%
-  filter(!year %in% c(2007, 2011)) %>%
   group_by(year, age_group) %>%
   summarise(
     n_na = sum(is.na(audio_left_1000)),
