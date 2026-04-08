@@ -145,12 +145,12 @@ kdm_calc <- function(data, biomarkers, fit = NULL, s_ba2 = NULL, n_allowed_missi
     s_r <- fit$s_r
   }
 
-  n1 <- dat[, bm]
+  n1 <- dat[, ..bm]
 
   for (m in colnames(n1)) {
     row <- which(agev$bm == m)
-    obs <- (dat[, m] - agev[row, "q"]) * (agev[row, "k"] / (agev[row, "s"]^2))
-    n1[, m] <- (obs)
+    obs <- (dat[[m]] - agev$q[row]) * (agev$k[row] / (agev$s[row]^2))
+    n1[[m]] <- (obs)
   }
 
   BA_nmiss <- apply(n1, 1, function(x) sum(is.na(x)))

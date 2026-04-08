@@ -22,10 +22,11 @@
 #' @import dplyr
 
 hd_calc <- function(data, reference, biomarkers) {
-  ref <- as.matrix(reference[, biomarkers])
-  dat <- as.matrix(data[, biomarkers])
 
-  # standardize variables by mean and sd of reference population
+  ref <- as.matrix(reference[, ..biomarkers])
+  dat <- as.matrix(data[, ..biomarkers])
+
+    # standardize variables by mean and sd of reference population
   for (j in 1:ncol(dat)) {
     dat[, j] <- (dat[, j] - mean(ref[, j], na.rm = TRUE)) / sd(ref[, j], na.rm = TRUE)
   }

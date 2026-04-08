@@ -142,7 +142,7 @@ standardize_values <- function(data_map) {
 
 ### Data selection & renaming pipeline
 
-```{r}
+```{r include=FALSE}
 df_unfiltered <- df_raw %>%
   select_columns(
     column_path = here("Specs", "column_spec.csv")
@@ -315,33 +315,6 @@ filter_data <- function(data) {
 df <- df_unfiltered %>% filter_data()
 ```
 
-### Set data types
-
-```{r}
-df <- df %>%
-  mutate(
-    SEQN = as.character(SEQN),
-    sampleID = as.character(sampleID),
-    gender = factor(gender),
-    pregnant = factor(pregnant),
-    race = factor(race),
-    education = factor(education),
-    income = factor(income),
-    angina = factor(angina),
-    mi = factor(mi),
-    stroke = factor(stroke),
-    smoking = factor(smoking),
-    diabetes = factor(diabetes),
-    htn = factor(htn),
-    kid_failure = factor(kid_failure),
-    firearm = factor(firearm),
-    offwork_exposure = factor(offwork_exposure),
-    dialysis = factor(dialysis),
-    job_exposure_loud = factor(job_exposure_loud),
-    job_exposure_very_loud = factor(job_exposure_very_loud)
-  )
-```
-
 ### Check data issues
 
 ```{r}
@@ -395,7 +368,9 @@ p <- df %>%
   summarize(n = n(), .groups = "drop") %>%
   group_by(age) %>%
   mutate(prop = n / sum(n)) %>%
-  filter(gender == 1) %>%
+  ungroup() %>%
+  filter(gender == "1") %>%
+  mutate(gender = factor(gender)) %>%
   ggplot(aes(x = age, y = prop, colour = gender)) +
   geom_smooth(se = FALSE, span = 0.5, show.legend = FALSE) +
   geom_line(show.legend = FALSE) +
@@ -408,6 +383,7 @@ sameplot(p)
 p <- df %>%
   group_by(age, gender) %>%
   summarize(n = n(), .groups = "drop") %>%
+  mutate(gender = factor(gender)) %>%
   ggplot(aes(x = age, y = n, group = gender, color = gender)) +
   geom_line(show.legend = FALSE) +
   scale_y_continuous(breaks = seq(0, 100, 10)) +
@@ -484,9 +460,8 @@ bioage_calc <- function(data, training_data_path, HD_training_data_path) {
   train_phenoage_v2 <- phenoage_calc(
     data = NHANES3 %>%
       filter(age >= 20 & age <= 84),
-    biomarkers = NULL,
-    fit = NULL,
-    orig = TRUE
+    biomarkers = v2_biomarkers_phenoage,
+    fit = NULL
   )
 
   test_phenoage_v2 <- phenoage_calc(
@@ -520,16 +495,37 @@ bioage_calc <- function(data, training_data_path, HD_training_data_path) {
   data
 }
 
-if ("tidytable" %in% loadedNamespaces()) {
-  unloadNamespace("tidytable")
-}
-
 df <- df %>% bioage_calc(
   training_data_path = here("Data", "Training data", "NHANES3.rda"),
   HD_training_data_path = here("Data", "Training data", "NHANES3_HDTrain.rda")
 )
+```
 
-suppressPackageStartupMessages(library(tidytable))
+### Set data types
+
+```{r}
+df <- df %>%
+  mutate(
+    SEQN = as.character(SEQN),
+    sampleID = as.character(sampleID),
+    gender = factor(gender),
+    pregnant = factor(pregnant),
+    race = factor(race),
+    education = factor(education),
+    income = factor(income),
+    angina = factor(angina),
+    mi = factor(mi),
+    stroke = factor(stroke),
+    smoking = factor(smoking),
+    diabetes = factor(diabetes),
+    htn = factor(htn),
+    kid_failure = factor(kid_failure),
+    firearm = factor(firearm),
+    offwork_exposure = factor(offwork_exposure),
+    dialysis = factor(dialysis),
+    job_exposure_loud = factor(job_exposure_loud),
+    job_exposure_very_loud = factor(job_exposure_very_loud)
+  )
 ```
 
 ## Cleanup environment
