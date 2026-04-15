@@ -452,8 +452,11 @@ cross_validation <- function(
   repeats,
   discrete = FALSE,
   keep_models = FALSE,
-  confounder_analysis = FALSE
+  confounder_analysis = FALSE,
+  threads = 1
 ) {
+  plan(multisession, workers = threads)
+  
   # Initialize age groups to stratify by and repeat column names that contain fold specification
   age_groups <- c(
     "20-30",
@@ -465,13 +468,6 @@ cross_validation <- function(
   )
   repeat_columns <- paste0("fold_r", seq_len(repeats))
   folds <- k
-
-  # Initialize list of models, CV results (MSEs), predictions, and indices of lists
-  models <- list()
-  results_list <- list()
-  predicted_list <- list()
-  index_results <- 1L
-  index_predicted <- 1L
 
   # Initialize vector of confounders and store predictor column names for prediction dataset
   confounders <- confounder_vars
@@ -513,8 +509,16 @@ cross_validation <- function(
     )
   )
 
-  for (formula in formulas) {
+  run_formula_cv <- function(formula) {
     start_time <- Sys.time()
+
+    # Initialize list of models, CV results (MSEs), predictions, and indices of lists
+    cv_models <- list()
+    results_list <- list()
+    predicted_list <- list()
+    index_results <- 1L
+    index_predicted <- 1L
+
     for (repeat_column in repeat_columns) {
       for (fold in seq_len(folds)) {
         # Subset training and testing data
@@ -549,7 +553,7 @@ cross_validation <- function(
         # Wrap model into a list to keep the models separated, attach, and name
         if (keep_models) {
           model_id <- paste0(predictors, "_r", repeat_value, "_f", fold)
-          models[[model_id]] <- mod
+          cv_models[[model_id]] <- mod
         }
 
         # calculate performance per age group
@@ -593,22 +597,20 @@ cross_validation <- function(
         }
       }
     }
-    message(
-      paste0(
-        k,
-        " × ",
-        repeats,
-        " fits of formula '",
-        formula,
-        "' completed in ",
-        round(as.numeric(Sys.time() - start_time, units = "mins"), 2)
-      ),
-      " minutes."
+
+    list(
+      results = bind_rows(results_list),
+      predictions = bind_rows(predicted_list),
+      cv_models = cv_models
     )
   }
+  
+  cv_output <- future_lapply(formulas, run_formula_cv, future.seed = TRUE)
 
   # Bind results/predictions together and set factors when needed
-  results <- bind_rows(results_list)
+  results <- bind_rows(
+    lapply(cv_output, `[[`, "results")
+    )
   results <- results %>%
     mutate(
       predictors = factor(
@@ -621,7 +623,9 @@ cross_validation <- function(
       )
     )
 
-  predictions <- bind_rows(predicted_list)
+  predictions <- bind_rows(
+    lapply(cv_output, `[[`, "predictions")
+    )
   predictions <- predictions %>%
     mutate(
       predictors = factor(
@@ -631,10 +635,14 @@ cross_validation <- function(
       age_group = factor(age_group, levels = age_groups)
     )
 
+  if (keep_models) {
+    cv_models <- unlist(lapply(cv_output, `[[`, "cv_models"), recursive = FALSE)
+  }
+
   list(
     results = results,
-    cv_models = models,
-    predictions = predictions
+    predictions = predictions,
+    cv_models = if (keep_models) cv_models else NULL
   )
 }
 ```
@@ -690,7 +698,8 @@ system.time({
       k = params$global_folds,
       repeats = params$global_repeats,
       discrete = params$global_discrete,
-      keep_models = params$keep_models
+      keep_models = params$keep_models,
+      threads = min(length(formula_list_bioage), params$n_threads)
     )
   }
 })
@@ -727,7 +736,8 @@ if (isFALSE(params$telolength)) {
         k = params$global_folds,
         repeats = params$global_repeats,
         discrete = params$global_discrete,
-        keep_models = params$keep_models
+        keep_models = params$keep_models,
+        threads = min(length(formula_list_biomarkers), params$n_threads)
       )
     }
   })
@@ -765,7 +775,8 @@ if (isFALSE(params$telolength)) {
         k = params$global_folds,
         repeats = params$global_repeats,
         discrete = params$global_discrete,
-        confounder_analysis = TRUE
+        confounder_analysis = TRUE,
+        threads = min(length(formula_list_biomarkers), params$n_threads)
       )
     }
   })

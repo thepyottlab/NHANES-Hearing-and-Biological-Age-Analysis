@@ -34,6 +34,10 @@ library(flexsurv) # for calculating phenoage
 library(data.table) # for speedy dataframes
 library(tidyverse) # for general data operations
 library(tidytable) # for fast data loading
+
+# Multithreading
+library(future)
+library(future.apply)
 ```
 
 ## Import scripts

@@ -55,7 +55,7 @@ params:
     help: "Check to use telolength dataset with smaller N"
   global_k:
     label: "K (n BAM base functions)"
-    value: 50
+    value: 10
     input: numeric
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   global_discrete: 
@@ -93,6 +93,11 @@ params:
     value: "gender_smoking_race_education_gender, race"
     input: text
     help: "Set confounder factor variables and interaction to be included in analysis separated by underscore"
+  n_threads:
+    label: "Number of threads"
+    value: 12
+    input: numeric
+    help: "Set number of threads used during cross-validation"
   n_boot:
     label: "RMSE bootstrap N"
     value: 2000
