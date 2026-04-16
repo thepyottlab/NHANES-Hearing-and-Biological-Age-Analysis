@@ -155,7 +155,7 @@ knitr::opts_knit$set(
 options(
   contrasts = c("contr.sum", "contr.poly"),
   knitr.duplicate.label = "allow",
-  future.globals.maxSize = 1000*1024^2
+  future.globals.maxSize = 1500*1024^2
 )
 
 run_module <- function(path) {
