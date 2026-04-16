@@ -448,10 +448,9 @@ regular predictors (which exclude covariates in the label).
 cross_validation <- function(
   data,
   formulas,
-  k,
-  repeats,
+  folds = 10,
+  repeats = 10,
   discrete = FALSE,
-  keep_models = FALSE,
   confounder_analysis = FALSE,
   threads = 1
 ) {
@@ -467,7 +466,6 @@ cross_validation <- function(
     if (isFALSE(params$telolength)) "70+"
   )
   repeat_columns <- paste0("fold_r", seq_len(repeats))
-  folds <- k
 
   # Initialize vector of confounders and store predictor column names for prediction dataset
   confounders <- confounder_vars
@@ -535,7 +533,8 @@ cross_validation <- function(
           data = train,
           family = gaussian(),
           method = if (isTRUE(discrete)) "fREML" else "REML",
-          discrete = if (isTRUE(discrete)) TRUE else FALSE
+          discrete = if (isTRUE(discrete)) TRUE else FALSE,
+          nthreads = 1
         )
 
         # Extract predictor or get from predefined variable for confounder analysis
@@ -549,12 +548,6 @@ cross_validation <- function(
         repeat_value <- as.numeric(
           sub(".*fold_r(\\d+).*", "\\1", repeat_column)
         )
-
-        # Wrap model into a list to keep the models separated, attach, and name
-        if (keep_models) {
-          model_id <- paste0(predictors, "_r", repeat_value, "_f", fold)
-          cv_models[[model_id]] <- mod
-        }
 
         # calculate performance per age group
         for (age_group_val in age_groups) {
@@ -600,8 +593,7 @@ cross_validation <- function(
 
     list(
       results = bind_rows(results_list),
-      predictions = bind_rows(predicted_list),
-      cv_models = cv_models
+      predictions = bind_rows(predicted_list)
     )
   }
   
@@ -635,14 +627,9 @@ cross_validation <- function(
       age_group = factor(age_group, levels = age_groups)
     )
 
-  if (keep_models) {
-    cv_models <- unlist(lapply(cv_output, `[[`, "cv_models"), recursive = FALSE)
-  }
-
   list(
     results = results,
-    predictions = predictions,
-    cv_models = if (keep_models) cv_models else NULL
+    predictions = predictions
   )
 }
 ```
@@ -695,11 +682,14 @@ system.time({
     cross_validation(
       df,
       formula_list_bioage,
-      k = params$global_folds,
+      folds = params$global_folds,
       repeats = params$global_repeats,
       discrete = params$global_discrete,
-      keep_models = params$keep_models,
-      threads = min(length(formula_list_bioage), params$n_threads)
+      threads = min(
+        length(formula_list_bioage), 
+        params$n_threads, 
+        as.numeric(future::availableCores()) - 1
+        )
     )
   }
 })
@@ -733,11 +723,14 @@ if (isFALSE(params$telolength)) {
       cross_validation(
         df,
         formula_list_biomarkers,
-        k = params$global_folds,
+        folds = params$global_folds,
         repeats = params$global_repeats,
         discrete = params$global_discrete,
-        keep_models = params$keep_models,
-        threads = min(length(formula_list_biomarkers), params$n_threads)
+        threads = min(
+          length(formula_list_biomarkers),
+          params$n_threads,
+          as.numeric(future::availableCores()) - 1
+        )
       )
     }
   })
@@ -772,11 +765,15 @@ if (isFALSE(params$telolength)) {
       cross_validation(
         df,
         formula_list_confounders,
-        k = params$global_folds,
+        folds = params$global_folds,
         repeats = params$global_repeats,
         discrete = params$global_discrete,
         confounder_analysis = TRUE,
-        threads = min(length(formula_list_biomarkers), params$n_threads)
+        threads = min(
+          length(formula_list_confounders),
+          params$n_threads,
+          as.numeric(future::availableCores()) - 1
+        )
       )
     }
   })

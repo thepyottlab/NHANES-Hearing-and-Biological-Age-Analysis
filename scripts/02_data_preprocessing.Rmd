@@ -19,7 +19,7 @@ and row-binds into a dataframe (dfr).
 We intentionally do not select creat_umol columns ([;) if we have to restandardize them later (1999
 and 2005)
 
-```{r}
+```{r select_cols}
 select_columns <- function(data_map, column_path) {
   col_spec <- read.csv(column_path)
 
@@ -58,7 +58,7 @@ select_columns <- function(data_map, column_path) {
 
 ### Rename columns
 
-```{r}
+```{r rename_cols}
 rename_columns <- function(data_map, column_name_path) {
   col_name_spec <- read.csv(column_name_path)
 
@@ -95,7 +95,7 @@ merge_data <- function(data_map) {
 Creatinine in 1999 and 2005 and CRP in 2015 and 2017 are standardized. SBP is averaged over multiple
 measurements.
 
-```{r}
+```{r standardize_vals}
 standardize_values <- function(data_map) {
   # browser()
   data_map %>%
@@ -142,7 +142,7 @@ standardize_values <- function(data_map) {
 
 ### Data selection & renaming pipeline
 
-```{r message=FALSE, warning=FALSE, include=FALSE}
+```{r preprocess_pipe, message=FALSE, warning=FALSE, include=FALSE}
 df_unfiltered <- df_raw %>%
   select_columns(
     column_path = here("specs", "column_spec.csv")
@@ -178,7 +178,7 @@ construct_table <- function(formula_list, title) {
 
 #### Check completeness
 
-```{r}
+```{r check_complete}
 df_unfiltered %>%
   group_by(year) %>%
   summarise(across(everything(), ~ sum(!is.na(.)), .names = "n_{.col}")) %>%
@@ -192,7 +192,7 @@ job exposure were only assessed in later cohorts.
 
 ## Calculate hearing metrics
 
-```{r}
+```{r calc_metrics}
 calculate_hearing <- function(data) {
   data %>%
     rowwise() %>%
@@ -233,7 +233,7 @@ df_unfiltered <- df_unfiltered %>% calculate_hearing()
 We keep any columns we may need at this stage or have already used, such as the individual
 audiometry columns.
 
-```{r}
+```{r filter_df}
 filter_data <- function(data) {
   verbose_filter <- function(data, ..., label) {
     start_n <- nrow(data)
@@ -317,7 +317,7 @@ df <- df_unfiltered %>% filter_data()
 
 ### Check data issues
 
-```{r}
+```{r check_df_balance}
 df_unfiltered %>%
   mutate(
     age_group = case_when(
@@ -402,7 +402,7 @@ older).
 
 ## Calculate biological age metrics
 
-```{r warning=FALSE}
+```{r calc_bioage, warning=FALSE}
 bioage_calc <- function(data, training_data_path, HD_training_data_path) {
   v1_biomarkers <- c(
     "fev", "sbp", "totchol", "hba1c", "albumin", "creat", "lncrp", "alp", "bun"
@@ -502,7 +502,7 @@ df <- df %>% bioage_calc(
 
 ### Set data types
 
-```{r}
+```{r set_data_types}
 df <- df %>%
   mutate(
     SEQN = as.character(SEQN),
@@ -533,7 +533,7 @@ From this point onward, we only keep what will actually be used for analysis. We
 df_unfiltered, but don't run `gc()`, as the objects being removed from the environment already
 labels the RAM as free to be allocated, thus it's not needed to run garbage collection manually.
 
-```{r}
+```{r cleanup_env}
 rm(df_raw)
 rm(df_unfiltered)
 
