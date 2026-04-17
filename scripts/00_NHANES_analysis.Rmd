@@ -44,7 +44,7 @@ editor_options:
 params:
   hearing_var:
     label: "Hearing predictor variable"
-    value: "FI_low"
+    value: "FI_high"
     input: select
     choices: ["FI_high", "FI_low"]
     help: "Set predictor variable"
@@ -60,7 +60,7 @@ params:
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   global_discrete: 
     label: "Discretize BAM"
-    value: TRUE
+    value: FALSE
     input: checkbox
     help: "Check to speed up fitting but create larger models that perform a little worse"
   global_folds: 
@@ -90,7 +90,7 @@ params:
     help: "Set confounder factor variables and interaction to be included in analysis separated by underscore"
   n_threads:
     label: "Number of threads"
-    value: 9
+    value: 1000
     input: numeric
     help: "Set number of threads used during cross-validation, set to large value (e.g. 1000) to use all - 1 threads"
   n_boot:
@@ -100,7 +100,7 @@ params:
     help: "Set number of samples to take when bootstrapping RMSEs for CI calculations"
   run_optional_chunks:
     label: "Run tests and validations"
-    value: TRUE
+    value: FALSE
     input: checkbox
     help: "Set to run tests and validations, which can take a long time to compute"
   save_figures:
@@ -155,7 +155,7 @@ knitr::opts_knit$set(
 options(
   contrasts = c("contr.sum", "contr.poly"),
   knitr.duplicate.label = "allow",
-  future.globals.maxSize = 1500*1024^2
+  future.globals.maxSize = 650*1024^2
 )
 
 run_module <- function(path) {

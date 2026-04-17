@@ -644,7 +644,7 @@ pwc_bioage_overall <- nb_corrected_repeated_t_test(
 
 pwc_bioage <- nb_corrected_repeated_t_test(
   df_summary_bioage,
-  exceptions = "age, phenoage",
+  exceptions = c("age, phenoage", "age, kdm", "age, hd"),
   exception_include_exclude = "include",
   adjust_method = "holm"
 )

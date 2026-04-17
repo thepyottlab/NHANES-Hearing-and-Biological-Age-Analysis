@@ -454,21 +454,11 @@ cross_validation <- function(
   confounder_analysis = FALSE,
   threads = 1
 ) {
-  plan(multisession, workers = threads)
-  
   # Initialize age groups to stratify by and repeat column names that contain fold specification
-  age_groups <- c(
-    "20-30",
-    "30-40",
-    "40-50",
-    "50-60",
-    "60-70",
-    if (isFALSE(params$telolength)) "70+"
-  )
+  age_groups <- c("20-30", "30-40", "40-50", "50-60", "60-70", if (isFALSE(params$telolength)) "70+")
   repeat_columns <- paste0("fold_r", seq_len(repeats))
 
-  # Initialize vector of confounders and store predictor column names for prediction dataset
-  confounders <- confounder_vars
+  # Store predictor column names for prediction dataset
   predictor_columns <- unique(
     unlist(
       lapply(formulas, extract_predictors)
@@ -493,7 +483,7 @@ cross_validation <- function(
     )
   }
 
-  # Only select the columns that we need
+  # Only select the columns that we need to reduce memory footprint per thread
   data <- data %>% select(
     all_of(
       c(
@@ -507,103 +497,120 @@ cross_validation <- function(
     )
   )
 
-  run_formula_cv <- function(formula) {
-    start_time <- Sys.time()
+  splits <- expand.grid(
+    formula = formulas,
+    repeat_column = repeat_columns,
+    fold = seq_len(folds)
+  ) %>% mutate(
+    predictors = map(formula, extract_predictors)
+  )
 
-    # Initialize list of models, CV results (MSEs), predictions, and indices of lists
-    cv_models <- list()
+  run_split <- function(split) {
+    formula <- split[["formula"]]
+    repeat_column <- split[["repeat_column"]]
+    fold <- split[["fold"]]
+    predictors <- split[["predictors"]]
+
+    predictor_label <- predictor_labels[which(formulas == formula)]
+    repeat_value <- as.numeric(
+      sub(".*fold_r(\\d+).*", "\\1", repeat_column)
+    )
+
     results_list <- list()
     predicted_list <- list()
-    index_results <- 1L
-    index_predicted <- 1L
 
-    for (repeat_column in repeat_columns) {
-      for (fold in seq_len(folds)) {
-        # Subset training and testing data
-        train <- data %>% filter(
-          .data[[repeat_column]] != fold
+    # Subset training and testing data
+    train <- data %>%
+      filter(
+        .data[[repeat_column]] != fold
+      ) %>%
+      select(
+        -starts_with("fold"),
+        -all_of(setdiff(predictor_columns, predictors))
+      )
+    test <- data %>%
+      filter(
+        .data[[repeat_column]] == fold
+      ) %>%
+      select(
+        -starts_with("fold"),
+        -all_of(setdiff(predictor_columns, predictors))
+      )
+
+    # Fit GAM
+    mod <- bam(
+      as.formula(formula),
+      data = train,
+      family = gaussian(),
+      method = if (isTRUE(discrete)) "fREML" else "REML",
+      discrete = if (isTRUE(discrete)) TRUE else FALSE,
+      nthreads = 1
+    )
+    
+    map(age_groups, function(age_group_val) {
+      # Subset testing and training data for age group
+      train_subset <- train %>%
+        filter(
+          age_group == age_group_val
         )
-        test <- data %>% filter(
-          .data[[repeat_column]] == fold
+      test_subset <- test %>%
+        filter(
+          age_group == age_group_val
         )
 
-        # Fit GAM
-        mod <- bam(
-          as.formula(formula),
-          data = train,
-          family = gaussian(),
-          method = if (isTRUE(discrete)) "fREML" else "REML",
-          discrete = if (isTRUE(discrete)) TRUE else FALSE,
-          nthreads = 1
-        )
+      # Use GAM to predict responses in current age group
+      pred <- predict(mod, newdata = test_subset, type = "response")
 
-        # Extract predictor or get from predefined variable for confounder analysis
-        if (isTRUE(confounder_analysis)) {
-          predictors <- predictor_labels[which(formulas == formula)]
-        } else {
-          predictors <- paste(extract_predictors(formula), collapse = ", ")
-        }
-
-        # Extract repetition number only
-        repeat_value <- as.numeric(
-          sub(".*fold_r(\\d+).*", "\\1", repeat_column)
-        )
-
-        # calculate performance per age group
-        for (age_group_val in age_groups) {
-          # Subset testing and training data for age group
-          train_subset <- train %>%
-            filter(
-              age_group == age_group_val
-            )
-          test_subset <- test %>%
-            filter(
-              age_group == age_group_val
-            )
-
-          # Use GAM to predict responses in current age group
-          pred <- predict(mod, newdata = test_subset, type = "response")
-
-          # Calculate squared difference between predicted vs real in this age group
-          results_list[[index_results]] <- tibble(
-            predictors = predictors,
+      # Calculate squared difference between predicted vs real in this age group
+      list(
+        results = tibble(
+          predictors = predictor_label,
+          age_group = age_group_val,
+          r = repeat_value,
+          k = fold,
+          n_train = nrow(train_subset),
+          n_test = nrow(test_subset),
+          mse = mean((test_subset[[params$hearing_var]] - pred)^2)
+        ),
+        predictions = test_subset %>%
+          as_tibble() %>%
+          mutate(
+            predictors = predictor_label,
             age_group = age_group_val,
             r = repeat_value,
             k = fold,
-            n_train = nrow(train_subset),
-            n_test = nrow(test_subset),
-            mse = mean((test_subset[[params$hearing_var]] - pred)^2)
+            predicted = pred
           )
-          index_results <- index_results + 1L
-
-          # add predictions used to calculate RMSE later to a dataframe
-          predicted_list[[index_predicted]] <- test_subset %>%
-            as_tibble() %>%
-            mutate(
-              predictors = predictors,
-              age_group = age_group_val,
-              r = repeat_value,
-              k = fold,
-              predicted = pred
-            )
-          index_predicted <- index_predicted + 1L
-        }
-      }
-    }
-
-    list(
-      results = bind_rows(results_list),
-      predictions = bind_rows(predicted_list)
-    )
+      )
+    })
   }
-  
-  cv_output <- future_lapply(formulas, run_formula_cv, future.seed = TRUE)
 
-  # Bind results/predictions together and set factors when needed
-  results <- bind_rows(
-    lapply(cv_output, `[[`, "results")
+  plan(multisession, workers = threads)
+  cv_output <- future_apply(
+    splits,
+    MARGIN = 1,
+    FUN = run_split,
+    future.seed = TRUE,
+    future.globals = list(
+      data = data,
+      params = params,
+      age_groups = age_groups,
+      discrete = discrete,
+      predictor_labels = predictor_labels,
+      predictor_columns = predictor_columns,
+      formulas = formulas
+    ),
+    future.packages = c(
+      "mgcv",
+      "tidyverse",
+      "tidytable"
     )
-  results <- results %>%
+  )
+  plan(sequential)
+
+  results <- cv_output %>%
+    unlist(recursive = FALSE) %>%
+    map_dfr(~ .$results) %>%
     mutate(
       predictors = factor(
         predictors,
@@ -615,10 +622,9 @@ cross_validation <- function(
       )
     )
 
-  predictions <- bind_rows(
-    lapply(cv_output, `[[`, "predictions")
-    )
-  predictions <- predictions %>%
+  predictions <- cv_output %>%
+    unlist(recursive = FALSE) %>%
+    map_dfr(~ .$predictions) %>%
     mutate(
       predictors = factor(
         predictors,
@@ -671,7 +677,7 @@ load_model_results is FALSE. Results are stored if store_model_results is TRUE.
 
 #### Bioage K-fold CV
 
-```{r bioage_cv}
+```{r bioage_cv, warning=FALSE}
 system.time({
   output_bioage <- if (
     isTRUE(params$load_model_results) &&
@@ -686,7 +692,6 @@ system.time({
       repeats = params$global_repeats,
       discrete = params$global_discrete,
       threads = min(
-        length(formula_list_bioage), 
         params$n_threads, 
         as.numeric(future::availableCores()) - 1
         )
@@ -711,7 +716,7 @@ if (isTRUE(params$store_model_results)) {
 
 #### Biomarkers K-fold CV
 
-```{r biomarkers_cv}
+```{r biomarkers_cv, warning=FALSE}
 if (isFALSE(params$telolength)) {
   system.time({
     output_biomarkers <- if (
@@ -727,7 +732,6 @@ if (isFALSE(params$telolength)) {
         repeats = params$global_repeats,
         discrete = params$global_discrete,
         threads = min(
-          length(formula_list_biomarkers),
           params$n_threads,
           as.numeric(future::availableCores()) - 1
         )
@@ -753,7 +757,7 @@ if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
 
 #### Confounders K-fold CV
 
-```{r confounders_cv}
+```{r confounders_cv, warning=FALSE}
 if (isFALSE(params$telolength)) {
   system.time({
     output_confounders <- if (
@@ -770,7 +774,6 @@ if (isFALSE(params$telolength)) {
         discrete = params$global_discrete,
         confounder_analysis = TRUE,
         threads = min(
-          length(formula_list_confounders),
           params$n_threads,
           as.numeric(future::availableCores()) - 1
         )
