@@ -18,5 +18,10 @@
 /models/
 /savestates/
 
-# Others
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Windows
 desktop.ini
+**/desktop.ini

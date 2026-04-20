@@ -20,7 +20,7 @@ knit:
       here::here("output", "html", paste(parts, collapse = "_"));
     };
   
-    smart_knitter(inputFile, out_path = filename_constructor, auto_close = TRUE);
+    smart_knitter(inputFile, out_path = filename_constructor, auto_close = FALSE);
   })
   
 output:
@@ -60,7 +60,7 @@ params:
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   global_discrete: 
     label: "Discretize BAM"
-    value: FALSE
+    value: TRUE
     input: checkbox
     help: "Check to speed up fitting but create larger models that perform a little worse"
   global_folds: 
@@ -80,7 +80,7 @@ params:
     help: "Set to save large model results locally for fast reloading"
   load_model_results:
     label: "Load model results"
-    value: TRUE
+    value: FALSE
     input: checkbox
     help: "Set to skip refitting of k-fold validation if model results are present"
   confounders:
