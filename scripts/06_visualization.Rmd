@@ -519,14 +519,23 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         name = "Age",
         unit = "Years"
       ),
-      age_accel = define_axis(
+      age_accel_phenoage = define_axis(
         config = config,
         axis = "x",
         type = "continuous",
-        breaks = seq(0, 20, 20),
+        breaks = seq(-20, 20, 20),
         limits = c(-20, 20),
-        name = "Age Acceleration",
+        name = "PhenoAge Age Acceleration",
         unit = "PhenoAge – Age (Years)"
+      ),
+      age_accel_kdm = define_axis(
+        config = config,
+        axis = "x",
+        type = "continuous",
+        breaks = seq(-20, 20, 20),
+        limits = c(-20, 20),
+        name = "KDM Age Acceleration",
+        unit = "KDM – Age (Years)"
       )
     )
   }
@@ -2008,7 +2017,7 @@ if (isFALSE(params$telolength)) {
 ##### Advance bioage plot
 
 ```{r plot_bioage_advance}
-p <- df %>%
+p1 <- df %>%
   ggplot() +
   geom_density_ridges(
     aes(
@@ -2037,17 +2046,64 @@ p <- df %>%
     color = "darkred"
   ) +
   axes(
-    x = "age_accel",
+    x = "age_accel_phenoage",
     y = "age_group"
   ) +
   color_scales("bioage") +
   plot_theme()
 
+p2 <- df %>%
+  ggplot() +
+  geom_density_ridges(
+    aes(
+      x = kdm_advance,
+      y = age_group
+    )
+  ) +
+  annotate(
+    "text",
+    x = Inf,
+    y = Inf,
+    label = "Decelerated Aging",
+    hjust = 2.7,
+    vjust = 1,
+    size = plot_config("text_size_primary") / (14 / 5),
+    color = "darkgreen"
+  ) +
+  annotate(
+    "text",
+    x = Inf,
+    y = Inf,
+    label = "Accelerated Aging",
+    hjust = 1,
+    vjust = 1,
+    size = plot_config("text_size_primary") / (14 / 5),
+    color = "darkred"
+  ) +
+  axes(
+    x = "age_accel_kdm",
+    y = "age_group"
+  ) +
+  color_scales("bioage") +
+  plot_theme()
+
+p <- ggarrange(
+  p1,
+  NULL,
+  p2,
+  nrow = 1,
+  widths = c(1, 0.1, 1),
+  labels = c("A", "", "B"),
+  label.x = 0.02,
+  label.y = 1.01,
+  align = "v"
+)
+
 sameplot(
   p,
   file = here(plot_config("figure_dir"), "Extras", "age_acceleration.png"),
-  width = params$single_column,
-  height = 2.15,
+  width = params$double_column,
+  height = 2.4,
   res = 600,
   save = params$save_figures
 )
