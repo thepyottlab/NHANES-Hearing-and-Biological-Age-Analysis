@@ -263,6 +263,12 @@ filter_data <- function(data) {
   )
 
   data <- data %>%
+        verbose_filter(
+      !if_any(all_of(audiometry_cols), ~ . == 888),
+      !if_any(all_of(audiometry_cols), ~ . == 666),
+      !if_any(all_of(audiometry_cols), ~ is.na(.)),
+      label = "missing audiometry data."
+    ) %>%
     verbose_filter(
       case_when(
         year %in% c(1999, 2001, 2003, 2005) ~ age < 85,
@@ -273,12 +279,6 @@ filter_data <- function(data) {
     verbose_filter(
       age >= 20,
       label = "too young age."
-    ) %>%
-    verbose_filter(
-      !if_any(all_of(audiometry_cols), ~ . == 888),
-      !if_any(all_of(audiometry_cols), ~ . == 666),
-      !if_any(all_of(audiometry_cols), ~ is.na(.)),
-      label = "missing audiometry data."
     ) %>%
     verbose_filter(
       test_retest_diff_left < 10,
@@ -617,4 +617,80 @@ df <- df %>% mutate(
   ),
   confounders = interaction(gender, smoking)
 )
+```
+
+### Descriptive statistics table
+
+```{r descriptive_stats_table}
+df %>%
+  group_by(gender) %>%
+  summarize(
+    count = n(), .groups = "drop"
+  ) %>%
+  mutate(
+    gender = dplyr::recode(
+      gender,
+      "1" = "Male",
+      "2" = "Female"
+    ),
+    prop = round(count / sum(count), 5),
+  ) %>%
+  construct_table(title = "Gender proportion")
+
+df %>%
+  group_by(age_group) %>%
+  summarize(
+    count = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    prop = round(count / sum(count), 5),
+  ) %>%
+  construct_table(title = "Gender proportion")
+
+df %>%
+  group_by(race) %>%
+  summarize(
+    count = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    race = dplyr::recode(
+      race,
+      "1" = "Hispanic",
+      "3" = "White",
+      "4" = "Black",
+      "5" = "Other"
+    ),
+    prop = round(count / sum(count), 5),
+  ) %>%
+  construct_table(title = "Race proportion")
+
+df %>%
+  summarize(
+    age = mean(age),
+    age_sd = sd(age),
+    FI = mean(.data[[params$hearing_var]]),
+    FI_sd = sd(.data[[params$hearing_var]]),
+    kdm = mean(kdm),
+    kdm_sd = sd(kdm),
+    phenoage = mean(phenoage),
+    phenoage_sd = sd(phenoage),
+    hd_log = mean(hd_log),
+    hd_log_sd = sd(hd_log),
+    .groups = "drop"
+  ) %>%
+  construct_table(title = "Means and SDs")
+
+df %>%
+  filter(
+    !is.na(telolength)
+  ) %>%
+  summarize(
+    count = n(),
+    telolength = mean(telolength),
+    telolength_sd = sd(telolength),
+    .groups = "drop"
+  ) %>%
+  construct_table(title = "Telolength")
 ```
