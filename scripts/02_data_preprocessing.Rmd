@@ -264,6 +264,17 @@ filter_data <- function(data) {
 
   data <- data %>%
     verbose_filter(
+      case_when(
+        year %in% c(1999, 2001, 2003, 2005) ~ age < 85,
+        TRUE ~ age < 80
+      ),
+      label = "too old age."
+    ) %>%
+    verbose_filter(
+      age >= 20,
+      label = "too young age."
+    ) %>%
+    verbose_filter(
       !if_any(all_of(audiometry_cols), ~ . == 888),
       !if_any(all_of(audiometry_cols), ~ . == 666),
       !if_any(all_of(audiometry_cols), ~ is.na(.)),
@@ -280,17 +291,6 @@ filter_data <- function(data) {
     verbose_filter(
       !(education %in% c(7, 9)),
       label = "education refused or 'don't know'."
-    ) %>%
-    verbose_filter(
-      case_when(
-        year %in% c(1999, 2001, 2003, 2005) ~ age < 85,
-        TRUE ~ age < 80
-      ),
-      label = "too old age."
-    ) %>%
-    verbose_filter(
-      age >= 20,
-      label = "too young age."
     ) %>%
     verbose_filter(
       pregnant != 1 | is.na(pregnant),
