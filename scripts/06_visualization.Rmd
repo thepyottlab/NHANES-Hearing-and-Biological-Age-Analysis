@@ -584,7 +584,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         breaks = seq(0, 8, 2),
         limits = c(-1, 8.5),
         name = "Additional Predictive Capacity",
-        unit = "Δ MSE (dB HL)<sup>2</sup>"
+        unit = "ΔMSE (dB HL)<sup>2</sup>"
       ),
       drmse_bioage = define_axis(
         config = config,
@@ -593,7 +593,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         breaks = seq(0, 0.25, 0.1),
         limits = c(-0.05, 0.25),
         name = "Additional Predictive Capacity",
-        unit = "Δ RMSE (dB HL)"
+        unit = "ΔRMSE (dB HL)"
       ),
       dmse_biomark = define_axis(
         config = config,
@@ -602,7 +602,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         breaks = seq(0, 2, 1),
         limits = c(-0.25, 1.5),
         name = "Additional Predictive Capacity",
-        unit = "Δ MSE (dB HL)<sup>2</sup>"
+        unit = "ΔMSE (dB HL)<sup>2</sup>"
       ),
       dmse_conf = define_axis(
         config = config,
@@ -611,7 +611,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         breaks = seq(0, 40, 5),
         limits = c(-1, 40),
         name = "Additional Predictive Capacity",
-        unit = "Δ MSE (dB HL)<sup>2</sup>"
+        unit = "ΔMSE (dB HL)<sup>2</sup>"
       ),
       dmse_best_biomark = define_axis(
         config = config,
@@ -620,7 +620,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         breaks = c(0, 2),
         limits = c(-1.5, 4),
         name = "Additional Predictive Capacity",
-        unit = "Δ MSE (dB HL)<sup>2</sup>"
+        unit = "ΔMSE (dB HL)<sup>2</sup>"
       ),
       add_pred_conf = define_axis(
         config = config,
@@ -1128,7 +1128,7 @@ p <- plot_grid(
 
 sameplot(
   p,
-  file = here(plot_config("figure_dir"), "age_rate_panel_50.png"),
+  file = here(plot_config("figure_dir"), "age_rate_panel.png"),
   width = params$double_column,
   height = 6,
   res = 600,
