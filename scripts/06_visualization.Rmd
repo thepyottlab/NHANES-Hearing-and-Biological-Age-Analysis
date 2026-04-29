@@ -1092,7 +1092,6 @@ p6 <- ggplot() +
 p <- align_plots(p0, p1, p2, p3, p4, p5, p6, align = "hv")
 
 p <- plot_grid(
-  plot_grid(
     plot_grid(
       p[[1]], NULL,
       p[[2]], NULL,
@@ -1114,27 +1113,24 @@ p <- plot_grid(
       label_x = 0.04,
       label_y = 1.02
     ),
-    ncol = 1,
-    rel_heights = c(1, -0.15, 1)
-  ),
   NULL,
   plot_grid(
     NULL, p[[7]], NULL,
-    ncol = 1,
-    rel_heights = c(0.23, 0.54, 0.23),
+    nrow = 1,
+    rel_widths = c(0.25, 0.5, 0.25),
     labels = c("", "G", ""),
     label_x = 0.04,
-    label_y = 1.1
+    label_y = 1.02
   ),
-  ncol = 3,
-  rel_widths = c(3, 0.1, 1.005)
+  ncol = 1,
+  rel_heights = c(1, 0, 1, 0, 1)
 )
 
 sameplot(
   p,
-  file = here(plot_config("figure_dir"), "age_rate_panel.png"),
+  file = here(plot_config("figure_dir"), "age_rate_panel_50.png"),
   width = params$double_column,
-  height = 3,
+  height = 6,
   res = 600,
   save = params$save_figures
 )

@@ -183,3 +183,15 @@ output_age_rate$predictions$derivative_smooth <- output_age_rate$predictions$der
     ci_upper_adj = ci_upper - output_age_rate$predictions$quadratic_derivative$derivative
   )
 ```
+
+## Calculate coefficients
+
+We estimate the rate of change in dB/year and acceleration in dB/year² for the quadratic model and
+GAM. For the GAM, we estimate the acceleration by fitting a linear model to the derivative and
+calculating its coefficient.
+
+```{r calc_coeffs}
+with(output_age_rate$predictions$linear, cov(age, estimate) / var(age))
+with(output_age_rate$predictions$quadratic_derivative, cov(age, derivative) / var(age))
+coef(lm(derivative ~ age, data = output_age_rate$predictions$derivative_smooth))[["age"]]
+```
