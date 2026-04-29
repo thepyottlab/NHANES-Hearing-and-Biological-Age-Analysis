@@ -275,14 +275,23 @@ filter_data <- function(data) {
       label = "too young age."
     ) %>%
     verbose_filter(
+      pregnant != 1 | is.na(pregnant),
+      label = "pregnancy."
+    ) %>%
+    verbose_filter(
       !if_any(all_of(audiometry_cols), ~ . == 888),
       !if_any(all_of(audiometry_cols), ~ . == 666),
       !if_any(all_of(audiometry_cols), ~ is.na(.)),
       label = "missing audiometry data."
     ) %>%
     verbose_filter(
-      !if_any(all_of(biomarkers), ~ is.na(.)),
-      label = "missing biomarkers."
+      test_retest_diff_left < 10,
+      test_retest_diff_right < 10,
+      label = "too large test-retest difference."
+    ) %>%
+    verbose_filter(
+      pta_diff < 15,
+      label = "too large imbalance in left/right hearing loss."
     ) %>%
     verbose_filter(
       smoking %in% c(1, 2),
@@ -293,8 +302,8 @@ filter_data <- function(data) {
       label = "education refused or 'don't know'."
     ) %>%
     verbose_filter(
-      pregnant != 1 | is.na(pregnant),
-      label = "pregnancy."
+      !if_any(all_of(biomarkers), ~ is.na(.)),
+      label = "missing biomarkers."
     ) %>%
     group_by(gender) %>%
     verbose_filter(
@@ -308,16 +317,7 @@ filter_data <- function(data) {
       ),
       label = "biomarker outlier (greater or smaller than 5 SDs)."
     ) %>%
-    ungroup() %>%
-    verbose_filter(
-      test_retest_diff_left < 10,
-      test_retest_diff_right < 10,
-      label = "too large test-retest difference."
-    ) %>%
-    verbose_filter(
-      pta_diff < 15,
-      label = "too large imbalance in left/right hearing loss."
-    )
+    ungroup() 
 }
 
 df <- df_unfiltered %>% filter_data()
