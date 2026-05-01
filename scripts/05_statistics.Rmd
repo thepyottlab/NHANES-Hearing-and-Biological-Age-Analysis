@@ -521,8 +521,8 @@ if (isFALSE(params$telolength)) {
       exclusions = c(
         "age",
         "age, phenoage",
-        "age, crp, hba1c, albumin_gL",
-        "age, crp, hba1c, albumin_gL, phenoage"
+        "age, lncrp, hba1c, albumin_gL",
+        "age, lncrp, hba1c, albumin_gL, phenoage"
       )
     )
   )
@@ -533,8 +533,8 @@ if (isFALSE(params$telolength)) {
       exclusions = c(
         "age",
         "age, phenoage",
-        "age, crp, hba1c, albumin_gL",
-        "age, crp, hba1c, albumin_gL, phenoage"
+        "age, lncrp, hba1c, albumin_gL",
+        "age, lncrp, hba1c, albumin_gL, phenoage"
       )
     )
   )
@@ -655,8 +655,8 @@ if (isFALSE(params$telolength)) {
     exceptions = c(
       "age",
       "age, phenoage",
-      "age, crp, hba1c, albumin_gL",
-      "age, crp, hba1c, albumin_gL, phenoage"
+      "age, lncrp, hba1c, albumin_gL",
+      "age, lncrp, hba1c, albumin_gL, phenoage"
     ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
@@ -668,8 +668,8 @@ if (isFALSE(params$telolength)) {
     exceptions = c(
       "age",
       "age, phenoage",
-      "age, crp, hba1c, albumin_gL",
-      "age, crp, hba1c, albumin_gL, phenoage"
+      "age, lncrp, hba1c, albumin_gL",
+      "age, lncrp, hba1c, albumin_gL, phenoage"
     ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"

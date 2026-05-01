@@ -561,7 +561,7 @@ df <- df %>%
     alp,
     bun,
     creat,
-    crp,
+    lncrp,
     glucose,
     hba1c,
     lymph,

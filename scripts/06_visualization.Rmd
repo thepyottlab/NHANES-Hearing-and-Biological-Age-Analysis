@@ -110,15 +110,15 @@ rename_biomarker_table <- function(biomarker_table) {
       !(Predictors %in% c(
         "age",
         "age, phenoage",
-        "age, crp, hba1c, albumin_gL",
-        "age, crp, hba1c, albumin_gL, phenoage"
+        "age, lncrp, hba1c, albumin_gL",
+        "age, lncrp, hba1c, albumin_gL, phenoage"
       ))
     ) %>%
     mutate(
       Predictors = case_when(
         Predictors == "age, rdw" ~ "Age + RDW",
         Predictors == "age, alp" ~ "Age + ALP",
-        Predictors == "age, crp" ~ "Age + CRP",
+        Predictors == "age, lncrp" ~ "Age + CRP",
         Predictors == "age, totchol" ~ "Age + TC",
         Predictors == "age, albumin_gL" ~ "Age + ALB",
         Predictors == "age, hba1c" ~ "Age + HbA1c",
@@ -745,34 +745,34 @@ color_scales <- function(color_list_name) {
     ),
     biomarker_diff = build_color_scale(
       colors = c(
-        "age, crp, hba1c, albumin_gL, phenoage" = "#CB2027",
-        "age, crp, hba1c, albumin_gL" = "#059748",
+        "age, lncrp, hba1c, albumin_gL, phenoage" = "#CB2027",
+        "age, lncrp, hba1c, albumin_gL" = "#059748",
         "age, phenoage" = "grey65"
       ),
       fill_colors = c(
-        "age, crp, hba1c, albumin_gL, phenoage" = "#F07E6E",
-        "age, crp, hba1c, albumin_gL" = "#90CD97",
+        "age, lncrp, hba1c, albumin_gL, phenoage" = "#F07E6E",
+        "age, lncrp, hba1c, albumin_gL" = "#90CD97",
         "age, phenoage" = "grey80"
       ),
       labels = c(
-        "age, crp, hba1c, albumin_gL, phenoage" = "Age + CRP + HbA1c + ALB + PhenoAge",
-        "age, crp, hba1c, albumin_gL" = "Age + CRP + HbA1c + ALB",
+        "age, lncrp, hba1c, albumin_gL, phenoage" = "Age + CRP + HbA1c + ALB + PhenoAge",
+        "age, lncrp, hba1c, albumin_gL" = "Age + CRP + HbA1c + ALB",
         "age, phenoage" = "Age + PhenoAge"
       ),
       breaks = c(
-        "age, crp, hba1c, albumin_gL, phenoage",
-        "age, crp, hba1c, albumin_gL",
+        "age, lncrp, hba1c, albumin_gL, phenoage",
+        "age, lncrp, hba1c, albumin_gL",
         "age, phenoage"
       )
     ),
     best_biomarkers = build_color_scale(
       colors = c(
-        "age, crp" = "#256DAB",
+        "age, lncrp" = "#256DAB",
         "age, hba1c" = "#E5126F",
         "age, albumin_gL" = "#DF5C24"
       ),
       fill_colors = c(
-        "age, crp" = "#88BDE6",
+        "age, lncrp" = "#88BDE6",
         "age, hba1c" = "#F6AAC9",
         "age, albumin_gL" = "#FBB258"
       )
@@ -2244,18 +2244,18 @@ if (isFALSE(params$telolength)) {
 ```{r plot_biomarkers, include=FALSE}
 if (isFALSE(params$telolength)) {
   p1 <- df_summary_biomarkers %>%
-    filter(predictors %in% c("age, crp", "age, hba1c", "age, albumin_gL")) %>%
+    filter(predictors %in% c("age, lncrp", "age, hba1c", "age, albumin_gL")) %>%
     mutate(
       label = predictors,
       label = case_when(
-        label == "age, crp" ~ "Age + CRP",
+        label == "age, lncrp" ~ "Age + CRP",
         label == "age, hba1c" ~ "Age + HbA1c",
         label == "age, albumin_gL" ~ "Age + ALB",
         TRUE ~ NA
       ),
       predictors = factor(
         predictors,
-        levels = c("age, crp", "age, hba1c", "age, albumin_gL")
+        levels = c("age, lncrp", "age, hba1c", "age, albumin_gL")
       )
     ) %>%
     ggplot(
@@ -2311,7 +2311,7 @@ if (isFALSE(params$telolength)) {
       nrow = 5,
       labeller = labeller(
         predictors = c(
-          "age, crp" = "Age + CRP",
+          "age, lncrp" = "Age + CRP",
           "age, hba1c" = "Age + HbA1c",
           "age, albumin_gL" = "Age + ALB"
         )
@@ -2344,16 +2344,16 @@ if (isFALSE(params$telolength)) {
     filter(
       predictors %in% c(
         "age, phenoage",
-        "age, crp, hba1c, albumin_gL",
-        "age, crp, hba1c, albumin_gL, phenoage"
+        "age, lncrp, hba1c, albumin_gL",
+        "age, lncrp, hba1c, albumin_gL, phenoage"
       )
     ) %>%
     mutate(predictors = factor(
       predictors,
       levels = c(
         "age, phenoage",
-        "age, crp, hba1c, albumin_gL",
-        "age, crp, hba1c, albumin_gL, phenoage"
+        "age, lncrp, hba1c, albumin_gL",
+        "age, lncrp, hba1c, albumin_gL, phenoage"
       )
     )) %>%
     ggplot(
@@ -2448,8 +2448,8 @@ if (isFALSE(params$telolength)) {
       predictors %in% c(
         "age",
         "age, phenoage",
-        "age, crp, hba1c, albumin_gL",
-        "age, crp, hba1c, albumin_gL, phenoage"
+        "age, lncrp, hba1c, albumin_gL",
+        "age, lncrp, hba1c, albumin_gL, phenoage"
       )
     )) %>%
     mutate(predictors = factor(
@@ -2468,7 +2468,7 @@ if (isFALSE(params$telolength)) {
         "age, alp",
         "age, albumin_gL",
         "age, hba1c",
-        "age, crp"
+        "age, lncrp"
       ),
       labels = c(
         "SBP",

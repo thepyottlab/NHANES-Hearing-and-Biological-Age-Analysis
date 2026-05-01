@@ -88,18 +88,18 @@ if each level is in each fold. We must compute the deg_free for each fold and pi
 avoid errors. The GAM is a composite of all these underlying functions, with different weights for
 each function. Max degrees of freedom are only computed once per variable and cached for retrieval.
 
--   `k`: number of basis functions.
--   `max_k`: sets k to the theoretical limit for each parameter (deg_free), note that for
-    non-integers, like the bioage measures, this will be equivalent to the length of the dataframe
-    minus one.
--   `auto_limit_k`: if k exceeds the deg_free for a parameter (e.g., if k \> 25 for albumin), it
-    will automatically be limited to the deg_free.
--   `equal_wiggliness`: gives an individual id to each sum-to-zero interaction term when FALSE which
-    ensures they have the same smoothing parameter. Setting to TRUE marginally improves fit but uses
-    many degrees of freedom.
--   `stepdown`: additionally creates formulas with age as predictor that each miss one confounder
-    for a nested-CV comparison (i.e., compare, for example, the impact of adding 'gender' to a model
-    that already includes other covariates).
+- `k`: number of basis functions.
+- `max_k`: sets k to the theoretical limit for each parameter (deg_free), note that for
+  non-integers, like the bioage measures, this will be equivalent to the length of the dataframe
+  minus one.
+- `auto_limit_k`: if k exceeds the deg_free for a parameter (e.g., if k \> 25 for albumin), it will
+  automatically be limited to the deg_free.
+- `equal_wiggliness`: gives an individual id to each sum-to-zero interaction term when FALSE which
+  ensures they have the same smoothing parameter. Setting to TRUE marginally improves fit but uses
+  many degrees of freedom.
+- `stepdown`: additionally creates formulas with age as predictor that each miss one confounder for
+  a nested-CV comparison (i.e., compare, for example, the impact of adding 'gender' to a model that
+  already includes other covariates).
 
 ```{r fun_formula_gen}
 formula_generator <- function(
@@ -383,7 +383,7 @@ formula_list_biomarkers <- formula_generator(
     "age, alp",
     "age, creat",
     "age, glucose",
-    "age, crp",
+    "age, lncrp",
     "age, lymph",
     "age, mcv",
     "age, rdw",
@@ -393,8 +393,8 @@ formula_list_biomarkers <- formula_generator(
     "age, totchol",
     "age, hba1c",
     "age, uap",
-    "age, crp, hba1c, albumin_gL",
-    "age, crp, hba1c, albumin_gL, phenoage"
+    "age, lncrp, hba1c, albumin_gL",
+    "age, lncrp, hba1c, albumin_gL, phenoage"
   ),
   confounders = confounder_interactions
 )
