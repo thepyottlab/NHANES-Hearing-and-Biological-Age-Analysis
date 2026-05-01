@@ -18,7 +18,7 @@ distributions in each fold.
 
 ```{r fun_make_folds}
 make_repeated_folds <- function(data, grouping_variable, k, repeats) {
-  # Helper to lncreate random k-fold indices for one repeat
+  # Helper to create random k-fold indices for one repeat
   kfold_split_stratified <- function(k, grouping_variable = NULL) {
     # Convert factor of age_group to number
     grouping_variable <- as.integer(
@@ -97,9 +97,9 @@ each function. Max degrees of freedom are only computed once per variable and ca
 - `equal_wiggliness`: gives an individual id to each sum-to-zero interaction term when FALSE which
   ensures they have the same smoothing parameter. Setting to TRUE marginally improves fit but uses
   many degrees of freedom.
-- `stepdown`: additionally lncreates formulas with age as predictor that each miss one confounder
-  for a nested-CV comparison (i.e., compare, for example, the impact of adding 'gender' to a model
-  that already includes other covariates).
+- `stepdown`: additionally creates formulas with age as predictor that each miss one confounder for
+  a nested-CV comparison (i.e., compare, for example, the impact of adding 'gender' to a model that
+  already includes other covariates).
 
 ```{r fun_formula_gen}
 formula_generator <- function(
@@ -138,7 +138,7 @@ formula_generator <- function(
     # make a term for each predictor and load degrees of freedom if already computed for predictor
     for (predictor in predictors) {
       if (predictor %in% deg_free_store$predictor) {
-        # Load degrees of freedom from cache if already computed else lncreate list
+        # Load degrees of freedom from cache if already computed else create list
         deg_free <- deg_free_store$deg_free[deg_free_store$predictor == predictor]
       } else {
         deg_free_list <- list()
@@ -241,7 +241,7 @@ formula_generator <- function(
 
     # Create confounder stepdown vars
     if (isTRUE(stepdown) && formula == "age") {
-      # Age will already have been lncreated by the previous loop
+      # Age will already have been created by the previous loop
       deg_free <- deg_free_store$deg_free[deg_free_store$predictor == "age"]
 
       k_formula <- if (max_k) deg_free else if (auto_limit_k && k > deg_free) deg_free else k
@@ -261,7 +261,7 @@ formula_generator <- function(
         )
         constrained_confounders <- confounders[-i]
 
-        # Remove one confounder from formula at a time and lncreate terms (with or without ID)
+        # Remove one confounder from formula at a time and create terms (with or without ID)
         for (j in seq_along(constrained_confounders)) {
           constrained_confounder <- constrained_confounders[j]
           if (isTRUE(equal_wiggliness)) {
@@ -659,7 +659,7 @@ generate_model_path <- function(output_type) {
 
   model_path <- here("models", folder_name, file_name)
 
-  dir.lncreate(
+  dir.create(
     dirname(model_path),
     recursive = TRUE,
     showWarnings = FALSE

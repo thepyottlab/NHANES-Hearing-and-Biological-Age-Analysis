@@ -585,7 +585,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         name = "Additional Predictive Capacity",
         unit = "ΔMSE (dB HL)<sup>2</sup>"
       ),
-      drmse_bioage = define_axis(
+      drmse_pred = define_axis(
         config = config,
         axis = "y",
         type = "continuous",
@@ -594,14 +594,14 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         name = "Additional Predictive Capacity",
         unit = "ΔRMSE (dB HL)"
       ),
-      dmse_biomark = define_axis(
+      drmse_biomark = define_axis(
         config = config,
         axis = "y",
         type = "continuous",
-        breaks = seq(0, 2, 1),
-        limits = c(-0.25, 1.5),
+        breaks = seq(0, 0.1, 0.05),
+        limits = c(-0.025, 0.1),
         name = "Additional Predictive Capacity",
-        unit = "ΔMSE (dB HL)<sup>2</sup>"
+        unit = "ΔRMSE (dB HL)"
       ),
       dmse_conf = define_axis(
         config = config,
@@ -609,15 +609,6 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         type = "continuous",
         breaks = seq(0, 40, 5),
         limits = c(-1, 40),
-        name = "Additional Predictive Capacity",
-        unit = "ΔMSE (dB HL)<sup>2</sup>"
-      ),
-      dmse_best_biomark = define_axis(
-        config = config,
-        axis = "y",
-        type = "continuous",
-        breaks = c(0, 2),
-        limits = c(-1.5, 4),
         name = "Additional Predictive Capacity",
         unit = "ΔMSE (dB HL)<sup>2</sup>"
       ),
@@ -1916,7 +1907,7 @@ p <- df_summary_bioage %>%
   ) +
   axes(
     x = "age_group",
-    y = "drmse_bioage"
+    y = "drmse_pred"
   ) +
   color_scales("bioage") +
   plot_theme()
@@ -2310,7 +2301,7 @@ if (isFALSE(params$telolength)) {
     ) +
     axes(
       x = "age_group",
-      y = "drmse_bioage"
+      y = "drmse_pred"
     ) +
     color_scales("best_biomarkers") +
     plot_theme() +
@@ -2380,7 +2371,7 @@ if (isFALSE(params$telolength)) {
     ) +
     axes(
       x = "age_group",
-      y = "drmse_bioage"
+      y = "drmse_pred"
     ) +
     color_scales("biomarker_diff") +
     plot_theme() +
@@ -2514,7 +2505,7 @@ if (isFALSE(params$telolength)) {
       show.legend = FALSE
     ) +
     axes(
-      y = "drmse_bioage"
+      y = "drmse_biomark"
     ) +
     plot_theme() +
     theme(

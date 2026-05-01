@@ -76,14 +76,14 @@ build_axes <- function(x = NULL, y = NULL) {
       ylim <- spec$limits
     }
 
-    # append ggplot scale object with breaks and name if present
-    scales <- c(
-      scales,
-      construct_format(
-        if (!is.null(spec$name)) name <- spec$name else NULL,
-        if (!is.null(spec$breaks)) breaks <- spec$breaks else NULL
-      )
-    )
+    # define arguments to pass to scale
+    args <- list()
+    if (!is.null(spec$name)) args$name <- spec$name
+    if (!is.null(spec$breaks)) args$breaks <- spec$breaks
+    if (spec$type == "continuous") args$labels <- scales::label_number(drop0trailing = TRUE)
+
+    # construct scale function with arguments and append to list of scales
+    scales <- c(scales, do.call(construct_format, args))
   }
 
   # append coord_cartesian object if any limits are provided
