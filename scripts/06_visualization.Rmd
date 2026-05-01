@@ -110,8 +110,7 @@ rename_biomarker_table <- function(biomarker_table) {
       !(Predictors %in% c(
         "age",
         "age, phenoage",
-        "age, lncrp, hba1c, albumin_gL",
-        "age, lncrp, hba1c, albumin_gL, phenoage"
+        "age, lncrp, phenoage"
       ))
     ) %>%
     mutate(
@@ -129,7 +128,7 @@ rename_biomarker_table <- function(biomarker_table) {
         Predictors == "age, wbc" ~ "Age + WBC",
         Predictors == "age, lymph" ~ "Age + Lymphs",
         Predictors == "age, uap" ~ "Age + UA",
-        Predictors == "age, creat" ~ "Age + Creat"
+        Predictors == "age, lncreat" ~ "Age + Creat"
       ),
       Predictors = factor(Predictors, levels = c(
         "Age + SBP",
@@ -745,36 +744,32 @@ color_scales <- function(color_list_name) {
     ),
     biomarker_diff = build_color_scale(
       colors = c(
-        "age, lncrp, hba1c, albumin_gL, phenoage" = "#CB2027",
-        "age, lncrp, hba1c, albumin_gL" = "#059748",
+        "age, lncrp, phenoage" = "#CB2027",
+        "age, lncrp" = "#059748",
         "age, phenoage" = "grey65"
       ),
       fill_colors = c(
-        "age, lncrp, hba1c, albumin_gL, phenoage" = "#F07E6E",
-        "age, lncrp, hba1c, albumin_gL" = "#90CD97",
+        "age, lncrp, phenoage" = "#F07E6E",
+        "age, lncrp" = "#90CD97",
         "age, phenoage" = "grey80"
       ),
       labels = c(
-        "age, lncrp, hba1c, albumin_gL, phenoage" = "Age + CRP + HbA1c + ALB + PhenoAge",
-        "age, lncrp, hba1c, albumin_gL" = "Age + CRP + HbA1c + ALB",
+        "age, lncrp, phenoage" = "Age + CRP + PhenoAge",
+        "age, lncrp" = "Age + CRP",
         "age, phenoage" = "Age + PhenoAge"
       ),
       breaks = c(
-        "age, lncrp, hba1c, albumin_gL, phenoage",
-        "age, lncrp, hba1c, albumin_gL",
+        "age, lncrp, phenoage",
+        "age, lncrp",
         "age, phenoage"
       )
     ),
     best_biomarkers = build_color_scale(
       colors = c(
-        "age, lncrp" = "#256DAB",
-        "age, hba1c" = "#E5126F",
-        "age, albumin_gL" = "#DF5C24"
+        "age, lncrp" = "#256DAB"
       ),
       fill_colors = c(
-        "age, lncrp" = "#88BDE6",
-        "age, hba1c" = "#F6AAC9",
-        "age, albumin_gL" = "#FBB258"
+        "age, lncrp" = "#88BDE6"
       )
     )
   )
@@ -2244,24 +2239,22 @@ if (isFALSE(params$telolength)) {
 ```{r plot_biomarkers, include=FALSE}
 if (isFALSE(params$telolength)) {
   p1 <- df_summary_biomarkers %>%
-    filter(predictors %in% c("age, lncrp", "age, hba1c", "age, albumin_gL")) %>%
+    filter(predictors %in% c("age, lncrp")) %>%
     mutate(
       label = predictors,
       label = case_when(
         label == "age, lncrp" ~ "Age + CRP",
-        label == "age, hba1c" ~ "Age + HbA1c",
-        label == "age, albumin_gL" ~ "Age + ALB",
         TRUE ~ NA
       ),
       predictors = factor(
         predictors,
-        levels = c("age, lncrp", "age, hba1c", "age, albumin_gL")
+        levels = c("age, lncrp")
       )
     ) %>%
     ggplot(
       aes(
         x = age_group,
-        y = mean_delta_mse
+        y = delta_rmse
       )
     ) +
     geom_hline(
@@ -2287,8 +2280,8 @@ if (isFALSE(params$telolength)) {
       aes(
         fill = predictors,
         group = predictors,
-        ymin = ci_low_delta_mse,
-        ymax = ci_high_delta_mse
+        ymin = ci_low_delta_rmse,
+        ymax = ci_high_delta_rmse
       ),
       show.legend = FALSE
     ) +
@@ -2311,15 +2304,13 @@ if (isFALSE(params$telolength)) {
       nrow = 5,
       labeller = labeller(
         predictors = c(
-          "age, lncrp" = "Age + CRP",
-          "age, hba1c" = "Age + HbA1c",
-          "age, albumin_gL" = "Age + ALB"
+          "age, lncrp" = "Age + CRP"
         )
       )
     ) +
     axes(
       x = "age_group",
-      y = "dmse_best_biomark"
+      y = "drmse_bioage"
     ) +
     color_scales("best_biomarkers") +
     plot_theme() +
@@ -2344,22 +2335,22 @@ if (isFALSE(params$telolength)) {
     filter(
       predictors %in% c(
         "age, phenoage",
-        "age, lncrp, hba1c, albumin_gL",
-        "age, lncrp, hba1c, albumin_gL, phenoage"
+        "age, lncrp",
+        "age, lncrp, phenoage"
       )
     ) %>%
     mutate(predictors = factor(
       predictors,
       levels = c(
         "age, phenoage",
-        "age, lncrp, hba1c, albumin_gL",
-        "age, lncrp, hba1c, albumin_gL, phenoage"
+        "age, lncrp",
+        "age, lncrp, phenoage"
       )
     )) %>%
     ggplot(
       aes(
         x = age_group,
-        y = mean_delta_mse
+        y = delta_rmse
       )
     ) +
     geom_hline(
@@ -2369,8 +2360,8 @@ if (isFALSE(params$telolength)) {
       aes(
         fill = predictors,
         group = predictors,
-        ymin = ci_low_delta_mse,
-        ymax = ci_high_delta_mse
+        ymin = ci_low_delta_rmse,
+        ymax = ci_high_delta_rmse
       ),
       show.legend = FALSE
     ) +
@@ -2389,7 +2380,7 @@ if (isFALSE(params$telolength)) {
     ) +
     axes(
       x = "age_group",
-      y = "dmse_bioage"
+      y = "drmse_bioage"
     ) +
     color_scales("biomarker_diff") +
     plot_theme() +
@@ -2448,8 +2439,7 @@ if (isFALSE(params$telolength)) {
       predictors %in% c(
         "age",
         "age, phenoage",
-        "age, lncrp, hba1c, albumin_gL",
-        "age, lncrp, hba1c, albumin_gL, phenoage"
+        "age, lncrp, phenoage"
       )
     )) %>%
     mutate(predictors = factor(
@@ -2461,7 +2451,7 @@ if (isFALSE(params$telolength)) {
         "age, lymph",
         "age, rdw",
         "age, totchol",
-        "age, creat",
+        "age, lncreat",
         "age, uap",
         "age, glucose",
         "age, wbc",
@@ -2490,7 +2480,7 @@ if (isFALSE(params$telolength)) {
     ggplot(
       aes(
         x = predictors,
-        y = mean_delta_mse
+        y = delta_rmse
       )
     ) +
     geom_point(
@@ -2504,8 +2494,8 @@ if (isFALSE(params$telolength)) {
     geom_linerange(
       aes(
         color = predictors,
-        ymin = ci_low_delta_mse,
-        ymax = ci_high_delta_mse
+        ymin = ci_low_delta_rmse,
+        ymax = ci_high_delta_rmse
       ),
       position = position_dodge(0.8),
       lineend = "round",
@@ -2516,7 +2506,7 @@ if (isFALSE(params$telolength)) {
         filter(p_adj != "ns"),
       aes(
         x = predictors,
-        y = ci_high_delta_mse + 0.25,
+        y = ci_high_delta_rmse + 0.01,
         label = signif,
         color = predictors
       ),
@@ -2524,7 +2514,7 @@ if (isFALSE(params$telolength)) {
       show.legend = FALSE
     ) +
     axes(
-      y = "dmse_biomark"
+      y = "drmse_bioage"
     ) +
     plot_theme() +
     theme(

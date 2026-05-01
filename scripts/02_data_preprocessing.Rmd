@@ -253,6 +253,7 @@ filter_data <- function(data) {
     "lncrp",
     "totchol",
     "lncreat",
+    "lncreat_umol",
     "hba1c",
     "sbp",
     "bun",
@@ -413,7 +414,7 @@ older).
 ```{r calc_bioage, warning=FALSE}
 bioage_calc <- function(data, training_data_path, HD_training_data_path) {
   v1_biomarkers <- c(
-    "fev", "sbp", "totchol", "hba1c", "albumin", "creat", "lncrp", "alp", "bun"
+    "fev", "sbp", "totchol", "hba1c", "albumin", "lncreat", "lncrp", "alp", "bun"
   )
   v2_biomarkers <- c(
     "albumin", "alp", "lncrp", "totchol", "lncreat", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc"
@@ -560,7 +561,7 @@ df <- df %>%
     albumin_gL,
     alp,
     bun,
-    creat,
+    lncreat,
     lncrp,
     glucose,
     hba1c,
