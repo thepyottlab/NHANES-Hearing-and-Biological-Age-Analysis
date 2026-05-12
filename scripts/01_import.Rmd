@@ -18,6 +18,7 @@ library(haven) # for importing .xpt
 library(matrixStats) # used for weighted variance calculation
 library(emmeans) # for pairwise comparisons
 library(mgcv) # used to train model
+library(effectsize)
 
 # Visualization
 library(kableExtra) # for pretty tables

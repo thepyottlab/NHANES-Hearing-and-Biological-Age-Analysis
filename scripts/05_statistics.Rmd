@@ -628,7 +628,7 @@ nb_corrected_repeated_t_test <- function(summary_data,
         TRUE ~ "ns"
       )
     ) %>%
-    select(-t, -df, -p, -s2_delta_mse, -sum_n_test, -sum_n_train, -n)
+    select(-p, -s2_delta_mse, -sum_n_test, -sum_n_train, -n)
 
   summary_data
 }
@@ -869,12 +869,12 @@ We do a partial F-test to compare a full model with a constrained model, to see 
 significantly improves fit.
 
 ```{r compare_aging_models}
-anova(
+aov_quadratic <- anova(
   output_age_rate$models$linear,
   output_age_rate$models$quadratic
 )
 
-anova(
+aov_gam <- anova(
   output_age_rate$models$quadratic,
   output_age_rate$models$smooth
 )
@@ -899,6 +899,39 @@ c(
   construct_table(
     title = "RMSE (In-Sample)"
   )
+
+calculate_f_test_statistics <- function(anova) {
+  anova_table <- F_to_omega2(
+  f = anova$F[2],
+  df = anova$Df[2],
+  df_error = anova$`Resid. Df`[2],
+  ci = 0.90,
+  alternative = "greater"
+)
+  anova_table["F"] <- anova$F[2]
+  anova_table["p"] <- anova$`Pr(>F)`[2]
+  anova_table["numerator df"] <- anova$Df[2]
+  anova_table["denominator df"] <- anova$`Resid. Df`[2]
+  
+  report <- paste0(
+    "<i>F</i><sub>(",
+    round(anova_table["numerator df"], 1),
+    ", ",
+    round(anova_table["denominator df"], 1),
+    ")</sub> = ",
+    round(anova_table["F"], 2),
+    ", <i>p</i> ",
+    if (anova_table["p"] > 0.001) "= " else "< ",
+    if (anova_table["p"] > 0.001) signif(anova_table["p"], 1) else "0.001",
+    ", <i>ω²</i> = ",
+    signif(anova_table["Omega2_partial"], 1)
+  )
+  
+  list(anova_table, htmltools::HTML(report))
+}
+
+calculate_f_test_statistics(aov_quadratic)
+calculate_f_test_statistics(aov_gam)
 ```
 
 **We see that the quadratic curve fits better than the linear one, so the rate of aging is not
@@ -973,6 +1006,7 @@ pwc_age_rate <- output_age_rate$predictions$derivative_smooth %>%
     derivative_adj,
     ci_lower_adj,
     ci_upper_adj,
+    z_score,
     p,
     p_adj,
     signif
