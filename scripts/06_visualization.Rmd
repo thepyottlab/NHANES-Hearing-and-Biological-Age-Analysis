@@ -636,23 +636,23 @@ color_scales <- function(color_list_name) {
     bioage = build_color_scale(
       colors = c(
         "age" = "#000000",
-        "age, hd_log" = "#256DAB",
-        "age, kdm" = "#059748",
-        "age, phenoage" = "#CB2027",
+        "age, hd_log" = if (isFALSE(params$telolength)) "#256DAB" else NULL,
+        "age, kdm" = if (isFALSE(params$telolength)) "#059748" else NULL,
+        "age, phenoage" = if (isFALSE(params$telolength)) "#CB2027" else NULL,
         "age, telolength" = if (isTRUE(params$telolength)) "#7B3A96" else NULL
       ),
       fill_colors = c(
         "age" = "#8C8C8C",
-        "age, hd_log" = "#88BDE6",
-        "age, kdm" = "#90CD97",
-        "age, phenoage" = "#F07E6E",
+        "age, hd_log" = if (isFALSE(params$telolength)) "#88BDE6" else NULL,
+        "age, kdm" = if (isFALSE(params$telolength)) "#90CD97" else NULL,
+        "age, phenoage" = if (isFALSE(params$telolength)) "#F07E6E" else NULL,
         "age, telolength" = if (isTRUE(params$telolength)) "#B276B2" else NULL
       ),
       labels = c(
         "age" = "Age",
-        "age, hd_log" = "Age + HD",
-        "age, kdm" = "Age + KDM",
-        "age, phenoage" = "Age + PhenoAge",
+        "age, hd_log" = if (isFALSE(params$telolength)) "Age + HD" else NULL,
+        "age, kdm" = if (isFALSE(params$telolength)) "Age + KDM" else NULL,
+        "age, phenoage" = if (isFALSE(params$telolength)) "Age + PhenoAge" else NULL,
         "age, telolength" = if (isTRUE(params$telolength)) "Age + Telolength" else NULL
       )
     ),
@@ -1810,6 +1810,9 @@ update_geom_defaults("point", set_geom_theme("mse_point"))
 update_geom_defaults("line", set_geom_theme("mse_line"))
 
 p <- df_summary_bioage %>%
+  {
+    if (isTRUE(params$telolength)) filter(., !predictors %in% c("age, phenoage", "age, kdm", "age, hd_log")) else .
+  } %>%
   ggplot(
     aes(
       x = age_group,
@@ -1871,6 +1874,9 @@ sameplot(
 
 ```{r plot_bioage_rmse}
 p <- df_summary_bioage %>%
+  {
+    if (isTRUE(params$telolength)) filter(., !predictors %in% c("age, phenoage", "age, kdm", "age, hd_log")) else .
+  } %>%
   ggplot(
     aes(
       x = age_group, y = delta_rmse
