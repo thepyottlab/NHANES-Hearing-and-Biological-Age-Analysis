@@ -1726,20 +1726,6 @@ if (isFALSE(params$telolength)) {
       ),
       show.legend = FALSE
     ) +
-    geom_line(
-      data = df %>%
-        group_by(age, gender) %>%
-        summarize(
-          hearing_var = mean(.data[[params$hearing_var]]),
-          .groups = "drop"
-        ),
-      aes(
-        x = age,
-        y = hearing_var,
-        color = gender
-      ),
-      show.legend = FALSE
-    ) +
     axes(
       x = "age",
       y = "hl"
