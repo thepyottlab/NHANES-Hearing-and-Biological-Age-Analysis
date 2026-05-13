@@ -347,6 +347,9 @@ formula_list_bioage <- formula_generator(
   equal_wiggliness = TRUE,
   formulas = c(
     "age",
+    "phenoage",
+    "kdm",
+    "hd_log",
     "age, phenoage",
     "age, kdm",
     "age, hd_log",
@@ -678,7 +681,7 @@ load_model_results is FALSE. Results are stored if store_model_results is TRUE.
 
 ```{r bioage_cv, warning=FALSE}
 system.time({
-  output_bioage <- if (
+  output_bioage_bidirectional <- if (
     isTRUE(params$load_model_results) &&
       file.exists(generate_model_path("bioage"))
   ) {

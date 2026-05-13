@@ -6,6 +6,37 @@ editor_options:
 
 # Data Processing
 
+## Split up bioage results into two
+
+```{r}
+if (isFALSE(params$telolength)) {
+split_bioage_reverse <- function(output) {
+  list(
+    results = output$results %>%
+      filter(predictors != "age") %>%
+      mutate(predictors = fct_drop(predictors)),
+    predictions = output$predictions %>%
+      filter(predictors != "age") %>%
+      mutate(predictors = fct_drop(predictors))
+  )
+}
+
+split_bioage <- function(output) {
+list(
+    results = output$results %>%
+      filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
+      mutate(predictors = fct_drop(predictors)),
+    predictions = output$predictions %>%
+      filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
+      mutate(predictors = fct_drop(predictors))
+  )
+}
+
+output_bioage_reverse <- split_bioage_reverse(output_bioage_bidirectional)
+output_bioage <- split_bioage(output_bioage_bidirectional)
+}
+```
+
 ## Process result comparison dfs
 
 ### Reformat df, calculate delta MSE bioage, and set data types
@@ -15,47 +46,62 @@ variable.
 
 ```{r reformat_df}
 reformat_df <- function(data) {
-  reformatted_data <- data$results %>%
+  if ("full" %in% data$results$predictors) {
+    data$results %>%
     left_join(
       data$results %>%
         filter(
-          if ("age" %in% data$results$predictors) {
-            predictors == "age"
-          } else {
             predictors == "full"
-          }
         ) %>%
-        mutate(mse_age = mse) %>%
+        mutate(mse_ref = mse) %>%
         select(-mse, -predictors, -n_train, -n_test),
       by = c("age_group", "r", "k")
     ) %>%
     mutate(
-      delta_mse = mse_age - mse,
-      additional_variance = delta_mse / mse_age * 100,
-      fold_repeat_id = factor(
-        interaction(r, k)
-      ),
-    )
-
-  if ("full" %in% data$results$predictors) {
-    reformatted_data <- reformatted_data %>%
-      rename("mse_full" = mse_age) %>%
-      mutate(
-        delta_mse = case_when(
+      reference = "full",
+      delta_mse = mse_ref - mse,
+      additional_variance = delta_mse / mse_ref * 100,
+              delta_mse = case_when(
           !predictors %in% c("full", "full_with_phenoage") ~ delta_mse * -1,
           TRUE ~ delta_mse
         ),
         additional_variance = case_when(
           !predictors %in% c("full", "full_with_phenoage") ~ additional_variance * -1,
           TRUE ~ additional_variance
-        )
+        ),
+      fold_repeat_id = factor(
+        interaction(r, k)
+      ),
+    )
+  } else {
+  single_predictors <- data$results %>%
+    filter(!grepl(", ", predictors)) %>%
+    pull(predictors) %>%
+    unique()
+  
+  map(single_predictors, function(ref) {
+    data$results %>%
+      filter(grepl(paste0("(^|, )", ref, "(, |$)"), predictors) | predictors == ref) %>%
+      left_join(
+        data$results %>%
+          filter(predictors == ref) %>%
+          mutate(mse_ref = mse) %>%
+          select(-mse, -predictors, -n_train, -n_test),
+        by = c("age_group", "r", "k")
+      ) %>%
+      mutate(
+        reference = ref,
+        delta_mse = mse_ref - mse,
+        additional_variance = delta_mse / mse_ref * 100,
+        fold_repeat_id = factor(interaction(r, k)),
       )
+  }) %>%
+    list_rbind()
   }
-
-  reformatted_data
 }
 
 df_results_bioage <- output_bioage %>% reformat_df()
+df_results_bioage_reverse <- output_bioage_reverse %>% reformat_df()
 
 if (isFALSE(params$telolength)) {
   df_results_biomarkers <- output_biomarkers %>% reformat_df()

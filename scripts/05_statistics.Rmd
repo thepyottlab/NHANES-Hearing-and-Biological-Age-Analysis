@@ -37,11 +37,11 @@ already in squared units, as its just the square of the standard deviation.
 
 ```{r calculate_ci}
 calculate_nb_cis <- function(results_data, per_age_group = FALSE) {
-  grouping_variables <- if (isTRUE(per_age_group)) c("predictors", "age_group") else c("predictors")
-
+  grouping_variables <- if (isTRUE(per_age_group)) c("predictors", "reference", "age_group") else c("predictors", "reference")
+  
   if (!per_age_group) {
     results_data <- results_data %>%
-      group_by(predictors, r, k) %>%
+      group_by(predictors, reference, r, k) %>%
       summarize(
         mse = weighted.mean(mse, w = n_test),
         delta_mse = weighted.mean(delta_mse, w = n_test),
@@ -137,7 +137,7 @@ calculate_RMSE_R2 <- function(
 
   if (!per_age_group) {
     results_data <- results_data %>%
-      group_by(predictors, r, k) %>%
+      group_by(predictors, reference, r, k) %>%
       summarize(
         n_train = sum(n_train),
         n_test = sum(n_test),
@@ -190,29 +190,34 @@ calculate_RMSE_R2 <- function(
         %>% select(-sse, -sst),
       by = c(grouping_variables)
     )
-
-  age_rmse_data <- updated_summary_data %>%
-    filter(
-      predictors == if ("age" %in% summary_data$predictors) "age" else "full"
-    ) %>%
-    mutate(rmse_age = rmse)
+  
+  ref_rmse_data <- updated_summary_data %>%
+    filter(predictors == reference) %>%
+    mutate(rmse_ref = rmse)
 
   if (per_age_group) {
     updated_summary_data <- updated_summary_data %>%
       left_join(
-        age_rmse_data %>% select(age_group, rmse_age),
-        by = c("age_group")
-      ) %>%
-      mutate(delta_rmse = rmse_age - rmse) %>%
-      select(-rmse_age)
+        ref_rmse_data %>% select(age_group, reference, rmse_ref),
+        by = c("age_group", "reference")) %>%
+          mutate(delta_rmse = rmse_ref - rmse) %>%
+        select(-rmse_ref)
   } else {
-    updated_summary_data <- updated_summary_data %>%
-      cross_join(
-        age_rmse_data %>%
-          select(rmse_age)
-      ) %>%
-      mutate(delta_rmse = rmse_age - rmse) %>%
-      select(-rmse_age)
+    ref_rmse_values <- ref_rmse_data %>% select(rmse_ref)
+    updated_summary_data <- if (nrow(ref_rmse_values) == 1) {
+      updated_summary_data %>%
+        cross_join(ref_rmse_values) %>%
+        mutate(delta_rmse = rmse_ref - rmse) %>%
+        select(-rmse_ref)
+    } else {
+      updated_summary_data %>%
+        left_join(
+          ref_rmse_data %>% select(reference, rmse_ref),
+          by = "reference"
+        ) %>%
+        mutate(delta_rmse = rmse_ref - rmse) %>%
+        select(-rmse_ref)
+    }
   }
 
   updated_summary_data
@@ -248,11 +253,13 @@ compute_rmse_CI <- function(
   per_age_group = FALSE,
   confounders = FALSE
 ) {
-  ref_var <- if (isTRUE(confounders)) "full" else "age"
-
   predictor_list <- unique(predictions$predictors)
   age_bins <- if (isTRUE(per_age_group)) unique(predictions$age_group) else "all"
   group_vars <- if (isTRUE(per_age_group)) c("predictors", "age_group") else "predictors"
+  
+  predictor_ref_map <- summary_data %>%
+  select(predictors, reference) %>%
+  distinct()
 
   ci_list <- list()
   index_ci_list <- 1L
@@ -269,6 +276,9 @@ compute_rmse_CI <- function(
   set.seed(43)
 
   for (predictor in predictor_list) {
+    ref_var <- predictor_ref_map %>%
+      filter(predictors == predictor) %>%
+      pull(reference)
     for (age_bin in age_bins) {
       error_ref <- predictions %>%
         filter(
@@ -365,7 +375,32 @@ df_summary_bioage_overall <- df_results_bioage %>%
   )
 
 if (isFALSE(params$telolength)) {
-  df_summary_biomarkers <- df_results_biomarkers %>%
+
+df_summary_bioage_reverse <- df_results_bioage_reverse %>%
+  calculate_nb_cis(per_age_group = TRUE) %>%
+  calculate_RMSE_R2(
+    results_data = df_results_bioage_reverse,
+    predictions = output_bioage_reverse$predictions,
+    per_age_group = TRUE
+  ) %>%
+  compute_rmse_CI(
+    predictions = output_bioage_reverse$predictions,
+    n_boot = params$n_boot,
+    per_age_group = TRUE
+  )
+
+df_summary_bioage_reverse_overall <- df_results_bioage_reverse %>%
+  calculate_nb_cis() %>%
+  calculate_RMSE_R2(
+    results_data = df_results_bioage_reverse,
+    predictions = output_bioage_reverse$predictions,
+  ) %>%
+  compute_rmse_CI(
+    predictions = output_bioage_reverse$predictions,
+    n_boot = params$n_boot
+  )
+
+df_summary_biomarkers <- df_results_biomarkers %>%
     calculate_nb_cis(per_age_group = TRUE) %>%
     calculate_RMSE_R2(
       results_data = df_results_biomarkers,
@@ -388,7 +423,6 @@ if (isFALSE(params$telolength)) {
       predictions = output_biomarkers$predictions,
       n_boot = params$n_boot
     )
-
 
   df_summary_confounders <- df_results_confounders %>%
     calculate_nb_cis(per_age_group = TRUE) %>%
@@ -648,6 +682,20 @@ pwc_bioage <- nb_corrected_repeated_t_test(
 )
 
 if (isFALSE(params$telolength)) {
+  pwc_bioage_reverse_overall <- nb_corrected_repeated_t_test(
+  df_summary_bioage_reverse_overall,
+  exceptions = c("phenoage", "kdm", "hd_log"),
+  exception_include_exclude = "exclude",
+  adjust_method = "holm"
+)
+
+pwc_bioage_reverse <- nb_corrected_repeated_t_test(
+  df_summary_bioage_reverse,
+  exceptions = c("phenoage", "kdm", "hd_log"),
+  exception_include_exclude = "exclude",
+  adjust_method = "holm"
+)
+
   pwc_biomarkers_overall <- nb_corrected_repeated_t_test(
     df_summary_biomarkers_overall,
     exceptions = c(
@@ -693,15 +741,25 @@ if (isFALSE(params$telolength)) {
 ### Display p value tables
 
 ```{r show_p_tables}
-pwc_bioage_overall %>% construct_table(
+pwc_bioage_overall %>%
+  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>% 
+  construct_table(
   title = "Overall Bioage Pairwise Comparisons"
 )
 
 if (isFALSE(params$telolength)) {
-  pwc_biomarkers_overall %>% construct_table(
+  pwc_bioage_reverse_overall %>%
+  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>% construct_table(
+    title = "Overall Bioage Reverse Analysis Pairwise Comparisons"
+  )
+  pwc_biomarkers_overall %>%
+  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>% 
+    construct_table(
     title = "Overall Biomarker Pairwise Comparisons"
   )
-  pwc_confounders_overall %>% construct_table(
+  pwc_confounders_overall %>%
+  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>% 
+    construct_table(
     title = "Overall Confounder Pairwise Comparisons"
   )
 }
@@ -751,6 +809,17 @@ df_summary_bioage_overall <- df_summary_bioage_overall %>%
   )
 
 if (isFALSE(params$telolength)) {
+  df_summary_bioage_reverse <- df_summary_bioage_reverse %>%
+  import_p_values(
+    pwc_bioage_reverse,
+    per_age_group = TRUE
+  )
+
+df_summary_bioage_reverse_overall <- df_summary_bioage_reverse_overall %>%
+  import_p_values(
+    pwc_bioage_reverse_overall
+  )
+
   df_summary_biomarkers <- df_summary_biomarkers %>%
     import_p_values(
       pwc_biomarkers,
