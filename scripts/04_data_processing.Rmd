@@ -41,8 +41,8 @@ if (isFALSE(params$telolength)) {
 
 ### Reformat df, calculate delta MSE bioage, and set data types
 
-We flip the sign for confounder analysis `delta_mse` and `additional_variance` when we subtract a
-variable.
+Confounder analysis in `delta_mse` and `additional_variance` uses the opposite as reference (the
+model with the term is now the reference).
 
 ```{r reformat_df}
 reformat_df <- function(data) {
@@ -59,16 +59,8 @@ reformat_df <- function(data) {
       ) %>%
       mutate(
         reference = "full",
-        delta_mse = mse_ref - mse,
-        additional_variance = delta_mse / mse_ref * 100,
-        delta_mse = case_when(
-          !predictors %in% c("full", "full_with_phenoage") ~ delta_mse * -1,
-          TRUE ~ delta_mse
-        ),
-        additional_variance = case_when(
-          !predictors %in% c("full", "full_with_phenoage") ~ additional_variance * -1,
-          TRUE ~ additional_variance
-        ),
+        delta_mse = mse - mse_ref,
+        additional_variance = delta_mse / mse * 100,
         fold_repeat_id = factor(
           interaction(r, k)
         ),

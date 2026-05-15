@@ -44,7 +44,7 @@ make_repeated_folds <- function(data, grouping_variable, k, repeats) {
     }
 
     # Create an output with the length of the number of observations
-    bins <- rep(observations)
+    bins <- integer(observations)
 
     # Using the random order, 1-10 is repeated until we've reached the last observation
     bins[indices] <- rep(1:k, ceiling(observations / k))[1:observations]
@@ -707,7 +707,7 @@ system.time({
 ```{r store_bioage_res}
 if (isTRUE(params$store_model_results)) {
   saveRDS(
-    object = output_bioage,
+    object = output_bioage_bidirectional,
     file = generate_model_path("bioage"),
     compress = "xz"
   )
@@ -800,8 +800,7 @@ if (isFALSE(params$telolength) && is.null(output_confounders$models)) {
           data = df,
           family = gaussian(),
           method = "REML",
-          discrete = FALSE,
-          confounder_analysis = TRUE
+          discrete = FALSE
         )
       )
     )

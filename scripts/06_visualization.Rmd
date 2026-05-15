@@ -65,13 +65,7 @@ format_table <- function(summary_data, per_age_group = FALSE) {
     table <- table %>%
       select(Predictors, n, `R²`, `∆RMSE (vs age, dB HL)`, `p (vs age)`)
   }
-
-  table <- table %>%
-    rename(
-      "p (vs full model)" = `p (vs age)`,
-      "∆RMSE (vs full model, dB HL)" = `∆RMSE (vs age, dB HL)`,
-    )
-
+  
   table
 }
 ```
@@ -174,6 +168,10 @@ rename_confounder_table <- function(confounders_table) {
         "Education",
         "Gender * Race"
       ))
+    ) %>%
+    rename(
+      "p (vs full model)" = `p (vs age)`,
+      "∆RMSE (vs full model, dB HL)" = `∆RMSE (vs age, dB HL)`,
     ) %>%
     arrange(Predictors)
 
@@ -948,15 +946,15 @@ p2 <- ggplot() +
     data = output_age_rate$predictions$smooth,
     aes(
       x = age,
-      ymin = ci_lower + coef(output_age_rate$models$smooth)["(Intercept)"],
-      ymax = ci_upper + coef(output_age_rate$models$smooth)["(Intercept)"]
+      ymin = ci_lower,
+      ymax = ci_upper
     )
   ) +
   geom_line(
     data = output_age_rate$predictions$smooth,
     aes(
       x = age,
-      y = estimate + coef(output_age_rate$models$smooth)["(Intercept)"]
+      y = estimate
     )
   ) +
   axes(
@@ -1131,7 +1129,7 @@ p <- plot_grid(
 sameplot(
   p,
   file = here(plot_config("figure_dir"), "age_rate_panel.png"),
-  width = params$double_column,
+  width = params$double_column_width,
   height = 6,
   res = 600,
   save = params$save_figures
@@ -1179,7 +1177,7 @@ if (isFALSE(params$telolength)) {
       "Extras",
       "simplified_age_rate_panel.png"
     ),
-    width = params$double_column * 1.8,
+    width = params$double_column_width * 1.8,
     height = 3 * 1.8,
     scaling = 1.8,
     res = 600,
@@ -1342,7 +1340,7 @@ if (isFALSE(params$telolength)) {
   sameplot(
     p,
     file = here(plot_config("figure_dir"), "Extras", "blank_age_rate_panel.png"),
-    width = params$double_column * 1.8,
+    width = params$double_column_width * 1.8,
     height = 3 * 1.8,
     scaling = 1.8,
     res = 600,
@@ -1581,7 +1579,7 @@ if (isFALSE(params$telolength)) {
       "Extras",
       "simplified_age_rate_panel_gender.png"
     ),
-    width = params$double_column * 1.8,
+    width = params$double_column_width * 1.8,
     height = 3 * 1.8,
     scaling = 1.8,
     res = 600,
@@ -1633,7 +1631,7 @@ if (isFALSE(params$telolength)) {
   sameplot(
     p0,
     file = here(plot_config("figure_dir"), "Extras", "age_rate_mean.png"),
-    width = params$single_column,
+    width = params$single_column_width,
     height = 3,
     res = 600,
     save = params$save_figures
@@ -1643,7 +1641,7 @@ if (isFALSE(params$telolength)) {
 
 ###### Plot aging GAM with covariates (supplementary)
 
-```{r plot_gender_aging_mean}
+```{r plot_covariate_model_fits}
 if (isFALSE(params$telolength)) {
   p1 <- ggplot() +
     geom_point(
@@ -1831,7 +1829,7 @@ if (isFALSE(params$telolength)) {
   sameplot(
     p0,
     file = here(plot_config("figure_dir"), "Extras", "age_rate_mean_race.png"),
-    width = params$single_column,
+    width = params$single_column_width,
     height = 3,
     res = 600,
     save = TRUE
@@ -1901,7 +1899,7 @@ p <- df_summary_bioage %>%
 sameplot(
   p,
   file = here(plot_config("figure_dir"), "bioage_panel.png"),
-  width = params$single_column,
+  width = params$single_column_width,
   height = 2.15,
   res = 600,
   save = params$save_figures
@@ -1959,7 +1957,7 @@ p <- df_summary_bioage %>%
 sameplot(
   p,
   file = here(plot_config("figure_dir"), "bioage_panel.png"),
-  width = params$single_column,
+  width = params$single_column_width,
   height = 2.15,
   res = 600,
   save = params$save_figures
@@ -2014,7 +2012,6 @@ if (isFALSE(params$telolength)) {
         label = signif,
         color = predictors
       ),
-      manual = TRUE,
       size = plot_config("signif_size") / (14 / 5)
     ) +
     axes(
@@ -2031,7 +2028,7 @@ if (isFALSE(params$telolength)) {
       "Extras",
       "phenoage_only_bioage_panel.png"
     ),
-    width = params$single_column * 1.8,
+    width = params$single_column_width * 1.8,
     height = 2.15 * 1.8,
     scaling = 1.8,
     res = 600,
@@ -2128,7 +2125,7 @@ p <- ggarrange(
 sameplot(
   p,
   file = here(plot_config("figure_dir"), "Extras", "age_acceleration.png"),
-  width = params$double_column,
+  width = params$double_column_width,
   height = 2.4,
   res = 600,
   save = params$save_figures
@@ -2180,7 +2177,6 @@ if (isFALSE(params$telolength)) {
         label = signif,
         color = predictors
       ),
-      manual = TRUE,
       size = plot_config("signif_size") / (14 / 5)
     ) +
     axes(
@@ -2193,7 +2189,7 @@ if (isFALSE(params$telolength)) {
   sameplot(
     p,
     file = here(plot_config("figure_dir"), "confounder_panel.png"),
-    width = params$single_column,
+    width = params$single_column_width,
     height = 2.15,
     res = 600,
     save = params$save_figures
@@ -2246,7 +2242,6 @@ if (isFALSE(params$telolength)) {
         label = signif,
         color = predictors
       ),
-      manual = TRUE,
       size = plot_config("signif_size") / (14 / 5)
     ) +
     axes(
@@ -2259,7 +2254,7 @@ if (isFALSE(params$telolength)) {
   sameplot(
     p,
     file = here(plot_config("figure_dir"), "confounder_panel_var.png"),
-    width = params$single_column,
+    width = params$single_column_width,
     height = 2.15,
     res = 600,
     save = params$save_figures
@@ -2454,7 +2449,7 @@ if (isFALSE(params$telolength)) {
   sameplot(
     p,
     file = here(plot_config("figure_dir"), "biomarkers_fig_panel.png"),
-    width = params$double_column,
+    width = params$double_column_width,
     height = 3,
     res = 600,
     save = params$save_figures
@@ -2567,7 +2562,7 @@ if (isFALSE(params$telolength)) {
   sameplot(
     p,
     file = here(plot_config("figure_dir"), "biomarkers_panel.png"),
-    width = params$single_column,
+    width = params$single_column_width,
     height = 2.15,
     res = 600,
     save = params$save_figures

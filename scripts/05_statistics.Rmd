@@ -40,16 +40,31 @@ calculate_nb_cis <- function(results_data, per_age_group = FALSE) {
   grouping_variables <- if (isTRUE(per_age_group)) c("predictors", "reference", "age_group") else c("predictors", "reference")
 
   if (!per_age_group) {
-    results_data <- results_data %>%
-      group_by(predictors, reference, r, k) %>%
-      summarize(
-        mse = weighted.mean(mse, w = n_test),
-        delta_mse = weighted.mean(delta_mse, w = n_test),
-        additional_variance = weighted.mean(additional_variance, w = n_test),
-        n_train = sum(n_train),
-        n_test = sum(n_test),
-        .groups = "drop"
-      )
+    if ("full" %in% results_data$predictors) {
+      results_data <- results_data %>%
+        group_by(predictors, reference, r, k) %>%
+        summarize(
+          mse = weighted.mean(mse, w = n_test),
+          delta_mse = weighted.mean(delta_mse, w = n_test),
+          mse_ref = weighted.mean(mse_ref, w = n_test),
+          additional_variance = weighted.mean(delta_mse, w = n_test) / weighted.mean(mse, w = n_test) * 100,
+          n_train = sum(n_train),
+          n_test = sum(n_test),
+          .groups = "drop"
+        )
+    } else {
+      results_data <- results_data %>%
+        group_by(predictors, reference, r, k) %>%
+        summarize(
+          mse = weighted.mean(mse, w = n_test),
+          delta_mse = weighted.mean(delta_mse, w = n_test),
+          mse_ref = weighted.mean(mse_ref, w = n_test),
+          additional_variance = weighted.mean(delta_mse, w = n_test) / weighted.mean(mse_ref, w = n_test) * 100,
+          n_train = sum(n_train),
+          n_test = sum(n_test),
+          .groups = "drop"
+        )
+    }
   }
 
   summary_data <- results_data %>%
@@ -818,7 +833,7 @@ if (isFALSE(params$telolength)) {
 
 ### Display summary tables
 
-```{r show_p_tables}
+```{r show_summary_tables}
 df_summary_bioage %>%
   mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
   construct_table(

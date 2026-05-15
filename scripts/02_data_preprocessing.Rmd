@@ -219,7 +219,7 @@ calculate_hearing <- function(data) {
         audio_left_2000,
         audio_left_4000
       ), na.rm = TRUE),
-      pta = mean(c(pta_r, pta_l)),
+      pta = mean(c(pta_r, pta_l), na.rm = TRUE),
       pta_diff = abs(pta_r - pta_l)
     ) %>%
     ungroup()
