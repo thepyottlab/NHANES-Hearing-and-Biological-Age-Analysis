@@ -548,7 +548,7 @@ cross_validation <- function(
       discrete = if (isTRUE(discrete)) TRUE else FALSE,
       nthreads = 1
     )
-    
+
     map(age_groups, function(age_group_val) {
       # Subset testing and training data for age group
       train_subset <- train %>%
@@ -694,9 +694,9 @@ system.time({
       repeats = params$global_repeats,
       discrete = params$global_discrete,
       threads = min(
-        params$n_threads, 
+        params$n_threads,
         as.numeric(future::availableCores()) - 1
-        )
+      )
     )
   }
 })
@@ -848,19 +848,19 @@ output_age_rate <- list(models = list(), predictions = list())
 
 model_age_rate <- function(terms, model_type = "gam") {
   if (model_type == "gam") {
-  gam(
-    reformulate(terms, response = params$hearing_var),
-    data = df,
-    method = "REML",
-    family = gaussian()
-  )    
+    gam(
+      reformulate(terms, response = params$hearing_var),
+      data = df,
+      method = "REML",
+      family = gaussian()
+    )
   } else {
-  bam(
-    reformulate(terms, response = params$hearing_var),
-    data = df,
-    method = "REML",
-    family = gaussian()
-  )        
+    bam(
+      reformulate(terms, response = params$hearing_var),
+      data = df,
+      method = "REML",
+      family = gaussian()
+    )
   }
 }
 
@@ -885,40 +885,40 @@ output_age_rate$models <- append(
   list(
     smooth_gender = model_age_rate(
       terms = c(
-        "age", 
-        "I(age^2)", 
-        "s(age, k = 10)", 
+        "age",
+        "I(age^2)",
+        "s(age, k = 10)",
         paste0("s(age, gender, bs = 'sz', k = ", params$global_k, ")")
-        ),
-      model_type = "bam"
       ),
+      model_type = "bam"
+    ),
     smooth_smoking = model_age_rate(
       terms = c(
-        "age", 
-        "I(age^2)", 
-        "s(age, k = 10)", 
+        "age",
+        "I(age^2)",
+        "s(age, k = 10)",
         paste0("s(age, smoking, bs = 'sz', k = ", params$global_k, ")")
-        ),
-      model_type = "bam"
       ),
+      model_type = "bam"
+    ),
     smooth_race = model_age_rate(
       terms = c(
-        "age", 
-        "I(age^2)", 
+        "age",
+        "I(age^2)",
         "s(age, k = 10)",
         paste0("s(age, race, bs = 'sz', k = ", params$global_k, ")")
-        ),
-      model_type = "bam"
       ),
+      model_type = "bam"
+    ),
     smooth_education = model_age_rate(
       terms = c(
-        "age", 
-        "I(age^2)", 
-        "s(age, k = 10)", 
+        "age",
+        "I(age^2)",
+        "s(age, k = 10)",
         paste0("s(age, education, bs = 'sz', k = ", params$global_k, ")")
-        ),
+      ),
       model_type = "bam"
-      )
+    )
   )
 )
 ```

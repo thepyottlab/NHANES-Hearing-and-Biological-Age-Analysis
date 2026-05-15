@@ -318,7 +318,7 @@ filter_data <- function(data) {
       ),
       label = "biomarker outlier (greater or smaller than 5 SDs)."
     ) %>%
-    ungroup() 
+    ungroup()
 }
 
 df <- df_unfiltered %>% filter_data()

@@ -10,30 +10,30 @@ editor_options:
 
 ```{r}
 if (isFALSE(params$telolength)) {
-split_bioage_reverse <- function(output) {
-  list(
-    results = output$results %>%
-      filter(predictors != "age") %>%
-      mutate(predictors = fct_drop(predictors)),
-    predictions = output$predictions %>%
-      filter(predictors != "age") %>%
-      mutate(predictors = fct_drop(predictors))
-  )
-}
+  split_bioage_reverse <- function(output) {
+    list(
+      results = output$results %>%
+        filter(predictors != "age") %>%
+        mutate(predictors = fct_drop(predictors)),
+      predictions = output$predictions %>%
+        filter(predictors != "age") %>%
+        mutate(predictors = fct_drop(predictors))
+    )
+  }
 
-split_bioage <- function(output) {
-list(
-    results = output$results %>%
-      filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
-      mutate(predictors = fct_drop(predictors)),
-    predictions = output$predictions %>%
-      filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
-      mutate(predictors = fct_drop(predictors))
-  )
-}
+  split_bioage <- function(output) {
+    list(
+      results = output$results %>%
+        filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
+        mutate(predictors = fct_drop(predictors)),
+      predictions = output$predictions %>%
+        filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
+        mutate(predictors = fct_drop(predictors))
+    )
+  }
 
-output_bioage_reverse <- split_bioage_reverse(output_bioage_bidirectional)
-output_bioage <- split_bioage(output_bioage_bidirectional)
+  output_bioage_reverse <- split_bioage_reverse(output_bioage_bidirectional)
+  output_bioage <- split_bioage(output_bioage_bidirectional)
 }
 ```
 
@@ -48,20 +48,20 @@ variable.
 reformat_df <- function(data) {
   if ("full" %in% data$results$predictors) {
     data$results %>%
-    left_join(
-      data$results %>%
-        filter(
+      left_join(
+        data$results %>%
+          filter(
             predictors == "full"
-        ) %>%
-        mutate(mse_ref = mse) %>%
-        select(-mse, -predictors, -n_train, -n_test),
-      by = c("age_group", "r", "k")
-    ) %>%
-    mutate(
-      reference = "full",
-      delta_mse = mse_ref - mse,
-      additional_variance = delta_mse / mse_ref * 100,
-              delta_mse = case_when(
+          ) %>%
+          mutate(mse_ref = mse) %>%
+          select(-mse, -predictors, -n_train, -n_test),
+        by = c("age_group", "r", "k")
+      ) %>%
+      mutate(
+        reference = "full",
+        delta_mse = mse_ref - mse,
+        additional_variance = delta_mse / mse_ref * 100,
+        delta_mse = case_when(
           !predictors %in% c("full", "full_with_phenoage") ~ delta_mse * -1,
           TRUE ~ delta_mse
         ),
@@ -69,34 +69,34 @@ reformat_df <- function(data) {
           !predictors %in% c("full", "full_with_phenoage") ~ additional_variance * -1,
           TRUE ~ additional_variance
         ),
-      fold_repeat_id = factor(
-        interaction(r, k)
-      ),
-    )
-  } else {
-  single_predictors <- data$results %>%
-    filter(!grepl(", ", predictors)) %>%
-    pull(predictors) %>%
-    unique()
-  
-  map(single_predictors, function(ref) {
-    data$results %>%
-      filter(grepl(paste0("(^|, )", ref, "(, |$)"), predictors) | predictors == ref) %>%
-      left_join(
-        data$results %>%
-          filter(predictors == ref) %>%
-          mutate(mse_ref = mse) %>%
-          select(-mse, -predictors, -n_train, -n_test),
-        by = c("age_group", "r", "k")
-      ) %>%
-      mutate(
-        reference = ref,
-        delta_mse = mse_ref - mse,
-        additional_variance = delta_mse / mse_ref * 100,
-        fold_repeat_id = factor(interaction(r, k)),
+        fold_repeat_id = factor(
+          interaction(r, k)
+        ),
       )
-  }) %>%
-    list_rbind()
+  } else {
+    single_predictors <- data$results %>%
+      filter(!grepl(", ", predictors)) %>%
+      pull(predictors) %>%
+      unique()
+
+    map(single_predictors, function(ref) {
+      data$results %>%
+        filter(grepl(paste0("(^|, )", ref, "(, |$)"), predictors) | predictors == ref) %>%
+        left_join(
+          data$results %>%
+            filter(predictors == ref) %>%
+            mutate(mse_ref = mse) %>%
+            select(-mse, -predictors, -n_train, -n_test),
+          by = c("age_group", "r", "k")
+        ) %>%
+        mutate(
+          reference = ref,
+          delta_mse = mse_ref - mse,
+          additional_variance = delta_mse / mse_ref * 100,
+          fold_repeat_id = factor(interaction(r, k)),
+        )
+    }) %>%
+      list_rbind()
   }
 }
 
@@ -273,11 +273,11 @@ predict_age_rate_covariate <- function(
       data = df
     )
   }
-  
+
   predictions <- as.data.frame(
     confint(em, adjust = "mvt", by = covariate)
   )
-  
+
   if (type == "predict") {
     predictions %>%
       rename(
@@ -345,8 +345,9 @@ output_age_rate$predictions <- append(
       output_age_rate$models$smooth_education,
       covariate = "education",
       type = "predict_derivative"
-    ))
+    )
   )
+)
 ```
 
 ## Calculate coefficients

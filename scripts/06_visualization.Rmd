@@ -1094,27 +1094,27 @@ p6 <- ggplot() +
 p <- align_plots(p0, p1, p2, p3, p4, p5, p6, align = "hv")
 
 p <- plot_grid(
-    plot_grid(
-      p[[1]], NULL,
-      p[[2]], NULL,
-      p[[3]],
-      labels = c("A", "", "B", "", "C"),
-      nrow = 1,
-      rel_widths = c(1, -0.01, 1, -0.01, 1),
-      label_x = 0.04,
-      label_y = 1.02
-    ),
-    NULL,
-    plot_grid(
-      p[[4]], NULL,
-      p[[5]], NULL,
-      p[[6]],
-      labels = c("D", "", "E", "", "F"),
-      nrow = 1,
-      rel_widths = c(1, -0.01, 1, -0.01, 1),
-      label_x = 0.04,
-      label_y = 1.02
-    ),
+  plot_grid(
+    p[[1]], NULL,
+    p[[2]], NULL,
+    p[[3]],
+    labels = c("A", "", "B", "", "C"),
+    nrow = 1,
+    rel_widths = c(1, -0.01, 1, -0.01, 1),
+    label_x = 0.04,
+    label_y = 1.02
+  ),
+  NULL,
+  plot_grid(
+    p[[4]], NULL,
+    p[[5]], NULL,
+    p[[6]],
+    labels = c("D", "", "E", "", "F"),
+    nrow = 1,
+    rel_widths = c(1, -0.01, 1, -0.01, 1),
+    label_x = 0.04,
+    label_y = 1.02
+  ),
   NULL,
   plot_grid(
     NULL, p[[7]], NULL,
@@ -1673,7 +1673,7 @@ if (isFALSE(params$telolength)) {
     theme(
       axis.title.x = element_blank()
     )
-  
+
   p2 <- ggplot() +
     geom_point(
       data = df,
@@ -1703,7 +1703,7 @@ if (isFALSE(params$telolength)) {
       axis.title.x = element_blank(),
       axis.title.y = element_blank()
     )
-  
+
   p3 <- ggplot() +
     geom_point(
       data = df,
@@ -1729,7 +1729,7 @@ if (isFALSE(params$telolength)) {
     ) +
     color_scales("race") +
     plot_theme()
-  
+
   p4 <- ggplot() +
     geom_point(
       data = df,
@@ -1758,7 +1758,7 @@ if (isFALSE(params$telolength)) {
     theme(
       axis.title.y = element_blank()
     )
-  
+
   p <- align_plots(p1, p2, p3, p4, align = "hv")
 
   p <- plot_grid(
