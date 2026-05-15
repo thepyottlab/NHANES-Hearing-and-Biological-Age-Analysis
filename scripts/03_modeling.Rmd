@@ -868,6 +868,20 @@ set.seed(1)
 k.check(output_age_rate$models$smooth)
 ```
 
+### Build covariate age rate models
+
+```{r aging_covariate_models}
+output_age_rate$models <- append(
+  output_age_rate$models,
+  list(
+    smooth_gender = model_age_rate(c("age", "I(age^2)", "s(age, k = 10)", "s(age, gender, bs = 'sz', k = 10)")),
+    smooth_smoking = model_age_rate(c("age", "I(age^2)", "s(age, k = 10)", "s(age, smoking, bs = 'sz', k = 10)")),
+    smooth_race = model_age_rate(c("age", "I(age^2)", "s(age, k = 10)", "s(age, race, bs = 'sz', k = 10)")),
+    smooth_education = model_age_rate(c("age", "I(age^2)", "s(age, k = 10)", "s(age, education, bs = 'sz', k = 10)"))
+  )
+)
+```
+
 ## Optional tests
 
 ### (Optional) Inspect folds

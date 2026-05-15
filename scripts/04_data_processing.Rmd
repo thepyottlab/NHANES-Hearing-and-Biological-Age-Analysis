@@ -126,6 +126,8 @@ To calculate the quadratic derivative, we can either calculate the slope at each
 Or we use emtrends to calculate the slope at each point. The result is the same. However, using
 emtrends we can calculate simultaneous intervals with "mvt". Emtrends also works with smooth terms.
 
+### Main models
+
 ```{r predict_aging}
 predict_age_rate <- function(
   df,
@@ -170,14 +172,14 @@ predict_age_rate <- function(
   )
 
   if (type == "predict") {
-    predictions <- predictions %>%
+    predictions %>%
       rename(
         "estimate" = emmean,
         "ci_lower" = lower.CL,
         "ci_upper" = upper.CL
       )
   } else {
-    predictions <- predictions %>%
+    predictions %>%
       rename(
         "derivative" = !!paste0(predictor, ".trend"),
         "ci_lower" = lower.CL,
@@ -227,6 +229,123 @@ output_age_rate$predictions$derivative_smooth <- output_age_rate$predictions$der
     derivative_adj = derivative - output_age_rate$predictions$quadratic_derivative$derivative,
     ci_lower_adj = ci_lower - output_age_rate$predictions$quadratic_derivative$derivative,
     ci_upper_adj = ci_upper - output_age_rate$predictions$quadratic_derivative$derivative
+  )
+```
+
+### Covariates
+
+```{r}
+predict_age_rate_covariate <- function(
+  df,
+  model,
+  predictor = "age",
+  covariate,
+  type = c("predict", "predict_derivative")
+) {
+  ages <- setNames(
+    list(
+      seq(
+        min(df[[predictor]]),
+        max(df[[predictor]]),
+        by = 1
+      )
+    ),
+    predictor
+  )
+  if (type == "predict") {
+    em <- emmeans(
+      model,
+      as.formula(
+        paste0("~ ", predictor, " + ", covariate)
+      ),
+      at = ages,
+      type = "response",
+      data = df
+    )
+  } else {
+    em <- emtrends(
+      model,
+      as.formula(
+        paste0("~ ", predictor, " + ", covariate)
+      ),
+      var = "age",
+      at = ages,
+      data = df
+    )
+  }
+  
+  predictions <- as.data.frame(
+    confint(em, adjust = "mvt", by = covariate)
+  )
+  
+  if (type == "predict") {
+    predictions %>%
+      rename(
+        "estimate" = emmean,
+        "ci_lower" = lower.CL,
+        "ci_upper" = upper.CL
+      )
+  } else {
+    predictions %>%
+      rename(
+        "derivative" = !!paste0(predictor, ".trend"),
+        "ci_lower" = lower.CL,
+        "ci_upper" = upper.CL
+      )
+  }
+}
+
+output_age_rate$predictions <- append(
+  output_age_rate$predictions,
+  list(
+    smooth_gender = predict_age_rate_covariate(
+      df,
+      output_age_rate$models$smooth_gender,
+      covariate = "gender",
+      type = "predict"
+    ),
+    smooth_gender_derivative = predict_age_rate_covariate(
+      df,
+      output_age_rate$models$smooth_gender,
+      covariate = "gender",
+      type = "predict_derivative"
+    ),
+    smooth_smoking = predict_age_rate_covariate(
+      df,
+      output_age_rate$models$smooth_smoking,
+      covariate = "smoking",
+      type = "predict"
+    ),
+    smooth_smoking_derivative = predict_age_rate_covariate(
+      df,
+      output_age_rate$models$smooth_smoking,
+      covariate = "smoking",
+      type = "predict_derivative"
+    ),
+    smooth_race = predict_age_rate_covariate(
+      df,
+      output_age_rate$models$smooth_race,
+      covariate = "race",
+      type = "predict"
+    ),
+    smooth_race_derivative = predict_age_rate_covariate(
+      df,
+      output_age_rate$models$smooth_race,
+      covariate = "race",
+      type = "predict_derivative"
+    ),
+    smooth_education = predict_age_rate_covariate(
+      df,
+      output_age_rate$models$smooth_education,
+      covariate = "education",
+      type = "predict"
+    ),
+    smooth_education_derivative = predict_age_rate_covariate(
+      df,
+      output_age_rate$models$smooth_education,
+      covariate = "education",
+      type = "predict_derivative"
+    ))
   )
 ```
 

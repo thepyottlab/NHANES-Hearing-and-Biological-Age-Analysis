@@ -22,6 +22,7 @@ library(effectsize)
 
 # Visualization
 library(kableExtra) # for pretty tables
+library(khroma) # for Paul Tol color schemes
 library(ggthemes) # for theme_few()
 library(ggtext) # for element_markdown()
 library(ggh4x) # for element_rect()
