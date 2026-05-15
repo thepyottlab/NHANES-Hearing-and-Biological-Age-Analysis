@@ -738,55 +738,6 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-### Display p value tables
-
-```{r show_p_tables}
-pwc_bioage_overall %>%
-  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
-  construct_table(
-    title = "Overall Bioage Pairwise Comparisons"
-  )
-
-pwc_bioage %>%
-  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
-  construct_table(
-    title = "Overall Bioage Pairwise Comparisons"
-  )
-
-if (isFALSE(params$telolength)) {
-  pwc_bioage_reverse_overall %>%
-    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
-    construct_table(
-      title = "Overall Bioage Reverse Analysis Pairwise Comparisons"
-    )
-  pwc_bioage_reverse%>%
-    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
-    construct_table(
-      title = "Overall Bioage Reverse Analysis Pairwise Comparisons"
-    )
-  pwc_biomarkers_overall %>%
-    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
-    construct_table(
-      title = "Overall Biomarker Pairwise Comparisons"
-    )
-  pwc_biomarkers %>%
-    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
-    construct_table(
-      title = "Overall Biomarker Pairwise Comparisons"
-    )
-  pwc_confounders_overall %>%
-    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
-    construct_table(
-      title = "Overall Confounder Pairwise Comparisons"
-    )
-  pwc_confounders %>%
-    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
-    construct_table(
-      title = "Overall Confounder Pairwise Comparisons"
-    )
-}
-```
-
 ### Add p-values to summary dataframe
 
 ```{r add_p_vals}
@@ -861,6 +812,55 @@ if (isFALSE(params$telolength)) {
   df_summary_confounders_overall <- df_summary_confounders_overall %>%
     import_p_values(
       pwc_confounders_overall
+    )
+}
+```
+
+### Display summary tables
+
+```{r show_p_tables}
+df_summary_bioage %>%
+  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+  construct_table(
+    title = "Overall Bioage Pairwise Comparisons"
+  )
+
+df_summary_bioage_overall %>%
+  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+  construct_table(
+    title = "Overall Bioage Pairwise Comparisons"
+  )
+
+if (isFALSE(params$telolength)) {
+  df_summary_bioage_reverse %>%
+    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    construct_table(
+      title = "Overall Bioage Reverse Analysis Pairwise Comparisons"
+    )
+  df_summary_bioage_reverse_overall%>%
+    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    construct_table(
+      title = "Overall Bioage Reverse Analysis Pairwise Comparisons"
+    )
+  df_summary_biomarkers %>%
+    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    construct_table(
+      title = "Overall Biomarker Pairwise Comparisons"
+    )
+  df_summary_biomarkers_overall %>%
+    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    construct_table(
+      title = "Overall Biomarker Pairwise Comparisons"
+    )
+  df_summary_confounders %>%
+    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    construct_table(
+      title = "Overall Confounder Pairwise Comparisons"
+    )
+  df_summary_confounders_overall %>%
+    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    construct_table(
+      title = "Overall Confounder Pairwise Comparisons"
     )
 }
 ```
@@ -1130,4 +1130,3 @@ pwc_age_rate_boundaries %>%
     title = "Boundaries"
   )
 ```
-
