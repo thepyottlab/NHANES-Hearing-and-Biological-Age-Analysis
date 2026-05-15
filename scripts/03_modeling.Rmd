@@ -846,13 +846,22 @@ We can use k.check with a small k to see if its enough. With a k of 10 we alread
 ```{r aging_models}
 output_age_rate <- list(models = list(), predictions = list())
 
-model_age_rate <- function(terms) {
+model_age_rate <- function(terms, model_type = "gam") {
+  if (model_type == "gam") {
   gam(
     reformulate(terms, response = params$hearing_var),
     data = df,
     method = "REML",
     family = gaussian()
-  )
+  )    
+  } else {
+  bam(
+    reformulate(terms, response = params$hearing_var),
+    data = df,
+    method = "REML",
+    family = gaussian()
+  )        
+  }
 }
 
 output_age_rate$models <- append(
@@ -874,10 +883,42 @@ k.check(output_age_rate$models$smooth)
 output_age_rate$models <- append(
   output_age_rate$models,
   list(
-    smooth_gender = model_age_rate(c("age", "I(age^2)", "s(age, k = 10)", "s(age, gender, bs = 'sz', k = 10)")),
-    smooth_smoking = model_age_rate(c("age", "I(age^2)", "s(age, k = 10)", "s(age, smoking, bs = 'sz', k = 10)")),
-    smooth_race = model_age_rate(c("age", "I(age^2)", "s(age, k = 10)", "s(age, race, bs = 'sz', k = 10)")),
-    smooth_education = model_age_rate(c("age", "I(age^2)", "s(age, k = 10)", "s(age, education, bs = 'sz', k = 10)"))
+    smooth_gender = model_age_rate(
+      terms = c(
+        "age", 
+        "I(age^2)", 
+        "s(age, k = 10)", 
+        paste0("s(age, gender, bs = 'sz', k = ", params$global_k, ")")
+        ),
+      model_type = "bam"
+      ),
+    smooth_smoking = model_age_rate(
+      terms = c(
+        "age", 
+        "I(age^2)", 
+        "s(age, k = 10)", 
+        paste0("s(age, smoking, bs = 'sz', k = ", params$global_k, ")")
+        ),
+      model_type = "bam"
+      ),
+    smooth_race = model_age_rate(
+      terms = c(
+        "age", 
+        "I(age^2)", 
+        "s(age, k = 10)",
+        paste0("s(age, race, bs = 'sz', k = ", params$global_k, ")")
+        ),
+      model_type = "bam"
+      ),
+    smooth_education = model_age_rate(
+      terms = c(
+        "age", 
+        "I(age^2)", 
+        "s(age, k = 10)", 
+        paste0("s(age, education, bs = 'sz', k = ", params$global_k, ")")
+        ),
+      model_type = "bam"
+      )
   )
 )
 ```

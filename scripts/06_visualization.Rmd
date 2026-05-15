@@ -1641,7 +1641,7 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-###### Plot aging GAM with covariates
+###### Plot aging GAM with covariates (supplementary)
 
 ```{r plot_gender_aging_mean}
 if (isFALSE(params$telolength)) {
@@ -1782,16 +1782,16 @@ if (isFALSE(params$telolength)) {
       label_y = 1.02
     ),
     ncol = 1,
-    rel_heights = c(1, -0.15, 1)
+    rel_heights = c(1, -0.1, 1)
   )
 
   sameplot(
     p,
     file = here(plot_config("figure_dir"), "Extras", "covariate_panel.png"),
     width = params$double_column_width,
-    height = 5,
+    height = 4,
     res = 600,
-    save = params$save_figures
+    save = TRUE
   )
 }
 ```
@@ -2040,7 +2040,7 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-##### Advance bioage plot
+##### Advance bioage plot (supplementary)
 
 ```{r plot_bioage_advance}
 p1 <- df %>%
