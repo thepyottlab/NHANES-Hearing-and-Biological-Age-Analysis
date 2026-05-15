@@ -885,36 +885,28 @@ output_age_rate$models <- append(
   list(
     smooth_gender = model_age_rate(
       terms = c(
-        "age",
-        "I(age^2)",
-        "s(age, k = 10)",
+        paste0("s(age, k = ", params$global_k, ")"),
         paste0("s(age, gender, bs = 'sz', k = ", params$global_k, ")")
       ),
       model_type = "bam"
     ),
     smooth_smoking = model_age_rate(
       terms = c(
-        "age",
-        "I(age^2)",
-        "s(age, k = 10)",
+        paste0("s(age, k = ", params$global_k, ")"),
         paste0("s(age, smoking, bs = 'sz', k = ", params$global_k, ")")
       ),
       model_type = "bam"
     ),
     smooth_race = model_age_rate(
       terms = c(
-        "age",
-        "I(age^2)",
-        "s(age, k = 10)",
+        paste0("s(age, k = ", params$global_k, ")"),
         paste0("s(age, race, bs = 'sz', k = ", params$global_k, ")")
       ),
       model_type = "bam"
     ),
     smooth_education = model_age_rate(
       terms = c(
-        "age",
-        "I(age^2)",
-        "s(age, k = 10)",
+        paste0("s(age, k = ", params$global_k, ")"),
         paste0("s(age, education, bs = 'sz', k = ", params$global_k, ")")
       ),
       model_type = "bam"
@@ -1407,7 +1399,7 @@ Test k-fold validation on a single formula with specified k.
 
 ```{r test_k_fold_val}
 if (isTRUE(params$run_optional_chunks)) {
-  test_cv <- function(run = FALSE, k = 5) {
+  test_cv <- function(run = FALSE, k = params$global_k, discrete = params$global_discrete) {
     if (isTRUE(run)) {
       formula_list_test <- formula_generator(
         data = df,
@@ -1421,14 +1413,18 @@ if (isTRUE(params$run_optional_chunks)) {
         output_test <- cross_validation(
           df,
           formula_list_test,
-          k = params$global_folds,
+          folds = k,
           repeats = params$global_repeats,
-          discrete = params$global_discrete
+          discrete = discrete,
+          threads = min(
+            params$n_threads,
+            as.numeric(future::availableCores()) - 1
+          )
         )
       })
     }
   }
 
-  test_cv(run = FALSE, k = 5)
+  test_cv(run = FALSE, k = 50, discrete = TRUE)
 }
 ```

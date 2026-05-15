@@ -747,8 +747,19 @@ pwc_bioage_overall %>%
     title = "Overall Bioage Pairwise Comparisons"
   )
 
+pwc_bioage %>%
+  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+  construct_table(
+    title = "Overall Bioage Pairwise Comparisons"
+  )
+
 if (isFALSE(params$telolength)) {
   pwc_bioage_reverse_overall %>%
+    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    construct_table(
+      title = "Overall Bioage Reverse Analysis Pairwise Comparisons"
+    )
+  pwc_bioage_reverse%>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
       title = "Overall Bioage Reverse Analysis Pairwise Comparisons"
@@ -758,7 +769,17 @@ if (isFALSE(params$telolength)) {
     construct_table(
       title = "Overall Biomarker Pairwise Comparisons"
     )
+  pwc_biomarkers %>%
+    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    construct_table(
+      title = "Overall Biomarker Pairwise Comparisons"
+    )
   pwc_confounders_overall %>%
+    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    construct_table(
+      title = "Overall Confounder Pairwise Comparisons"
+    )
+  pwc_confounders %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
       title = "Overall Confounder Pairwise Comparisons"
@@ -1109,3 +1130,4 @@ pwc_age_rate_boundaries %>%
     title = "Boundaries"
   )
 ```
+
