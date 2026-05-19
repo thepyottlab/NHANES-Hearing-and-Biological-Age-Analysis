@@ -601,6 +601,15 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         name = "Additional Predictive Capacity",
         unit = "ΔRMSE (dB HL)"
       ),
+      drmse_conf = define_axis(
+        config = config,
+        axis = "y",
+        type = "continuous",
+        breaks = seq(0, 1, 0.25),
+        limits = c(-0.05, 1.2),
+        name = "Additional Predictive Capacity",
+        unit = "ΔRMSE (dB HL)"
+      ),
       dmse_conf = define_axis(
         config = config,
         axis = "y",
@@ -658,29 +667,40 @@ color_scales <- function(color_list_name) {
       colors = c(
         "full" = "#000000",
         "no_gender" = "#059748",
-        "no_smoking" = "#9D722A",
         "no_race" = "#E5126F",
         "no_education" = "#DF5C24",
+        "no_smoking" = "#9D722A",
         "no_gender, race" = "#7B3A96",
         "full_with_phenoage" = "#256DAB"
       ),
       fill_colors = c(
         "full" = "#8C8C8C",
         "no_gender" = "#90CD97",
-        "no_smoking" = "#BFA554",
         "no_race" = "#F6AAC9",
         "no_education" = "#FBB258",
+        "no_smoking" = "#BFA554",
         "no_gender, race" = "#BC99C7",
         "full_with_phenoage" = "#88BDE6"
       ),
       labels = c(
         "full" = "Full",
         "no_gender" = "Gender",
-        "no_smoking" = "Smoking",
         "no_race" = "Race",
         "no_education" = "Education",
+        "no_smoking" = "Smoking",
         "no_gender, race" = "Gender*Race",
         "full_with_phenoage" = "Phenoage"
+      )
+    ),
+    confounders_overall = build_color_scale(
+      colors = c(
+        "Full" = "#000000",
+        "Gender" = "#059748",
+        "Smoking" = "#9D722A",
+        "Race" = "#E5126F",
+        "Education" = "#DF5C24",
+        "Gender*Race" = "#7B3A96",
+        "Phenoage" = "#256DAB"
       )
     ),
     phenoage = build_color_scale(
@@ -2137,10 +2157,11 @@ sameplot(
 ```{r plot_confounders, warning=FALSE}
 if (isFALSE(params$telolength)) {
   p <- df_summary_confounders %>%
+    filter(!predictors %in% c("full_with_phenoage", "no_gender, race")) %>%
     ggplot(
       aes(
         x = age_group,
-        y = mean_delta_mse
+        y = delta_rmse
       )
     ) +
     geom_hline(
@@ -2150,8 +2171,8 @@ if (isFALSE(params$telolength)) {
       aes(
         fill = predictors,
         group = predictors,
-        ymin = ci_low_delta_mse,
-        ymax = ci_high_delta_mse
+        ymin = ci_low_delta_rmse,
+        ymax = ci_high_delta_rmse
       ),
       show.legend = FALSE
     ) +
@@ -2173,7 +2194,7 @@ if (isFALSE(params$telolength)) {
         filter(p_adj != "ns"),
       aes(
         x = age_group,
-        y = ci_high_delta_mse,
+        y = ci_high_delta_rmse,
         label = signif,
         color = predictors
       ),
@@ -2181,10 +2202,104 @@ if (isFALSE(params$telolength)) {
     ) +
     axes(
       x = "age_group",
-      y = "dmse_conf"
+      y = "drmse_conf"
     ) +
     color_scales("confounders") +
     plot_theme()
+
+  sameplot(
+    p,
+    file = here(plot_config("figure_dir"), "confounder_panel.png"),
+    width = params$single_column_width,
+    height = 2.15,
+    res = 600,
+    save = params$save_figures
+  )
+}
+```
+
+##### Confounders predictive capacity overall plot
+
+```{r plot_confounders_overall, warning=FALSE}
+if (isFALSE(params$telolength)) {
+  p <- df_summary_confounders_overall %>%
+    filter(!predictors %in% c("full", "full_with_phenoage", "no_gender, race")) %>%
+    mutate(predictors = factor(
+      predictors,
+      levels = c(
+        "no_gender",
+        "no_race",
+        "no_education",
+        "no_smoking"
+      ),
+      labels = c(
+        "Gender",
+        "Race",
+        "Education",
+        "Smoking"
+      )
+    )) %>%
+    ggplot(
+      aes(
+        x = predictors,
+        y = delta_rmse
+      )
+    ) +
+    geom_hline(
+      yintercept = 0
+    ) +
+    geom_ribbon(
+      aes(
+        fill = predictors,
+        group = predictors,
+        ymin = ci_low_delta_rmse,
+        ymax = ci_high_delta_rmse
+      ),
+      show.legend = FALSE
+    ) +
+    geom_line(
+      aes(
+        color = predictors,
+        group = predictors
+      ),
+      show.legend = FALSE
+    ) +
+    geom_linerange(
+      aes(
+        color = predictors,
+        ymin = ci_low_delta_rmse,
+        ymax = ci_high_delta_rmse
+      ),
+      position = position_dodge(0.8),
+      lineend = "round",
+      show.legend = FALSE
+    ) +
+    geom_point(
+      aes(
+        color = predictors
+      ),
+      show.legend = FALSE
+    ) +
+    geom_text(
+      data = . %>%
+        filter(p_adj != "ns"),
+      aes(
+        x = predictors,
+        y = ci_high_delta_rmse,
+        label = signif,
+        color = predictors
+      ),
+      size = plot_config("signif_size") / (14 / 5),
+      show.legend = FALSE
+    ) +
+    axes(
+      y = "drmse_conf"
+    ) +
+    color_scales("confounders_overall") +
+    plot_theme() +
+    theme(
+      axis.title.x = element_blank()
+    )
 
   sameplot(
     p,

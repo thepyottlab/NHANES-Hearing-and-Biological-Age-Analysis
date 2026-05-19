@@ -236,6 +236,13 @@ calculate_RMSE_R2 <- function(
     }
   }
 
+  if ("full" %in% updated_summary_data$predictors) {
+    updated_summary_data <- updated_summary_data %>%
+      mutate(
+        delta_rmse = delta_rmse * -1
+      )
+  }
+
   updated_summary_data
 }
 ```
@@ -260,6 +267,8 @@ observations are taken twice and others are omitted (set by `replace = TRUE`). I
 `per_age_group = FALSE`, only iterate over the single "all" item that is not used (that is, run the
 code once and don't filter per age group). Compile into a dataframe (tidytable) at the end and
 insert values into the summary dataframes.
+
+We flip the sign and order of upper and lower CIs of confounders.
 
 ```{r calc_RMSE_CI}
 compute_rmse_CI <- function(
@@ -357,6 +366,19 @@ compute_rmse_CI <- function(
   }
 
   ci_df <- bind_rows(ci_list)
+  
+    if ("full" %in% ci_df$predictors) {
+    ci_df <- ci_df %>%
+      mutate(
+        temp = ci_low_delta_rmse,
+        ci_low_delta_rmse = ci_high_delta_rmse * -1,
+        ci_high_delta_rmse = temp * -1,
+        
+        temp = ci_low_rmse,
+        ci_low_rmse = ci_high_rmse * -1,
+        ci_high_rmse = temp * -1
+      )
+  }
 
   summary_data %>%
     left_join(ci_df, by = group_vars)
