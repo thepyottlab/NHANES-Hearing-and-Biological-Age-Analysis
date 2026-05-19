@@ -35,6 +35,9 @@ the total number of folds, `n2` is the validation/test set and `n1` is the train
 also show that when `J` is appropriate (`10*10`), it provides a good variance estimate. Variance is
 already in squared units, as its just the square of the standard deviation.
 
+At this stage, we've already used weights to calculate MSEs. Because the delta MSE and CI values all
+derive from this, we don't need to reweigh.
+
 ```{r calculate_ci}
 calculate_nb_cis <- function(results_data, per_age_group = FALSE) {
   grouping_variables <- if (isTRUE(per_age_group)) c("predictors", "reference", "age_group") else c("predictors", "reference")
@@ -121,16 +124,14 @@ calculate_nb_cis <- function(results_data, per_age_group = FALSE) {
 
 **Calculating descriptives**: First we import `n_train` and `n_test` from the results dataframe per
 fold, either grouped or not grouped by `age_group`. If grouped by `age_group`, we can import
-directly because the results dataframe is already binned by age group. Then, we import the mean
-Fletcher Index from the whole prediction dataset for each model/set of predictors, repeat, and fold.
-As a sanity check, because each model should have the same folds and repeats, I checked whether the
-mean Fletcher Index is always the same at repeat 1 fold 1 (it is). The mean FI is then called in the
-summarize function using first(), which gives the same result as mean(), because all predicted/real
-values within a model, fold, and repeat have the same `mean_FI`, dictated by the left_join function.
-Thereafter, we group over the 100 (10x10) folds per model to calculate the total number of
-predictions (on the testing data), the mean training data size, mean testing data size, R² (using
-sum of squares), MSE, and RMSE. For RMSE, we could either calculate it using `sqrt(mse)` or
-`sqrt(sse/n_predictions)`. It gives the same result.
+directly because the results dataframe is already binned by age group. Then, we import the weighted
+mean Fletcher Index from the whole prediction dataset. This is used as a reference for the total
+RMSE across all folds. Thereafter, we group over the 100 (10x10) folds per model to calculate the R²
+(using sum of squares) and RMSE with survey weights taken into account. For RMSE, we could either
+calculate it using `sqrt(mse)` or `sqrt(sse/n_predictions)`. It gives the same result. Weighted SSE
+can be calculated with `sum(weights * mean_squared_error)` and rmse with
+`sqrt(w_sse / sum(weights)`. Normalized weights are technically not necessary for calculating R² and
+RMSE but we keep it for consistency.
 
 **Total sum of squares calculation when binning R² per age group**: It's imperative that for the age
 group stratified descriptives, the global mean is used. Otherwise it's as if the total sum of
@@ -140,6 +141,9 @@ assess the predictive effect on age, so the total sum of squares should be calcu
 distance from each Fletcher Index within an age group to the global mean. Of course, the models are
 trained on the whole dataset, not just one age group. We're just assessing performance per age
 group.
+
+Sample sizes, R², and RMSE are inserted into the summary dataframe, and delta RMSEs are calculated
+relative to one or multiple reference variables across all ages or within age groups.
 
 ```{r calculate_descr}
 calculate_RMSE_R2 <- function(
@@ -168,16 +172,16 @@ calculate_RMSE_R2 <- function(
       n_train,
       n_test
     )
-  
-    global_weighted_mean_hearing_var <- predictions %>%
-      group_by(SEQN) %>%
-      summarize(
-        hearing_var = first(.data[[params$hearing_var]]),
-        weights = first(weights),
-        .groups = "drop"
-      ) %>%
-      summarize(mean_hearing_var = weighted.mean(hearing_var, w = weights)) %>%
-      pull(mean_hearing_var)
+
+  global_weighted_mean_hearing_var <- predictions %>%
+    group_by(SEQN) %>%
+    summarize(
+      hearing_var = first(.data[[params$hearing_var]]),
+      weights = first(weights),
+      .groups = "drop"
+    ) %>%
+    summarize(mean_hearing_var = weighted.mean(hearing_var, w = weights)) %>%
+    pull(mean_hearing_var)
 
   weighted_stats_df <- predictions %>%
     mutate(squared_error = (.data[[params$hearing_var]] - predicted)^2) %>%
@@ -197,7 +201,7 @@ calculate_RMSE_R2 <- function(
     ) %>%
     mutate(r2 = 1 - w_mse / w_sst) %>%
     select(-w_mse, -w_sst)
-  
+
   updated_summary_data <- summary_data %>%
     left_join(
       predictions %>%
@@ -280,7 +284,8 @@ observations are taken twice and others are omitted (set by `replace = TRUE`). I
 code once and don't filter per age group). Compile into a dataframe (tidytable) at the end and
 insert values into the summary dataframes.
 
-We flip the sign and order of upper and lower CIs of confounders.
+We flip the sign and order of upper and lower CIs of confounders. Survey weights are applied to
+calculate weighted column means.
 
 ```{r calc_RMSE_CI}
 compute_rmse_CI <- function(
@@ -733,7 +738,7 @@ pwc_bioage_overall <- nb_corrected_repeated_t_test(
 
 pwc_bioage <- nb_corrected_repeated_t_test(
   df_summary_bioage,
-  exceptions = c("age, phenoage", "age, kdm", if (params$hearing_var == "FI_low") "age, hd" else NULL),
+  exceptions = c("age, phenoage", if (params$hearing_var == "FI_low") c("age, hd", "age, kdm") else NULL),
   exception_include_exclude = "include",
   adjust_method = "holm"
 )
@@ -894,7 +899,7 @@ if (isFALSE(params$telolength)) {
     construct_table(
       title = "Overall Bioage Reverse Analysis Pairwise Comparisons"
     )
-  df_summary_bioage_reverse_overall%>%
+  df_summary_bioage_reverse_overall %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
       title = "Overall Bioage Reverse Analysis Pairwise Comparisons"
@@ -1014,7 +1019,7 @@ if (isFALSE(params$telolength)) {
 ### Compare linear vs quadratic vs smooth age fits
 
 We do a partial F-test to compare a full model with a constrained model, to see if the added term
-significantly improves fit.
+significantly improves fit. We also calculate RMSEs with a weighted mean of residuals.
 
 ```{r compare_aging_models}
 aov_quadratic <- anova(
@@ -1029,18 +1034,21 @@ aov_gam <- anova(
 
 c(
   linear = sqrt(
-    mean(
-      residuals(output_age_rate$models$linear, type = "response")^2
+    weighted.mean(
+      residuals(output_age_rate$models$linear, type = "response")^2,
+      w = df$weights / mean(df$weights)
     )
   ),
   quadratic = sqrt(
-    mean(
-      residuals(output_age_rate$models$quadratic, type = "response")^2
+    weighted.mean(
+      residuals(output_age_rate$models$quadratic, type = "response")^2,
+      w = df$weights / mean(df$weights)
     )
   ),
   smooth = sqrt(
-    mean(
-      residuals(output_age_rate$models$smooth, type = "response")^2
+    weighted.mean(
+      residuals(output_age_rate$models$smooth, type = "response")^2,
+      w = df$weights / mean(df$weights)
     )
   )
 ) %>%

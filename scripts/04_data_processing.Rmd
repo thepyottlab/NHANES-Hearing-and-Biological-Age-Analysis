@@ -118,6 +118,15 @@ To calculate the quadratic derivative, we can either calculate the slope at each
 Or we use emtrends to calculate the slope at each point. The result is the same. However, using
 emtrends we can calculate simultaneous intervals with "mvt". Emtrends also works with smooth terms.
 
+We add the uncertainty of the quadratic model derivative to that of the smooth (it's tiny compared
+to that of the smooth). This is slightly conservative, because the variances are positively
+correlated. However, the smooth term absorbs some of the variance normally explained by the linear
+and quadratic terms, so the terms aren't fully uncorrelated. Because of this, the coefficients of
+the linear and quadratic terms are different between the nested smooth and quadratic models and,
+therefore, uncertainties are also different, which we need to account for. We back-calculate the
+multivariate-corrected t-crit value for the smooth and recalculate the confidence intervals but with
+the combined uncertainty from the quadratic and smooth.
+
 ### Main models
 
 ```{r predict_aging}
@@ -227,6 +236,8 @@ output_age_rate$predictions$derivative_smooth <- output_age_rate$predictions$der
 ```
 
 ### Covariates
+
+We predict the `hearing_var` for each age in the dataset (20-84) for each stratum level.
 
 ```{r}
 predict_age_rate_covariate <- function(

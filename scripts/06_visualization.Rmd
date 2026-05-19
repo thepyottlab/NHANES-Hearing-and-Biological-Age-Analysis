@@ -65,7 +65,7 @@ format_table <- function(summary_data, per_age_group = FALSE) {
     table <- table %>%
       select(Predictors, n, `R²`, `∆RMSE (vs age, dB HL)`, `p (vs age)`)
   }
-  
+
   table
 }
 ```
@@ -561,7 +561,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         axis = "y",
         type = "continuous",
         breaks = seq(0, 2, 1),
-        limits = c(-0.5, 2.6),
+        limits = c(-0.7, 2.8),
         name = "Rate of HL",
         unit = "dB HL/Year"
       ),
@@ -570,7 +570,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         axis = "y",
         type = "continuous",
         breaks = seq(0, 2, 1),
-        limits = c(-0.5, 2.6),
+        limits = c(-0.7, 2.8),
         name = "Deviation Rate of HL",
         unit = "dB HL/Year"
       ),
@@ -579,7 +579,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         axis = "y",
         type = "continuous",
         breaks = seq(0, 8, 2),
-        limits = c(-1, 8.5),
+        limits = c(-2, 10),
         name = "Additional Predictive Capacity",
         unit = "ΔMSE (dB HL)<sup>2</sup>"
       ),
@@ -587,8 +587,8 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         config = config,
         axis = "y",
         type = "continuous",
-        breaks = seq(0, 0.25, 0.1),
-        limits = c(-0.05, 0.25),
+        breaks = seq(0, 0.3, 0.1),
+        limits = c(-0.1, 0.35),
         name = "Additional Predictive Capacity",
         unit = "ΔRMSE (dB HL)"
       ),

@@ -444,7 +444,10 @@ tibble with results (MSE per fold per formula), predictions (each individual pre
 optionally the actual models (uses very large amounts of memory when discrete = TRUE). When discrete
 = TRUE, discretizes fitting using fREML (much faster but slightly worse fit). Confounder_analysis
 does nothing to the fitting but returns names based on nested covariate models instead of the
-regular predictors (which exclude covariates in the label).
+regular predictors (which exclude covariates in the label). Model is fitted using normalized weights
+`weights / mean(weights)`. Weights can have large numbers (thousands), which mgcv would recognize as
+frequencies, making model estimates too small. By dividing by the mean we rescale the mean weight to
+1.
 
 ```{r fun_CV}
 cross_validation <- function(
@@ -545,7 +548,7 @@ cross_validation <- function(
       as.formula(formula),
       data = train,
       family = gaussian(),
-      weights = weights/mean(weights),
+      weights = weights / mean(weights),
       method = if (isTRUE(discrete)) "fREML" else "REML",
       discrete = if (isTRUE(discrete)) TRUE else FALSE,
       nthreads = 1
@@ -575,7 +578,8 @@ cross_validation <- function(
           n_train = nrow(train_subset),
           n_test = nrow(test_subset),
           mse = weighted.mean((test_subset[[params$hearing_var]] - pred)^2,
-                              w = test_subset$weights)
+            w = test_subset$weights
+          )
         ),
         predictions = test_subset %>%
           as_tibble() %>%
@@ -790,7 +794,8 @@ if (isFALSE(params$telolength)) {
 
 #### Build confounder named step-down models
 
-Build models for covariate analysis to use for in-sample statistics or predictions.
+Build models for covariate analysis to use for in-sample statistics or predictions. Includes
+weighting.
 
 ```{r fit_conf_models}
 if (isFALSE(params$telolength) && is.null(output_confounders$models)) {
@@ -801,7 +806,7 @@ if (isFALSE(params$telolength) && is.null(output_confounders$models)) {
         bam(
           as.formula(formula),
           data = df,
-          weights = weights/mean(weights),
+          weights = weights / mean(weights),
           family = gaussian(),
           method = "REML",
           discrete = FALSE
@@ -846,6 +851,8 @@ complexity despite the RMSE improving little over a simpler model.
 We can use k.check with a small k to see if its enough. With a k of 10 we already get a k index of
 0.9998, so k = 10 should be sufficient.
 
+Survey weights are used.
+
 ```{r aging_models}
 output_age_rate <- list(models = list(), predictions = list())
 
@@ -854,7 +861,7 @@ model_age_rate <- function(terms, model_type = "gam") {
     gam(
       reformulate(terms, response = params$hearing_var),
       data = df,
-      weights = weights/mean(weights),
+      weights = weights / mean(weights),
       method = "REML",
       family = gaussian()
     )
@@ -862,7 +869,7 @@ model_age_rate <- function(terms, model_type = "gam") {
     bam(
       reformulate(terms, response = params$hearing_var),
       data = df,
-      weights = weights/mean(weights),
+      weights = weights / mean(weights),
       method = "REML",
       family = gaussian()
     )
@@ -1002,7 +1009,11 @@ We want to get a sense which confounders improve the model and which interact wi
 if (isTRUE(params$run_optional_chunks)) {
   assess_confounders <- function(df, confounders, k) {
     f0 <- paste0(params$hearing_var, " ~ s(age, k = ", k, ")")
-    m0 <- bam(as.formula(f0), data = df, method = "REML")
+    m0 <- bam(as.formula(f0),
+      data = df,
+      weights = weights / mean(weights),
+      method = "REML"
+    )
 
     results <- data.frame()
 
@@ -1027,11 +1038,13 @@ if (isTRUE(params$run_optional_chunks)) {
       m1 <- bam(
         as.formula(f1),
         data = df,
+        weights = weights / mean(weights),
         method = "REML"
       )
       m2 <- bam(
         as.formula(f2),
         data = df,
+        weights = weights / mean(weights),
         method = "REML"
       )
 
@@ -1083,6 +1096,7 @@ if (isTRUE(params$run_optional_chunks)) {
         response = params$hearing_var
       ),
       data = df,
+      weights = weights / mean(weights),
       method = "REML"
     )
     m1 <- bam(
@@ -1094,6 +1108,7 @@ if (isTRUE(params$run_optional_chunks)) {
         response = params$hearing_var
       ),
       data = df,
+      weights = weights / mean(weights),
       method = "REML"
     )
     m2 <- bam(
@@ -1106,6 +1121,7 @@ if (isTRUE(params$run_optional_chunks)) {
         response = params$hearing_var
       ),
       data = df,
+      weights = weights / mean(weights),
       method = "REML"
     )
     m3 <- bam(
@@ -1119,6 +1135,7 @@ if (isTRUE(params$run_optional_chunks)) {
         response = params$hearing_var
       ),
       data = df,
+      weights = weights / mean(weights),
       method = "REML"
     )
     m4 <- bam(
@@ -1130,6 +1147,7 @@ if (isTRUE(params$run_optional_chunks)) {
         "s(age, education, bs = 'sz', k = k)"
       ), response = params$hearing_var),
       data = df,
+      weights = weights / mean(weights),
       method = "REML"
     )
 
@@ -1188,6 +1206,7 @@ if (isTRUE(params$run_optional_chunks)) {
         )
       ),
       data = df,
+      weights = weights / mean(weights),
       method = if (isTRUE(discrete)) "fREML" else "REML",
       discrete = if (isTRUE(discrete)) TRUE else FALSE
     )
@@ -1206,6 +1225,7 @@ if (isTRUE(params$run_optional_chunks)) {
         )
       ),
       data = df,
+      weights = weights / mean(weights),
       method = if (isTRUE(discrete)) "fREML" else "REML",
       discrete = if (isTRUE(discrete)) TRUE else FALSE
     )
@@ -1288,6 +1308,7 @@ if (isTRUE(params$run_optional_chunks)) {
         )
       ),
       data = df,
+      weights = weights / mean(weights),
       method = if (isTRUE(discrete)) "fREML" else "REML",
       discrete = if (isTRUE(discrete)) TRUE else FALSE
     )
@@ -1344,6 +1365,7 @@ if (isTRUE(params$run_optional_chunks)) {
       mod <- bam(
         as.formula(formula),
         data = data,
+        weights = weights / mean(weights),
         family = gaussian(),
         method = if (isTRUE(discrete)) "fREML" else "REML",
         discrete = if (isTRUE(discrete)) TRUE else FALSE
@@ -1386,7 +1408,6 @@ if (isTRUE(params$run_optional_chunks)) {
     reps = 400
   ) %>%
     construct_table(title = "Inspect K Bioage")
-
 
   inspect_k_values(df,
     formula_list_biomarkers,
