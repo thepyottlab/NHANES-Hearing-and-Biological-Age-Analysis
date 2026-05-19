@@ -490,6 +490,7 @@ cross_validation <- function(
     all_of(
       c(
         "SEQN",
+        "weights",
         params$hearing_var,
         "age_group",
         predictor_columns,
@@ -544,6 +545,7 @@ cross_validation <- function(
       as.formula(formula),
       data = train,
       family = gaussian(),
+      weights = weights/mean(weights),
       method = if (isTRUE(discrete)) "fREML" else "REML",
       discrete = if (isTRUE(discrete)) TRUE else FALSE,
       nthreads = 1
@@ -572,7 +574,8 @@ cross_validation <- function(
           k = fold,
           n_train = nrow(train_subset),
           n_test = nrow(test_subset),
-          mse = mean((test_subset[[params$hearing_var]] - pred)^2)
+          mse = weighted.mean((test_subset[[params$hearing_var]] - pred)^2,
+                              w = test_subset$weights)
         ),
         predictions = test_subset %>%
           as_tibble() %>%
@@ -798,6 +801,7 @@ if (isFALSE(params$telolength) && is.null(output_confounders$models)) {
         bam(
           as.formula(formula),
           data = df,
+          weights = weights/mean(weights),
           family = gaussian(),
           method = "REML",
           discrete = FALSE
@@ -850,6 +854,7 @@ model_age_rate <- function(terms, model_type = "gam") {
     gam(
       reformulate(terms, response = params$hearing_var),
       data = df,
+      weights = weights/mean(weights),
       method = "REML",
       family = gaussian()
     )
@@ -857,6 +862,7 @@ model_age_rate <- function(terms, model_type = "gam") {
     bam(
       reformulate(terms, response = params$hearing_var),
       data = df,
+      weights = weights/mean(weights),
       method = "REML",
       family = gaussian()
     )

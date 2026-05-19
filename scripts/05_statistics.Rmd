@@ -125,7 +125,7 @@ directly because the results dataframe is already binned by age group. Then, we 
 Fletcher Index from the whole prediction dataset for each model/set of predictors, repeat, and fold.
 As a sanity check, because each model should have the same folds and repeats, I checked whether the
 mean Fletcher Index is always the same at repeat 1 fold 1 (it is). The mean FI is then called in the
-summarize function using median(), which gives the same result as mean(), because all predicted/real
+summarize function using first(), which gives the same result as mean(), because all predicted/real
 values within a model, fold, and repeat have the same `mean_FI`, dictated by the left_join function.
 Thereafter, we group over the 100 (10x10) folds per model to calculate the total number of
 predictions (on the testing data), the mean training data size, mean testing data size, R² (using
@@ -168,24 +168,42 @@ calculate_RMSE_R2 <- function(
       n_train,
       n_test
     )
+  
+    global_weighted_mean_hearing_var <- predictions %>%
+      group_by(SEQN) %>%
+      summarize(
+        hearing_var = first(.data[[params$hearing_var]]),
+        weights = first(weights),
+        .groups = "drop"
+      ) %>%
+      summarize(mean_hearing_var = weighted.mean(hearing_var, w = weights)) %>%
+      pull(mean_hearing_var)
 
-  mean_hearing_var_df <- predictions %>%
-    group_by(predictors, k, r) %>%
+  weighted_stats_df <- predictions %>%
+    mutate(squared_error = (.data[[params$hearing_var]] - predicted)^2) %>%
+    group_by(c(all_of(grouping_variables), "SEQN")) %>%
     summarize(
-      mean_hearing_var = mean(.data[[params$hearing_var]]),
+      hearing_var = first(.data[[params$hearing_var]]),
+      mean_squared_error = mean(squared_error),
+      weights = first(weights),
       .groups = "drop"
-    )
-
+    ) %>%
+    group_by(all_of(grouping_variables)) %>%
+    summarize(
+      rmse = sqrt(weighted.mean(mean_squared_error, w = weights / mean(weights))),
+      w_mse = weighted.mean(mean_squared_error, w = weights / mean(weights)),
+      w_sst = weighted.mean((hearing_var - global_weighted_mean_hearing_var)^2, w = weights / mean(weights)),
+      .groups = "drop"
+    ) %>%
+    mutate(r2 = 1 - w_mse / w_sst) %>%
+    select(-w_mse, -w_sst)
+  
   updated_summary_data <- summary_data %>%
     left_join(
       predictions %>%
         left_join(
           sample_sizes,
           by = c(grouping_variables, "r", "k")
-        ) %>%
-        left_join(
-          mean_hearing_var_df,
-          by = c("predictors", "r", "k")
         ) %>%
         group_by(
           all_of(grouping_variables)
@@ -194,17 +212,11 @@ calculate_RMSE_R2 <- function(
           n_predictions = n(),
           mean_n_train = round(mean(n_train), 1),
           mean_n_test = round(mean(n_test), 1),
-          sse = sum((.data[[params$hearing_var]] - predicted)^2),
-          sst = sum((.data[[params$hearing_var]] - median(mean_hearing_var))^2),
           .groups = "drop"
-        )
-        %>% mutate(
-          r2 = 1 - sse / sst,
-          rmse = sqrt(sse / n_predictions)
-        )
-        %>% select(-sse, -sst),
+        ),
       by = c(grouping_variables)
-    )
+    ) %>%
+    left_join(weighted_stats_df, by = grouping_variables)
 
   ref_rmse_data <- updated_summary_data %>%
     filter(predictors == reference) %>%
@@ -295,6 +307,7 @@ compute_rmse_CI <- function(
     group_by(predictors, age_group, SEQN) %>%
     summarize(
       squared_residuals = mean(squared_residuals),
+      weights = first(weights),
       .groups = "drop"
     )
 
@@ -311,6 +324,13 @@ compute_rmse_CI <- function(
           if (isTRUE(per_age_group)) age_group == age_bin else TRUE
         ) %>%
         pull(squared_residuals)
+      w_ref <- predictions %>%
+        filter(
+          predictors == ref_var,
+          if (isTRUE(per_age_group)) age_group == age_bin else TRUE
+        ) %>%
+        pull(weights)
+      w_ref <- w_ref / mean(w_ref)
 
       error_target <- predictions %>%
         filter(
@@ -318,6 +338,13 @@ compute_rmse_CI <- function(
           if (isTRUE(per_age_group)) age_group == age_bin else TRUE
         ) %>%
         pull(squared_residuals)
+      w_target <- predictions %>%
+        filter(
+          predictors == predictor,
+          if (isTRUE(per_age_group)) age_group == age_bin else TRUE
+        ) %>%
+        pull(weights)
+      w_target <- w_target / mean(w_target)
 
       if (length(error_ref) != length(error_target)) {
         stop("Length of target and reference predictor subsets are not equal")
@@ -337,17 +364,10 @@ compute_rmse_CI <- function(
       idx <- index_cache[[age_bin]]
 
       rmse_target <- sqrt(
-        colMeans(
-          matrix(error_target[idx], ncol = n_boot)
-        )
+        apply(idx, 2, function(i) weighted.mean(error_target[i], w = w_target[i]))
       )
       rmse_ref <- sqrt(
-        colMeans(
-          matrix(
-            error_ref[idx],
-            ncol = n_boot
-          )
-        )
+        apply(idx, 2, function(i) weighted.mean(error_ref[i], w = w_ref[i]))
       )
 
       ci_list[[index_ci_list]] <- tibble(
@@ -366,18 +386,18 @@ compute_rmse_CI <- function(
   }
 
   ci_df <- bind_rows(ci_list)
-  
-    if ("full" %in% ci_df$predictors) {
+
+  if ("full" %in% ci_df$predictors) {
     ci_df <- ci_df %>%
       mutate(
         temp = ci_low_delta_rmse,
         ci_low_delta_rmse = ci_high_delta_rmse * -1,
         ci_high_delta_rmse = temp * -1,
-        
         temp = ci_low_rmse,
-        ci_low_rmse = ci_high_rmse * -1,
-        ci_high_rmse = temp * -1
-      )
+        ci_low_rmse = ci_high_rmse,
+        ci_high_rmse = temp
+      ) %>%
+      select(-temp)
   }
 
   summary_data %>%
@@ -1116,7 +1136,7 @@ to identify boundaries. Only keep the significant stretches.
 ```{r find_sig_ages}
 pwc_age_rate <- output_age_rate$predictions$derivative_smooth %>%
   mutate(
-    z_score = derivative_adj / SE,
+    z_score = derivative_adj / SE_adj,
     p = 2 * pnorm(abs(z_score), lower.tail = FALSE),
     p_adj = p.adjust(p, method = "holm"),
     signif = case_when(

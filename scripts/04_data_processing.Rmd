@@ -218,9 +218,11 @@ output_age_rate$predictions <- append(
 
 output_age_rate$predictions$derivative_smooth <- output_age_rate$predictions$derivative_smooth %>%
   mutate(
+    SE_adj = sqrt(SE^2 + output_age_rate$predictions$quadratic_derivative$SE^2),
     derivative_adj = derivative - output_age_rate$predictions$quadratic_derivative$derivative,
-    ci_lower_adj = ci_lower - output_age_rate$predictions$quadratic_derivative$derivative,
-    ci_upper_adj = ci_upper - output_age_rate$predictions$quadratic_derivative$derivative
+    t_crit_mvt = (ci_upper - ci_lower) / (2 * SE),
+    ci_lower_adj = derivative_adj - t_crit_mvt * SE_adj,
+    ci_upper_adj = derivative_adj + t_crit_mvt * SE_adj
   )
 ```
 

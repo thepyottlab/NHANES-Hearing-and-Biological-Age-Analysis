@@ -555,6 +555,7 @@ rm(df_unfiltered)
 df <- df %>%
   select(
     SEQN,
+    weights,
     age,
     all_of(confounder_vars),
     kdm,
