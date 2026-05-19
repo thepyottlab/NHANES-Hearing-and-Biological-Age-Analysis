@@ -24,7 +24,7 @@ select_columns <- function(data_map, column_path) {
   col_spec <- read.csv(column_path)
 
   col_spec <- col_spec %>%
-    group_by(year_group) %>%
+    group_by(year) %>%
     summarize(
       select_cols = list(unique(cols)),
       .groups = "drop"
@@ -44,7 +44,7 @@ select_columns <- function(data_map, column_path) {
       data = map2(data, cohort, \(df, yr) {
         cols_to_keep <- unlist(
           col_spec %>%
-            filter(year_group == yr) %>%
+            filter(year == yr) %>%
             pull(select_cols)
         )
 
@@ -66,12 +66,12 @@ rename_columns <- function(data_map, column_name_path) {
     mutate(
       data = map2(data, cohort, \(df, yr) {
         rename_spec <- col_name_spec %>%
-          filter(year == yr)
+          filter(year == yr, !is.na(new_name))
 
         df %>%
           rename_with(
-            ~ rename_spec$new_name[which(rename_spec$old_name == .x)],
-            .cols = rename_spec$old_name
+            ~ rename_spec$new_name[which(rename_spec$cols == .x)],
+            .cols = rename_spec$cols
           )
       })
     )
@@ -93,7 +93,8 @@ merge_data <- function(data_map) {
 ### Standardize values
 
 Creatinine in 1999 and 2005 and CRP in 2015 and 2017 are standardized. SBP is averaged over multiple
-measurements.
+measurements. Weights are standardized according to the 15.2 years of data collection (CDC
+recommends 2017-2020 cycle to span 3.2 years). CDC recommends to use 4-years weights for 1999-2002
 
 ```{r standardize_vals}
 standardize_values <- function(data_map) {
@@ -116,7 +117,12 @@ standardize_values <- function(data_map) {
       lncrp = log(crp + 1),
       lncreat = log(creat + 1),
       lncreat_umol = log(creat_umol + 1),
-      telolength_log = log(telolength)
+      telolength_log = log(telolength),
+      weights = case_when(
+        year %in% c(1999, 2001) ~ (4/15.2*weights),
+        year %in% c(2003, 2005, 2009, 2015) ~ (2/15.2*weights),
+        year %in% c(2017) ~ (3.2/15.2*weights)
+      )
     ) %>%
     rowwise() %>%
     mutate(
@@ -145,10 +151,10 @@ standardize_values <- function(data_map) {
 ```{r preprocess_pipe, message=FALSE, warning=FALSE, include=FALSE}
 df_unfiltered <- df_raw %>%
   select_columns(
-    column_path = here("specs", "column_spec.csv")
+    column_path = here("specs", "specs.csv")
   ) %>%
   rename_columns(
-    column_name_path = here("specs", "column_name_spec.csv")
+    column_name_path = here("specs", "specs.csv")
   ) %>%
   merge_data() %>%
   standardize_values()

@@ -7,6 +7,7 @@ demographics,1999,RIDRETH1
 demographics,1999,DMDEDUC2
 demographics,1999,INDFMINC
 audiometry,1999,SEQN
+audiometry,1999,WTSAU4YR
 audiometry,1999,AUXU500R
 audiometry,1999,AUXU1K1R
 audiometry,1999,AUXU1K2R
@@ -76,6 +77,7 @@ demographics,2001,RIDRETH1
 demographics,2001,DMDEDUC2
 demographics,2001,INDFMINC
 audiometry,2001,SEQN
+audiometry,2001,WTSAU4YR
 audiometry,2001,AUXU500R
 audiometry,2001,AUXU1K1R
 audiometry,2001,AUXU1K2R
@@ -147,6 +149,7 @@ demographics,2003,RIDRETH1
 demographics,2003,DMDEDUC2
 demographics,2003,INDFMINC
 audiometry,2003,SEQN
+audiometry,2003,WTSAU2YR
 audiometry,2003,AUXU500R
 audiometry,2003,AUXU1K1R
 audiometry,2003,AUXU1K2R
@@ -209,6 +212,7 @@ hearing,2003,SEQN
 hearing,2003,AUQ210
 hearing,2003,AUQ230
 demographics,2005,SEQN
+demographics,2005,WTMEC2YR
 demographics,2005,RIDAGEYR
 demographics,2005,RIAGENDR
 demographics,2005,RIDEXPRG
@@ -278,6 +282,7 @@ hearing,2005,AUQ211
 hearing,2005,AUQ231
 hearing,2005,AUQ290
 demographics,2009,SEQN
+demographics,2009,WTMEC2YR
 demographics,2009,RIDAGEYR
 demographics,2009,RIAGENDR
 demographics,2009,RIDEXPRG
@@ -348,6 +353,7 @@ hearing,2009,AUQ211
 hearing,2009,AUQ231
 hearing,2009,AUQ290
 demographics,2015,SEQN
+demographics,2015,WTMEC2YR
 demographics,2015,RIDAGEYR
 demographics,2015,RIAGENDR
 demographics,2015,RIDEXPRG
@@ -419,6 +425,7 @@ hearing,2015,AUQ370
 hearing,2015,AUQ331
 hearing,2015,AUQ350
 demographics,2017,SEQN
+demographics,2017,WTMECPRP
 demographics,2017,RIDAGEYR
 demographics,2017,RIAGENDR
 demographics,2017,RIDEXPRG

@@ -1,5 +1,6 @@
 year,new_name,old_name
 1999,age,RIDAGEYR
+1999,weights,WTSAU4YR
 1999,gender,RIAGENDR
 1999,pregnant,RIDEXPRG
 1999,race,RIDRETH1
@@ -48,6 +49,7 @@ year,new_name,old_name
 1999,firearm,AUQ210
 1999,offwork_exposure,AUQ230
 2001,age,RIDAGEYR
+2001,weights,WTSAU4YR
 2001,gender,RIAGENDR
 2001,pregnant,RIDEXPRG
 2001,race,RIDRETH1
@@ -99,6 +101,7 @@ year,new_name,old_name
 2001,firearm,AUQ210
 2001,offwork_exposure,AUQ230
 2003,age,RIDAGEYR
+2003,weights,WTSAU2YR
 2003,gender,RIAGENDR
 2003,pregnant,RIDEXPRG
 2003,race,RIDRETH1
@@ -149,6 +152,7 @@ year,new_name,old_name
 2003,firearm,AUQ210
 2003,offwork_exposure,AUQ230
 2005,age,RIDAGEYR
+2005,weights,WTMEC2YR
 2005,gender,RIAGENDR
 2005,pregnant,RIDEXPRG
 2005,race,RIDRETH1
@@ -198,6 +202,7 @@ year,new_name,old_name
 2005,offwork_exposure,AUQ231
 2005,job_exposure_loud,AUQ290
 2009,age,RIDAGEYR
+2009,weights,WTMEC2YR
 2009,gender,RIAGENDR
 2009,pregnant,RIDEXPRG
 2009,race,RIDRETH1
@@ -249,6 +254,7 @@ year,new_name,old_name
 2009,offwork_exposure,AUQ231
 2009,job_exposure_loud,AUQ290
 2015,age,RIDAGEYR
+2015,weights,WTMEC2YR
 2015,gender,RIAGENDR
 2015,pregnant,RIDEXPRG
 2015,race,RIDRETH1
@@ -300,6 +306,7 @@ year,new_name,old_name
 2015,job_exposure_loud,AUQ331
 2015,job_exposure_very_loud,AUQ350
 2017,age,RIDAGEYR
+2017,weights,WTMECPRP
 2017,gender,RIAGENDR
 2017,pregnant,RIDEXPRG
 2017,race,RIDRETH1
