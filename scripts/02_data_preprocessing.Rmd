@@ -94,7 +94,7 @@ merge_data <- function(data_map) {
 
 Creatinine in 1999 and 2005 and CRP in 2015 and 2017 are standardized. SBP is averaged over multiple
 measurements. Weights are standardized according to the 15.2 years of data collection (CDC
-recommends 2017-2020 cycle to span 3.2 years). CDC recommends to use 4-years weights for 1999-2002.
+recommends 2017-2020 cycle to span 3.2 years). CDC recommends to use 4-years weights for 1999-2002.Z
 
 ```{r standardize_vals}
 standardize_values <- function(data_map) {
@@ -119,9 +119,9 @@ standardize_values <- function(data_map) {
       lncreat_umol = log(creat_umol + 1),
       telolength_log = log(telolength),
       weights = case_when(
-        year %in% c(1999, 2001) ~ (4 / 15.2 * weights),
-        year %in% c(2003, 2005, 2009, 2015) ~ (2 / 15.2 * weights),
-        year %in% c(2017) ~ (3.2 / 15.2 * weights)
+        year %in% c(1999, 2001) ~ (4/15.2*weights),
+        year %in% c(2003, 2005, 2009, 2015) ~ (2/15.2*weights),
+        year %in% c(2017) ~ (3.2/15.2*weights)
       )
     ) %>%
     rowwise() %>%
@@ -340,7 +340,8 @@ df_unfiltered %>%
       age >= 6 & age <= 11 ~ "06–12",
       age >= 12 & age <= 19 ~ "12–19",
       age > 19 & age < 70 ~ "19–75",
-      age >= 70 ~ "75+",
+      age > 70 & age < 80 ~ "70-80",
+      age >= 80 ~ "80+",
       TRUE ~ NA_character_
     )
   ) %>%

@@ -1057,30 +1057,29 @@ c(
   )
 
 calculate_f_test_statistics <- function(anova) {
-  anova_table <- F_to_omega2(
-    f = anova$F[2],
-    df = anova$Df[2],
-    df_error = anova$`Resid. Df`[2],
-    ci = 0.90,
-    alternative = "greater"
-  )
-  anova_table["F"] <- anova$F[2]
-  anova_table["p"] <- anova$`Pr(>F)`[2]
-  anova_table["numerator df"] <- anova$Df[2]
-  anova_table["denominator df"] <- anova$`Resid. Df`[2]
+  anova_table <- tidy(anova) %>%
+    rename(
+      "numerator df" = df,
+      "denominator df" = df.residual,
+      "F statistic" = statistic,
+      "p" = p.value
+    ) %>%
+    mutate(
+      "Partial Omega2" = `numerator df` * (`F statistic` - 1) / (`numerator df` * `F statistic` + `denominator df` + 1)
+    )
 
   report <- paste0(
     "<i>F</i><sub>(",
-    round(anova_table["numerator df"], 1),
+    round(anova_table$`numerator df`[2], 1),
     ", ",
-    round(anova_table["denominator df"], 1),
+    round(anova_table$`denominator df`[2], 1),
     ")</sub> = ",
-    round(anova_table["F"], 2),
+    round(anova_table$F[2], 2),
     ", <i>p</i> ",
-    if (anova_table["p"] > 0.001) "= " else "< ",
-    if (anova_table["p"] > 0.001) signif(anova_table["p"], 1) else "0.001",
+    if (anova_table$p[2] > 0.001) "= " else "< ",
+    if (anova_table$p[2] > 0.001) signif(anova_table$p[2], 1) else "0.001",
     ", <i>ω²</i> = ",
-    signif(anova_table["Omega2_partial"], 1)
+    signif(anova_table$`Partial Omega2`[2], 1)
   )
 
   list(anova_table, htmltools::HTML(report))

@@ -9,8 +9,7 @@ editor_options:
 ## Split up bioage results into two
 
 ```{r}
-if (isFALSE(params$telolength)) {
-  split_bioage_reverse <- function(output) {
+split_bioage_reverse <- function(output) {
     list(
       results = output$results %>%
         filter(predictors != "age") %>%
@@ -34,7 +33,6 @@ if (isFALSE(params$telolength)) {
 
   output_bioage_reverse <- split_bioage_reverse(output_bioage_bidirectional)
   output_bioage <- split_bioage(output_bioage_bidirectional)
-}
 ```
 
 ## Process result comparison dfs
