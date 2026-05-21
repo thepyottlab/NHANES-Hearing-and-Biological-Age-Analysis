@@ -14,10 +14,36 @@ don't match according to SEQN (ID) and create a `year` column and `cohort` colum
 first 4 characters from `year`. `imap_dfr()` applies this to each year (map), returns the index (i)
 and row-binds into a dataframe (dfr).
 
+### Select audiometry sample
+
+We select the IDs in the 'Audiometry' files, then open the df from each file, return the df if the
+file contains "Audiometry" otherwise, filter the IDs to the list of audiometry IDs.
+
+```{r}
+select_audiometry_sample <- function(data_map) {
+  
+  # Extract all subject IDs from audiometry files
+  audiometry_sample_ids <- data_map %>%
+  filter(str_detect(file, "Audiometry")) %>%
+  pull(data) %>%
+  map(~ pull(.x, SEQN)) %>%
+  reduce(union)
+
+  # Filter non-audiometry files to audiometry subject IDs only
+  data_map <- data_map %>%
+  mutate(
+    data = map2(data, file, \(df, f) {
+      if (str_detect(f, "Audiometry")) df
+      else filter(df, SEQN %in% audiometry_sample_ids)
+    })
+  )
+}
+```
+
 ### Select columns
 
-We intentionally do not select creat_umol columns ([;) if we have to restandardize them later (1999
-and 2005)
+We intentionally do not select creat_umol columns if we have to restandardize them later (1999 and
+2005)
 
 ```{r select_cols}
 select_columns <- function(data_map, column_path) {
@@ -47,7 +73,7 @@ select_columns <- function(data_map, column_path) {
             filter(year == yr) %>%
             pull(select_cols)
         )
-
+        
         df %>%
           select(all_of(cols_to_keep)) %>%
           mutate(year = factor(yr))
@@ -94,12 +120,12 @@ merge_data <- function(data_map) {
 
 Creatinine in 1999 and 2005 and CRP in 2015 and 2017 are standardized. SBP is averaged over multiple
 measurements. Weights are standardized according to the 15.2 years of data collection (CDC
-recommends 2017-2020 cycle to span 3.2 years). CDC recommends to use 4-years weights for 1999-2002.Z
+recommends 2017-2020 cycle to span 3.2 years). CDC recommends to use 4-years weights for 1999-2002.
 
 ```{r standardize_vals}
-standardize_values <- function(data_map) {
+standardize_values <- function(data) {
   # browser()
-  data_map %>%
+  data %>%
     mutate(
       creat = case_when(
         year == 1999 ~ LBXSCR * 1.013 + 0.147,
@@ -150,6 +176,7 @@ standardize_values <- function(data_map) {
 
 ```{r preprocess_pipe, message=FALSE, warning=FALSE, include=FALSE}
 df_unfiltered <- df_raw %>%
+  select_audiometry_sample() %>%
   select_columns(
     column_path = here("specs", "specs.csv")
   ) %>%
@@ -184,17 +211,17 @@ construct_table <- function(formula_list, title) {
 
 #### Check completeness
 
+Only show columns that have any missing values
+
 ```{r check_complete}
 df_unfiltered %>%
   group_by(year) %>%
   summarise(across(everything(), ~ sum(!is.na(.)), .names = "n_{.col}")) %>%
   select(year, where(~ any(. == 0))) %>%
-  construct_table(title = "Check missingness")
+  construct_table(title = "Check present values")
 ```
 
-Income is missing in 2017 but should be there according to the website as INDFMIN2. CRP is missing
-in 2011, which seems to be correct. Telomere length was only assessed in early cohorts. Dialysis and
-job exposure were only assessed in later cohorts.
+Telomere length was only assessed in early cohorts.
 
 ## Calculate hearing metrics
 
@@ -233,6 +260,10 @@ calculate_hearing <- function(data) {
 
 df_unfiltered <- df_unfiltered %>% calculate_hearing()
 ```
+
+## Assess descriptive statistics
+
+We use the Survey package to account for the full survey design (weights, strata, PSUs)
 
 ## Data filtering
 
