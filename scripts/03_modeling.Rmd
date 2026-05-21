@@ -97,15 +97,15 @@ each function. Max degrees of freedom are only computed once per variable and ca
 - `equal_wiggliness`: gives an individual id to each sum-to-zero interaction term when FALSE which
   ensures they have the same smoothing parameter. Setting to TRUE marginally improves fit but uses
   many degrees of freedom.
-- `stepdown`: additionally creates formulas with age as predictor that each miss one confounder for
-  a nested-CV comparison (i.e., compare, for example, the impact of adding 'gender' to a model that
+- `stepdown`: additionally creates formulas with age as predictor that each miss one covariate for a
+  nested-CV comparison (i.e., compare, for example, the impact of adding 'gender' to a model that
   already includes other covariates).
 
 ```{r fun_formula_gen}
 formula_generator <- function(
   data,
   formulas,
-  confounders = NULL,
+  covariates = NULL,
   k = 25,
   max_k = FALSE,
   auto_limit_k = FALSE,
@@ -181,17 +181,17 @@ formula_generator <- function(
           )
         )
 
-        if (!is.null(confounders)) {
-          # construct Age * confounder terms
-          for (i in seq_along(confounders)) {
-            confounder <- confounders[i]
+        if (!is.null(covariates)) {
+          # construct Age * covariate terms
+          for (i in seq_along(covariates)) {
+            covariate <- covariates[i]
             if (isTRUE(equal_wiggliness)) {
               # Combine an age term with smooth terms with a unique ID for each
               sm_terms <- append(
                 sm_terms,
                 paste0(
                   "s(age, ",
-                  confounder,
+                  covariate,
                   ", bs = 'sz', k = ",
                   k,
                   ", id = ",
@@ -205,7 +205,7 @@ formula_generator <- function(
                 sm_terms,
                 paste0(
                   "s(age, ",
-                  confounder,
+                  covariate,
                   ", bs = 'sz', k = ",
                   k,
                   ")"
@@ -239,15 +239,15 @@ formula_generator <- function(
       )
     )
 
-    # Create confounder stepdown vars
+    # Create covariate stepdown vars
     if (isTRUE(stepdown) && formula == "age") {
       # Age will already have been created by the previous loop
       deg_free <- deg_free_store$deg_free[deg_free_store$predictor == "age"]
 
       k_formula <- if (max_k) deg_free else if (auto_limit_k && k > deg_free) deg_free else k
 
-      # Remove one confounder at a time, construct the formula, and add it to the formula list
-      for (i in seq_along(confounders)) {
+      # Remove one covariate at a time, construct the formula, and add it to the formula list
+      for (i in seq_along(covariates)) {
         sm_terms <- list()
 
         # Add age term
@@ -259,17 +259,17 @@ formula_generator <- function(
             ")"
           )
         )
-        constrained_confounders <- confounders[-i]
+        constrained_covariates <- covariates[-i]
 
-        # Remove one confounder from formula at a time and create terms (with or without ID)
-        for (j in seq_along(constrained_confounders)) {
-          constrained_confounder <- constrained_confounders[j]
+        # Remove one covariate from formula at a time and create terms (with or without ID)
+        for (j in seq_along(constrained_covariates)) {
+          constrained_covariate <- constrained_covariates[j]
           if (isTRUE(equal_wiggliness)) {
             sm_terms <- append(
               sm_terms,
               paste0(
                 "s(age, ",
-                constrained_confounder,
+                constrained_covariate,
                 ", bs = 'sz', k = ",
                 k_formula,
                 ", id = ",
@@ -282,7 +282,7 @@ formula_generator <- function(
               sm_terms,
               paste0(
                 "s(age, ",
-                constrained_confounder,
+                constrained_covariate,
                 ", bs = 'sz', k = ",
                 k_formula,
                 ")"
@@ -326,7 +326,7 @@ extract_predictors <- function(formula, collapse = "") {
     s_terms,
     paste0(
       "\\b(",
-      paste(confounder_vars, collapse = "|"),
+      paste(covariate_vars, collapse = "|"),
       ")\\b"
     )
   )
@@ -359,7 +359,7 @@ formula_list_bioage <- formula_generator(
       NULL
     }
   ),
-  confounders = confounder_interactions
+  covariates = covariate_interactions
 )
 
 tibble(
@@ -398,7 +398,7 @@ formula_list_biomarkers <- formula_generator(
     "age, uap",
     "age, lncrp, phenoage"
   ),
-  confounders = confounder_interactions
+  covariates = covariate_interactions
 )
 
 tibble(
@@ -410,26 +410,26 @@ tibble(
 )
 ```
 
-### Generate formulas confounders
+### Generate formulas covariates
 
 ```{r build_conf_forms}
 if (isFALSE(params$telolength)) {
-  formula_list_confounders <- formula_generator(
+  formula_list_covariates <- formula_generator(
     data = df,
     k = params$global_k,
     auto_limit_k = TRUE,
     equal_wiggliness = TRUE,
     formulas = c("age", "age, phenoage"),
-    confounders = confounder_interactions,
+    covariates = covariate_interactions,
     stepdown = TRUE
   )
 
   tibble(
     Formulas = unlist(
-      formula_list_confounders
+      formula_list_covariates
     )
   ) %>% construct_table(
-    title = "Confounder Formulas"
+    title = "Covariate Formulas"
   )
 }
 ```
@@ -442,7 +442,7 @@ Fits a BAM() to the formulas generated splitting data into folds. Predictions ar
 models and MSEs are calculated with these predictions per age group. A list is returned with a
 tibble with results (MSE per fold per formula), predictions (each individual prediction made), and
 optionally the actual models (uses very large amounts of memory when discrete = TRUE). When discrete
-= TRUE, discretizes fitting using fREML (much faster but slightly worse fit). Confounder_analysis
+= TRUE, discretizes fitting using fREML (much faster but slightly worse fit). Covariate_analysis
 does nothing to the fitting but returns names based on nested covariate models instead of the
 regular predictors (which exclude covariates in the label). Model is fitted using normalized weights
 `weights / mean(weights)`. Weights can have large numbers (thousands), which mgcv would recognize as
@@ -456,11 +456,11 @@ cross_validation <- function(
   folds = 10,
   repeats = 10,
   discrete = FALSE,
-  confounder_analysis = FALSE,
+  covariate_analysis = FALSE,
   threads = 1
 ) {
   # Initialize age groups to stratify by and repeat column names that contain fold specification
-  age_groups <- c("20-30", "30-40", "40-50", "50-60", "60-70", if (isFALSE(params$telolength)) "70+")
+  age_groups <- c("20-30", "30-40", "40-50", "50-60", "60-70", if (isFALSE(params$telolength)) "70-80")
   repeat_columns <- paste0("fold_r", seq_len(repeats))
 
   # Store predictor column names for prediction dataset
@@ -471,10 +471,10 @@ cross_validation <- function(
   )
 
   # Set predictor combination names
-  if (isTRUE(confounder_analysis)) {
+  if (isTRUE(covariate_analysis)) {
     predictor_labels <- c(
       "full",
-      paste0("no_", confounder_interactions),
+      paste0("no_", covariate_interactions),
       "full_with_phenoage"
     )
   } else {
@@ -497,7 +497,7 @@ cross_validation <- function(
         params$hearing_var,
         "age_group",
         predictor_columns,
-        confounder_vars,
+        covariate_vars,
         repeat_columns
       )
     )
@@ -568,29 +568,18 @@ cross_validation <- function(
       # Use GAM to predict responses in current age group
       pred <- predict(mod, newdata = test_subset, type = "response")
 
-      # Calculate squared difference between predicted vs real in this age group
-      list(
-        results = tibble(
-          predictors = predictor_label,
-          age_group = age_group_val,
-          r = repeat_value,
-          k = fold,
-          n_train = nrow(train_subset),
-          n_test = nrow(test_subset),
-          mse = weighted.mean((test_subset[[params$hearing_var]] - pred)^2,
-            w = test_subset$weights
-          )
-        ),
-        predictions = test_subset %>%
+      # Make a tibble with predictions and sample sizes used in the model used for predictions
+      test_subset %>%
           as_tibble() %>%
           mutate(
             predictors = predictor_label,
             age_group = age_group_val,
             r = repeat_value,
             k = fold,
+            n_train = nrow(train_subset),
+            n_test = nrow(test_subset),
             predicted = pred
           )
-      )
     })
   }
 
@@ -617,23 +606,9 @@ cross_validation <- function(
   )
   plan(sequential)
 
-  results <- cv_output %>%
+  cv_output %>%
     unlist(recursive = FALSE) %>%
-    map_dfr(~ .$results) %>%
-    mutate(
-      predictors = factor(
-        predictors,
-        levels = predictor_labels
-      ),
-      age_group = factor(
-        age_group,
-        levels = age_groups
-      )
-    )
-
-  predictions <- cv_output %>%
-    unlist(recursive = FALSE) %>%
-    map_dfr(~ .$predictions) %>%
+    map_dfr(~ .) %>%
     mutate(
       predictors = factor(
         predictors,
@@ -641,11 +616,6 @@ cross_validation <- function(
       ),
       age_group = factor(age_group, levels = age_groups)
     )
-
-  list(
-    results = results,
-    predictions = predictions
-  )
 }
 ```
 
@@ -688,7 +658,7 @@ load_model_results is FALSE. Results are stored if store_model_results is TRUE.
 
 ```{r bioage_cv, warning=FALSE}
 system.time({
-  output_bioage_bidirectional <- if (
+  df_pred_bioage_bidirectional <- if (
     isTRUE(params$load_model_results) &&
       file.exists(generate_model_path("bioage"))
   ) {
@@ -714,7 +684,7 @@ system.time({
 ```{r store_bioage_res}
 if (isTRUE(params$store_model_results)) {
   saveRDS(
-    object = output_bioage_bidirectional,
+    object = df_pred_bioage_bidirectional,
     file = generate_model_path("bioage"),
     compress = "xz"
   )
@@ -728,7 +698,7 @@ if (isTRUE(params$store_model_results)) {
 ```{r biomarkers_cv, warning=FALSE}
 if (isFALSE(params$telolength)) {
   system.time({
-    output_biomarkers <- if (
+    df_pred_biomarkers_bidirectional <- if (
       isTRUE(params$load_model_results) &&
         file.exists(generate_model_path("biomarkers"))
     ) {
@@ -755,33 +725,33 @@ if (isFALSE(params$telolength)) {
 ```{r store_biomarkers_cv}
 if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
   saveRDS(
-    object = output_biomarkers,
+    object = df_pred_biomarkers_bidirectional,
     file = generate_model_path("biomarkers"),
     compress = "xz"
   )
 }
 ```
 
-### Model confounders
+### Model covariates
 
-#### Confounders K-fold CV
+#### Covariates K-fold CV
 
-```{r confounders_cv, warning=FALSE}
+```{r covariates_cv, warning=FALSE}
 if (isFALSE(params$telolength)) {
   system.time({
-    output_confounders <- if (
+    df_pred_covariates <- if (
       isTRUE(params$load_model_results) &&
-        file.exists(generate_model_path("confounders"))
+        file.exists(generate_model_path("covariates"))
     ) {
-      readRDS(generate_model_path("confounders"))
+      readRDS(generate_model_path("covariates"))
     } else {
       cross_validation(
         df,
-        formula_list_confounders,
+        formula_list_covariates,
         folds = params$global_folds,
         repeats = params$global_repeats,
         discrete = params$global_discrete,
-        confounder_analysis = TRUE,
+        covariate_analysis = TRUE,
         threads = min(
           params$n_threads,
           as.numeric(future::availableCores()) - 1
@@ -792,44 +762,57 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-#### Build confounder named step-down models
+#### Build covariate named step-down models
 
 Build models for covariate analysis to use for in-sample statistics or predictions. Includes
 weighting.
 
 ```{r fit_conf_models}
-if (isFALSE(params$telolength) && is.null(output_confounders$models)) {
-  for (formula in formula_list_confounders) {
-    output_confounders$models <- append(
-      output_confounders$models,
-      list(
-        bam(
-          as.formula(formula),
-          data = df,
-          weights = weights / mean(weights),
-          family = gaussian(),
-          method = "REML",
-          discrete = FALSE
+if (isFALSE(params$telolength)) {
+  models_covariates <- if (
+    isTRUE(params$load_model_results) &&
+      file.exists(generate_model_path("covariates_models"))
+  ) {
+    readRDS(generate_model_path("covariates_models"))
+  } else {
+    models_covariates <- list()
+    for (formula in formula_list_covariates) {
+      models_covariates <- append(
+        models_covariates,
+        list(
+          bam(
+            as.formula(formula),
+            data = df,
+            weights = weights / mean(weights),
+            family = gaussian(),
+            method = "REML",
+            discrete = FALSE
+          )
         )
       )
+    }
+
+    names(models_covariates) <- c(
+      "full",
+      paste0("no_", covariate_interactions),
+      "full_with_phenoage"
     )
   }
-
-  names(output_confounders$models) <- c(
-    "full",
-    paste0("no_", confounder_interactions),
-    "full_with_phenoage"
-  )
 }
 ```
 
-#### Store confounders modeling results
+#### Store covariates modeling results
 
 ```{r store_conf_res}
 if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
   saveRDS(
-    object = output_confounders,
-    file = generate_model_path("confounders"),
+    object = output_covariates,
+    file = generate_model_path("covariates"),
+    compress = "xz"
+  )
+  saveRDS(
+    object = output_covariates,
+    file = generate_model_path("covariates"),
     compress = "xz"
   )
 }
@@ -1001,13 +984,13 @@ number has the same (within 1) frequency, so there are no imbalances between fol
 shows no non-random changes in intensity over the X dimension and random dissimilarities between
 bands in the Y dimension (indicating repeats have different samples).
 
-### (Optional) Check confounder two-way interactions vs offsets
+### (Optional) Check covariate two-way interactions vs offsets
 
-We want to get a sense which confounders improve the model and which interact with age.
+We want to get a sense which covariates improve the model and which interact with age.
 
-```{r assess_confounders}
+```{r assess_covariates}
 if (isTRUE(params$run_optional_chunks)) {
-  assess_confounders <- function(df, confounders, k) {
+  assess_covariates <- function(df, covariates, k) {
     f0 <- paste0(params$hearing_var, " ~ s(age, k = ", k, ")")
     m0 <- bam(as.formula(f0),
       data = df,
@@ -1017,11 +1000,11 @@ if (isTRUE(params$run_optional_chunks)) {
 
     results <- data.frame()
 
-    for (confounder in confounders) {
+    for (covariate in covariates) {
       f1 <- paste0(
         params$hearing_var,
         " ~ ",
-        confounder,
+        covariate,
         " + s(age, k = ",
         k,
         ")"
@@ -1029,7 +1012,7 @@ if (isTRUE(params$run_optional_chunks)) {
       f2 <- paste0(
         params$hearing_var,
         " ~ s(age) + s(age, ",
-        confounder,
+        covariate,
         ", bs = 'sz', k = ",
         k,
         ")"
@@ -1062,7 +1045,7 @@ if (isTRUE(params$run_optional_chunks)) {
         results,
         cbind(
           tibble(
-            confounder = confounder,
+            covariate = covariate,
             formula = c(f0, f1, f2)
           ),
           aic,
@@ -1075,21 +1058,21 @@ if (isTRUE(params$run_optional_chunks)) {
     return(results)
   }
 
-  assess_confounders(df, confounders = confounder_vars, k = params$global_k)
+  assess_covariates(df, covariates = covariate_vars, k = params$global_k)
 }
 ```
 
-**We see that for each confounder, the interaction model fits better than the intercept-only model,
+**We see that for each covariate, the interaction model fits better than the intercept-only model,
 so we should use interaction terms instead of intercepts for covariates.**
 
 ### (Optional) Investigate additional information
 
-First we see if the confounders are correlated (e.g., smoking is more prevalent in males than
-females so gender is partly coded in smoking), to see if all confounders actually contribute.
+First we see if the covariates are correlated (e.g., smoking is more prevalent in males than females
+so gender is partly coded in smoking), to see if all covariates actually contribute.
 
 ```{r compare_added_info}
 if (isTRUE(params$run_optional_chunks)) {
-  compare_confounders <- function(df, k) {
+  compare_covariates <- function(df, k) {
     m0 <- bam(
       reformulate(
         "s(age, k = k)",
@@ -1170,7 +1153,7 @@ if (isTRUE(params$run_optional_chunks)) {
     plot(m4)
   }
 
-  compare_confounders(df, k = params$global_k)
+  compare_covariates(df, k = params$global_k)
 }
 ```
 
@@ -1260,11 +1243,11 @@ deviance. The improvement in fit is not significant, so enforce shared smoothing
 
 ```{r conf_interactions}
 if (isTRUE(params$run_optional_chunks)) {
-  compare_confounder_interactions <- function(df, k, equal_wiggliness, discrete = FALSE, return_model = FALSE) {
-    # Pull confounders, cross them, keep copy with var1 being first (alphabetical), paste by comma
+  compare_covariate_interactions <- function(df, k, equal_wiggliness, discrete = FALSE, return_model = FALSE) {
+    # Pull covariates, cross them, keep copy with var1 being first (alphabetical), paste by comma
     terms <- c(
-      confounder_vars,
-      crossing(var1 = confounder_vars, var2 = confounder_vars) %>%
+      covariate_vars,
+      crossing(var1 = covariate_vars, var2 = covariate_vars) %>%
         filter(var1 < var2) %>%
         mutate(pair = paste(var1, var2, sep = ", ")) %>%
         pull(pair)
@@ -1322,7 +1305,7 @@ if (isTRUE(params$run_optional_chunks)) {
   }
 
   system.time({
-    compare_confounder_interactions(
+    compare_covariate_interactions(
       df,
       k = 5,
       equal_wiggliness = TRUE,
