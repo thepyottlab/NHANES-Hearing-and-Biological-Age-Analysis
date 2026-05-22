@@ -8,31 +8,24 @@ editor_options:
 
 ## Split up bioage results into two
 
-```{r}
-split_bioage_reverse <- function(output) {
-  list(
-    results = output$results %>%
-      filter(predictors != "age") %>%
-      mutate(predictors = fct_drop(predictors)),
-    predictions = output$predictions %>%
-      filter(predictors != "age") %>%
-      mutate(predictors = fct_drop(predictors))
-  )
+The reverse dataframe compares models with age and biological age to only biological age, to assess
+the effect of age beyond biological age.
+
+```{r split_bioage_preds}
+split_bioage_reverse <- function(predictions) {
+  predictions %>%
+    filter(predictors != "age") %>%
+    mutate(predictors = fct_drop(predictors))
 }
 
-split_bioage <- function(output) {
-  list(
-    results = output$results %>%
-      filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
-      mutate(predictors = fct_drop(predictors)),
-    predictions = output$predictions %>%
-      filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
-      mutate(predictors = fct_drop(predictors))
-  )
+split_bioage <- function(predictions) {
+  predictions %>%
+    filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
+    mutate(predictors = fct_drop(predictors))
 }
 
-output_bioage_reverse <- split_bioage_reverse(output_bioage_bidirectional)
-output_bioage <- split_bioage(output_bioage_bidirectional)
+pred_bioage_reverse <- split_bioage_reverse(pred_bioage_bidirectional)
+pred_bioage <- split_bioage(pred_bioage_bidirectional)
 ```
 
 ## Process result comparison dfs
@@ -187,46 +180,48 @@ predict_age_rate <- function(
   }
 }
 
-output_age_rate$predictions <- append(
-  output_age_rate$predictions,
+pred_age_rate <- list()
+
+pred_age_rate <- append(
+  pred_age_rate,
   list(
     linear = predict_age_rate(
       df,
-      output_age_rate$models$linear,
+      models_age_rate$linear,
       type = "predict"
     ),
     linear_derivative = predict_age_rate(
       df,
-      output_age_rate$models$linear,
+      models_age_rate$linear,
       type = "predict_derivative"
     ),
     quadratic = predict_age_rate(
       df,
-      output_age_rate$models$quadratic,
+      models_age_rate$quadratic,
       type = "predict"
     ),
     quadratic_derivative = predict_age_rate(
       df,
-      output_age_rate$models$quadratic,
+      models_age_rate$quadratic,
       type = "predict_derivative"
     ),
     smooth = predict_age_rate(
       df,
-      output_age_rate$models$smooth,
+      models_age_rate$smooth,
       type = "predict"
     ),
     derivative_smooth = predict_age_rate(
       df,
-      output_age_rate$models$smooth,
+      models_age_rate$smooth,
       type = "predict_derivative"
     )
   )
 )
 
-output_age_rate$predictions$derivative_smooth <- output_age_rate$predictions$derivative_smooth %>%
+pred_age_rate$derivative_smooth <- pred_age_rate$derivative_smooth %>%
   mutate(
-    SE_adj = sqrt(SE^2 + output_age_rate$predictions$quadratic_derivative$SE^2),
-    derivative_adj = derivative - output_age_rate$predictions$quadratic_derivative$derivative,
+    SE_adj = sqrt(SE^2 + pred_age_rate$quadratic_derivative$SE^2),
+    derivative_adj = derivative - pred_age_rate$quadratic_derivative$derivative,
     t_crit_mvt = (ci_upper - ci_lower) / (2 * SE),
     ci_lower_adj = derivative_adj - t_crit_mvt * SE_adj,
     ci_upper_adj = derivative_adj + t_crit_mvt * SE_adj
@@ -298,54 +293,56 @@ predict_age_rate_covariate <- function(
   }
 }
 
-output_age_rate$predictions <- append(
-  output_age_rate$predictions,
+pred_covariates <- list()
+
+pred_covariates <- append(
+  pred_covariates,
   list(
     smooth_gender = predict_age_rate_covariate(
       df,
-      output_age_rate$models$smooth_gender,
+      models_covariates$smooth_gender,
       covariate = "gender",
       type = "predict"
     ),
     smooth_gender_derivative = predict_age_rate_covariate(
       df,
-      output_age_rate$models$smooth_gender,
+      models_covariates$smooth_gender,
       covariate = "gender",
       type = "predict_derivative"
     ),
     smooth_smoking = predict_age_rate_covariate(
       df,
-      output_age_rate$models$smooth_smoking,
+      models_covariates$smooth_smoking,
       covariate = "smoking",
       type = "predict"
     ),
     smooth_smoking_derivative = predict_age_rate_covariate(
       df,
-      output_age_rate$models$smooth_smoking,
+      models_covariates$smooth_smoking,
       covariate = "smoking",
       type = "predict_derivative"
     ),
     smooth_race = predict_age_rate_covariate(
       df,
-      output_age_rate$models$smooth_race,
+      models_covariates$smooth_race,
       covariate = "race",
       type = "predict"
     ),
     smooth_race_derivative = predict_age_rate_covariate(
       df,
-      output_age_rate$models$smooth_race,
+      models_covariates$smooth_race,
       covariate = "race",
       type = "predict_derivative"
     ),
     smooth_education = predict_age_rate_covariate(
       df,
-      output_age_rate$models$smooth_education,
+      models_covariates$smooth_education,
       covariate = "education",
       type = "predict"
     ),
     smooth_education_derivative = predict_age_rate_covariate(
       df,
-      output_age_rate$models$smooth_education,
+      models_covariates$smooth_education,
       covariate = "education",
       type = "predict_derivative"
     )
@@ -360,7 +357,7 @@ GAM. For the GAM, we estimate the acceleration by fitting a linear model to the 
 calculating its coefficient.
 
 ```{r calc_coeffs}
-with(output_age_rate$predictions$linear, cov(age, estimate) / var(age))
-with(output_age_rate$predictions$quadratic_derivative, cov(age, derivative) / var(age))
-coef(lm(derivative ~ age, data = output_age_rate$predictions$derivative_smooth))[["age"]]
+with(pred_age_rate$linear, cov(age, estimate) / var(age))
+with(pred_age_rate$quadratic_derivative, cov(age, derivative) / var(age))
+coef(lm(derivative ~ age, data = pred_age_rate$derivative_smooth))[["age"]]
 ```

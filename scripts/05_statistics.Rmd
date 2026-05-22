@@ -6,6 +6,28 @@ editor_options:
 
 # Statistics
 
+## Calculate (delta) MSE per fold
+
+```{r}
+calculate_mse_per_fold <- function(predictions, per_age_group = FALSE) {
+  predictions %>% 
+    mutate(
+      squared_residuals = (.data[[params$hearing_var]] - predicted)^2,
+      age_group = if (isTRUE(per_age_group)) age_group else "overall"
+    ) %>%
+    group_by(
+      age_group, predictors, r, k
+      ) %>%
+    summarize(
+      mse_w = sum(weights * squared_residuals) / sum(weights),
+      n_train = first(n_train),
+      n_test = first(n_test)
+    )
+}
+
+calculate_mse_per_fold(pred_bioage)
+```
+
 ## Calculate descriptive statistics
 
 ### Calculate MSE CI
@@ -39,7 +61,8 @@ At this stage, we've already used weights to calculate MSEs. Because the delta M
 derive from this, we don't need to reweigh.
 
 ```{r calculate_ci}
-calculate_nb_cis <- function(results_data, per_age_group = FALSE) {
+calculate_nb_cis <- function(predictions, per_age_group = FALSE) {
+  browser()
   grouping_variables <- if (isTRUE(per_age_group)) c("predictors", "reference", "age_group") else c("predictors", "reference")
 
   if (!per_age_group) {
@@ -413,101 +436,101 @@ compute_rmse_CI <- function(
 ### Run descriptive statistics calculation pipeline
 
 ```{r discr_stat_pipeline}
-df_summary_bioage <- df_results_bioage %>%
+summary_bioage <- results_bioage %>%
   calculate_nb_cis(per_age_group = TRUE) %>%
   calculate_RMSE_R2(
-    results_data = df_results_bioage,
-    predictions = output_bioage$predictions,
+    results_data = results_bioage,
+    predictions = pred_bioage,
     per_age_group = TRUE
   ) %>%
   compute_rmse_CI(
-    predictions = output_bioage$predictions,
+    predictions = pred_bioage,
     n_boot = params$n_boot,
     per_age_group = TRUE
   )
 
-df_summary_bioage_overall <- df_results_bioage %>%
+summary_bioage_overall <- results_bioage %>%
   calculate_nb_cis() %>%
   calculate_RMSE_R2(
-    results_data = df_results_bioage,
-    predictions = output_bioage$predictions,
+    results_data = results_bioage,
+    predictions = pred_bioage,
   ) %>%
   compute_rmse_CI(
-    predictions = output_bioage$predictions,
+    predictions = pred_bioage,
     n_boot = params$n_boot
   )
 
 if (isFALSE(params$telolength)) {
-  df_summary_bioage_reverse <- df_results_bioage_reverse %>%
+  summary_bioage_reverse <- results_bioage_reverse %>%
     calculate_nb_cis(per_age_group = TRUE) %>%
     calculate_RMSE_R2(
-      results_data = df_results_bioage_reverse,
-      predictions = output_bioage_reverse$predictions,
+      results_data = results_bioage_reverse,
+      predictions = pred_bioage_reverse,
       per_age_group = TRUE
     ) %>%
     compute_rmse_CI(
-      predictions = output_bioage_reverse$predictions,
+      predictions = pred_bioage_reverse,
       n_boot = params$n_boot,
       per_age_group = TRUE
     )
 
-  df_summary_bioage_reverse_overall <- df_results_bioage_reverse %>%
+  summary_bioage_reverse_overall <- results_bioage_reverse %>%
     calculate_nb_cis() %>%
     calculate_RMSE_R2(
-      results_data = df_results_bioage_reverse,
-      predictions = output_bioage_reverse$predictions,
+      results_data = results_bioage_reverse,
+      predictions = pred_bioage_reverse,
     ) %>%
     compute_rmse_CI(
-      predictions = output_bioage_reverse$predictions,
+      predictions = pred_bioage_reverse,
       n_boot = params$n_boot
     )
 
-  df_summary_biomarkers <- df_results_biomarkers %>%
+  summary_biomarkers <- results_biomarkers %>%
     calculate_nb_cis(per_age_group = TRUE) %>%
     calculate_RMSE_R2(
-      results_data = df_results_biomarkers,
-      predictions = output_biomarkers$predictions,
+      results_data = results_biomarkers,
+      predictions = pred_biomarkers,
       per_age_group = TRUE
     ) %>%
     compute_rmse_CI(
-      predictions = output_biomarkers$predictions,
+      predictions = pred_biomarkers,
       n_boot = params$n_boot,
       per_age_group = TRUE
     )
 
-  df_summary_biomarkers_overall <- df_results_biomarkers %>%
+  summary_biomarkers_overall <- results_biomarkers %>%
     calculate_nb_cis() %>%
     calculate_RMSE_R2(
-      results_data = df_results_biomarkers,
-      predictions = output_biomarkers$predictions
+      results_data = results_biomarkers,
+      predictions = pred_biomarkers
     ) %>%
     compute_rmse_CI(
-      predictions = output_biomarkers$predictions,
+      predictions = pred_biomarkers,
       n_boot = params$n_boot
     )
 
-  df_summary_confounders <- df_results_confounders %>%
+  summary_confounders <- results_confounders %>%
     calculate_nb_cis(per_age_group = TRUE) %>%
     calculate_RMSE_R2(
-      results_data = df_results_confounders,
-      predictions = output_confounders$predictions,
+      results_data = results_confounders,
+      predictions = pred_confounders,
       per_age_group = TRUE
     ) %>%
     compute_rmse_CI(
-      predictions = output_confounders$predictions,
+      predictions = pred_confounders,
       n_boot = params$n_boot,
       per_age_group = TRUE,
       confounders = TRUE
     )
 
-  df_summary_confounders_overall <- df_results_confounders %>%
+  summary_confounders_overall <- results_confounders %>%
     calculate_nb_cis() %>%
     calculate_RMSE_R2(
-      results_data = df_results_confounders,
-      predictions = output_confounders$predictions,
+      results_data = results_confounders,
+      predictions = pred_confounders,
     ) %>%
     compute_rmse_CI(
-      predictions = output_confounders$predictions,
+      predictions = pred_confounders,
       n_boot = params$n_boot,
       confounders = TRUE
     )
@@ -595,7 +618,7 @@ test_correlation <- function(results_data, grouping_variables, exclusions = NULL
 
 sameplot(
   test_correlation(
-    df_results_bioage,
+    results_bioage,
     grouping_variables = "predictors",
     exclusions = "age"
   )
@@ -603,7 +626,7 @@ sameplot(
 
 sameplot(
   test_correlation(
-    df_results_bioage,
+    results_bioage,
     grouping_variables = c("age_group", "predictors"),
     exclusions = "age"
   )
@@ -612,7 +635,7 @@ sameplot(
 if (isFALSE(params$telolength)) {
   sameplot(
     test_correlation(
-      df_results_biomarkers,
+      results_biomarkers,
       grouping_variables = "predictors",
       exclusions = c(
         "age",
@@ -623,7 +646,7 @@ if (isFALSE(params$telolength)) {
   )
   sameplot(
     test_correlation(
-      df_results_biomarkers,
+      results_biomarkers,
       grouping_variables = c("age_group", "predictors"),
       exclusions = c(
         "age",
@@ -635,7 +658,7 @@ if (isFALSE(params$telolength)) {
 
   sameplot(
     test_correlation(
-      df_results_confounders,
+      results_confounders,
       grouping_variables = "predictors",
       exclusions = c(
         "full"
@@ -644,7 +667,7 @@ if (isFALSE(params$telolength)) {
   )
 
   sameplot(test_correlation(
-    df_results_confounders,
+    results_confounders,
     grouping_variables = c("age_group", "predictors"),
     exclusions = c(
       "full"
@@ -730,14 +753,14 @@ nb_corrected_repeated_t_test <- function(summary_data,
 }
 
 pwc_bioage_overall <- nb_corrected_repeated_t_test(
-  df_summary_bioage_overall,
+  summary_bioage_overall,
   exceptions = "age",
   exception_include_exclude = "exclude",
   adjust_method = "holm"
 )
 
 pwc_bioage <- nb_corrected_repeated_t_test(
-  df_summary_bioage,
+  summary_bioage,
   exceptions = c("age, phenoage", if (params$hearing_var == "FI_low") c("age, hd", "age, kdm") else NULL),
   exception_include_exclude = "include",
   adjust_method = "holm"
@@ -745,21 +768,21 @@ pwc_bioage <- nb_corrected_repeated_t_test(
 
 if (isFALSE(params$telolength)) {
   pwc_bioage_reverse_overall <- nb_corrected_repeated_t_test(
-    df_summary_bioage_reverse_overall,
+    summary_bioage_reverse_overall,
     exceptions = c("phenoage", "kdm", "hd_log"),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
   )
 
   pwc_bioage_reverse <- nb_corrected_repeated_t_test(
-    df_summary_bioage_reverse,
+    summary_bioage_reverse,
     exceptions = c("phenoage", "kdm", "hd_log"),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
   )
 
   pwc_biomarkers_overall <- nb_corrected_repeated_t_test(
-    df_summary_biomarkers_overall,
+    summary_biomarkers_overall,
     exceptions = c(
       "age",
       "age, phenoage",
@@ -771,7 +794,7 @@ if (isFALSE(params$telolength)) {
     arrange(p_adj)
 
   pwc_biomarkers <- nb_corrected_repeated_t_test(
-    df_summary_biomarkers,
+    summary_biomarkers,
     exceptions = c(
       "age",
       "age, phenoage",
@@ -782,7 +805,7 @@ if (isFALSE(params$telolength)) {
   )
 
   pwc_confounders_overall <- nb_corrected_repeated_t_test(
-    df_summary_confounders_overall,
+    summary_confounders_overall,
     exceptions = c(
       "full"
     ),
@@ -792,7 +815,7 @@ if (isFALSE(params$telolength)) {
     arrange(p_adj)
 
   pwc_confounders <- nb_corrected_repeated_t_test(
-    df_summary_confounders,
+    summary_confounders,
     exceptions = c("full", "full_with_phenoage"),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
@@ -832,46 +855,46 @@ import_p_values <- function(summary_data, pwc_data, per_age_group = FALSE) {
   updated_summary_data
 }
 
-df_summary_bioage <- df_summary_bioage %>%
+summary_bioage <- summary_bioage %>%
   import_p_values(
     pwc_bioage,
     per_age_group = TRUE
   )
 
-df_summary_bioage_overall <- df_summary_bioage_overall %>%
+summary_bioage_overall <- summary_bioage_overall %>%
   import_p_values(
     pwc_bioage_overall
   )
 
 if (isFALSE(params$telolength)) {
-  df_summary_bioage_reverse <- df_summary_bioage_reverse %>%
+  summary_bioage_reverse <- summary_bioage_reverse %>%
     import_p_values(
       pwc_bioage_reverse,
       per_age_group = TRUE
     )
 
-  df_summary_bioage_reverse_overall <- df_summary_bioage_reverse_overall %>%
+  summary_bioage_reverse_overall <- summary_bioage_reverse_overall %>%
     import_p_values(
       pwc_bioage_reverse_overall
     )
 
-  df_summary_biomarkers <- df_summary_biomarkers %>%
+  summary_biomarkers <- summary_biomarkers %>%
     import_p_values(
       pwc_biomarkers,
       per_age_group = TRUE
     )
 
-  df_summary_biomarkers_overall <- df_summary_biomarkers_overall %>%
+  summary_biomarkers_overall <- summary_biomarkers_overall %>%
     import_p_values(
       pwc_biomarkers_overall
     )
 
-  df_summary_confounders <- df_summary_confounders %>%
+  summary_confounders <- summary_confounders %>%
     import_p_values(
       pwc_confounders,
       per_age_group = TRUE
     )
-  df_summary_confounders_overall <- df_summary_confounders_overall %>%
+  summary_confounders_overall <- summary_confounders_overall %>%
     import_p_values(
       pwc_confounders_overall
     )
@@ -881,45 +904,45 @@ if (isFALSE(params$telolength)) {
 ### Display summary tables
 
 ```{r show_summary_tables}
-df_summary_bioage %>%
+summary_bioage %>%
   mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
   construct_table(
     title = "Overall Bioage Pairwise Comparisons"
   )
 
-df_summary_bioage_overall %>%
+summary_bioage_overall %>%
   mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
   construct_table(
     title = "Overall Bioage Pairwise Comparisons"
   )
 
 if (isFALSE(params$telolength)) {
-  df_summary_bioage_reverse %>%
+  summary_bioage_reverse %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
       title = "Overall Bioage Reverse Analysis Pairwise Comparisons"
     )
-  df_summary_bioage_reverse_overall %>%
+  summary_bioage_reverse_overall %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
       title = "Overall Bioage Reverse Analysis Pairwise Comparisons"
     )
-  df_summary_biomarkers %>%
+  summary_biomarkers %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
       title = "Overall Biomarker Pairwise Comparisons"
     )
-  df_summary_biomarkers_overall %>%
+  summary_biomarkers_overall %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
       title = "Overall Biomarker Pairwise Comparisons"
     )
-  df_summary_confounders %>%
+  summary_confounders %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
       title = "Overall Confounder Pairwise Comparisons"
     )
-  df_summary_confounders_overall %>%
+  summary_confounders_overall %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
       title = "Overall Confounder Pairwise Comparisons"
@@ -950,33 +973,33 @@ add_n_age_groups <- function(summary_data, data, per_age_group = FALSE) {
   summary_data
 }
 
-df_summary_bioage <- df_summary_bioage %>%
+summary_bioage <- summary_bioage %>%
   add_n_age_groups(
     data = df,
     per_age_group = TRUE
   )
-df_summary_bioage_overall <- df_summary_bioage_overall %>%
+summary_bioage_overall <- summary_bioage_overall %>%
   add_n_age_groups(
     data = df
   )
 
 if (isFALSE(params$telolength)) {
-  df_summary_biomarkers <- df_summary_biomarkers %>%
+  summary_biomarkers <- summary_biomarkers %>%
     add_n_age_groups(
       data = df,
       per_age_group = TRUE
     )
-  df_summary_biomarkers_overall <- df_summary_biomarkers_overall %>%
+  summary_biomarkers_overall <- summary_biomarkers_overall %>%
     add_n_age_groups(
       data = df
     )
 
-  df_summary_confounders <- df_summary_confounders %>%
+  summary_confounders <- summary_confounders %>%
     add_n_age_groups(
       data = df,
       per_age_group = TRUE
     )
-  df_summary_confounders_overall <- df_summary_confounders_overall %>%
+  summary_confounders_overall <- summary_confounders_overall %>%
     add_n_age_groups(
       data = df
     )
@@ -1110,7 +1133,7 @@ one is, also change by 1 to identify stretches. Then take the first and last val
 to identify boundaries. Only keep the significant stretches.
 
 ```{r find_sig_ages}
-pwc_age_rate <- output_age_rate$predictions$derivative_smooth %>%
+pwc_age_rate <- output_age_rate$derivative_smooth %>%
   mutate(
     z_score = derivative_adj / SE_adj,
     p = 2 * pnorm(abs(z_score), lower.tail = FALSE),
