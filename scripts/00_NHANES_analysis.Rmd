@@ -83,11 +83,11 @@ params:
     value: TRUE
     input: checkbox
     help: "Set to skip refitting of k-fold validation if model results are present"
-  confounders:
-    label: "Included confounders"
+  covariates:
+    label: "Included covariates"
     value: "gender_smoking_race_education_gender, race"
     input: text
-    help: "Set confounder factor variables and interaction to be included in analysis separated by underscore"
+    help: "Set covariate factor variables and interaction to be included in analysis separated by underscore"
   n_threads:
     label: "Number of threads"
     value: 1000
@@ -155,7 +155,7 @@ knitr::opts_knit$set(
 options(
   contrasts = c("contr.sum", "contr.poly"),
   knitr.duplicate.label = "allow",
-  future.globals.maxSize = 650*1024^2
+  future.globals.maxSize = 650 * 1024^2
 )
 
 run_module <- function(path) {

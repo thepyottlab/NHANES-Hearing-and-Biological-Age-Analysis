@@ -10,29 +10,29 @@ editor_options:
 
 ```{r}
 split_bioage_reverse <- function(output) {
-    list(
-      results = output$results %>%
-        filter(predictors != "age") %>%
-        mutate(predictors = fct_drop(predictors)),
-      predictions = output$predictions %>%
-        filter(predictors != "age") %>%
-        mutate(predictors = fct_drop(predictors))
-    )
-  }
+  list(
+    results = output$results %>%
+      filter(predictors != "age") %>%
+      mutate(predictors = fct_drop(predictors)),
+    predictions = output$predictions %>%
+      filter(predictors != "age") %>%
+      mutate(predictors = fct_drop(predictors))
+  )
+}
 
-  split_bioage <- function(output) {
-    list(
-      results = output$results %>%
-        filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
-        mutate(predictors = fct_drop(predictors)),
-      predictions = output$predictions %>%
-        filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
-        mutate(predictors = fct_drop(predictors))
-    )
-  }
+split_bioage <- function(output) {
+  list(
+    results = output$results %>%
+      filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
+      mutate(predictors = fct_drop(predictors)),
+    predictions = output$predictions %>%
+      filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
+      mutate(predictors = fct_drop(predictors))
+  )
+}
 
-  output_bioage_reverse <- split_bioage_reverse(output_bioage_bidirectional)
-  output_bioage <- split_bioage(output_bioage_bidirectional)
+output_bioage_reverse <- split_bioage_reverse(output_bioage_bidirectional)
+output_bioage <- split_bioage(output_bioage_bidirectional)
 ```
 
 ## Process result comparison dfs

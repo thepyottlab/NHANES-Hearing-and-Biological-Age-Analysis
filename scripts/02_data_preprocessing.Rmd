@@ -21,22 +21,24 @@ file contains "Audiometry" otherwise, filter the IDs to the list of audiometry I
 
 ```{r}
 select_audiometry_sample <- function(data_map) {
-  
   # Extract all subject IDs from audiometry files
   audiometry_sample_ids <- data_map %>%
-  filter(str_detect(file, "Audiometry")) %>%
-  pull(data) %>%
-  map(~ pull(.x, SEQN)) %>%
-  reduce(union)
+    filter(str_detect(file, "Audiometry")) %>%
+    pull(data) %>%
+    map(~ pull(.x, SEQN)) %>%
+    reduce(union)
 
   # Filter non-audiometry files to audiometry subject IDs only
   data_map <- data_map %>%
-  mutate(
-    data = map2(data, file, \(df, f) {
-      if (str_detect(f, "Audiometry")) df
-      else filter(df, SEQN %in% audiometry_sample_ids)
-    })
-  )
+    mutate(
+      data = map2(data, file, \(df, f) {
+        if (str_detect(f, "Audiometry")) {
+          df
+        } else {
+          filter(df, SEQN %in% audiometry_sample_ids)
+        }
+      })
+    )
 }
 ```
 
@@ -73,7 +75,7 @@ select_columns <- function(data_map, column_path) {
             filter(year == yr) %>%
             pull(select_cols)
         )
-        
+
         df %>%
           select(all_of(cols_to_keep)) %>%
           mutate(year = factor(yr))
@@ -173,18 +175,19 @@ standardize_values <- function(data) {
   data %>%
     mutate(
       age_group = case_when(
-      age < 20 ~ "19-",
-      age >= 20 & age < 30 ~ "20-30",
-      age >= 30 & age < 40 ~ "30-40",
-      age >= 40 & age < 50 ~ "40-50",
-      age >= 50 & age < 60 ~ "50-60",
-      age >= 60 & age < 70 ~ "60-70",
-      isFALSE(params$telolength) & age >= 70 & age < 80 ~ "70-80",
-      isFALSE(params$telolength) & age >= 80 ~ "80+"
-    ),
-    race = case_when(
-      race == 2 ~ 1, 
-      TRUE ~ race),
+        age < 20 ~ "19-",
+        age >= 20 & age < 30 ~ "20-30",
+        age >= 30 & age < 40 ~ "30-40",
+        age >= 40 & age < 50 ~ "40-50",
+        age >= 50 & age < 60 ~ "50-60",
+        age >= 60 & age < 70 ~ "60-70",
+        isFALSE(params$telolength) & age >= 70 & age < 80 ~ "70-80",
+        isFALSE(params$telolength) & age >= 80 ~ "80+"
+      ),
+      race = case_when(
+        race == 2 ~ 1,
+        TRUE ~ race
+      ),
       creat = case_when(
         year == 1999 ~ LBXSCR * 1.013 + 0.147,
         year == 2005 ~ LBXSCR * 0.978 - 0.016,
@@ -239,32 +242,32 @@ calculate_hearing <- function(data) {
   data %>%
     mutate(
       across(contains("audio"), ~ if_else(. %in% c(666, 888), NA_real_, as.numeric(.)))
-      ) %>%
+    ) %>%
     rowwise() %>%
     mutate(
       test_retest_diff_left = abs(audio_left_1000 - audio_left_1000_retest),
       test_retest_diff_right = abs(audio_right_1000 - audio_right_1000_retest),
-      audio_right_1000_mean = mean(c(audio_right_1000, audio_right_1000_retest), na.rm = TRUE),
-      audio_left_1000_mean = mean(c(audio_left_1000, audio_left_1000_retest), na.rm = TRUE),
-      FI_low_r = mean(c(audio_right_500, audio_right_1000, audio_right_2000), na.rm = TRUE),
-      FI_low_l = mean(c(audio_left_500, audio_left_1000, audio_left_2000), na.rm = TRUE),
-      FI_low = mean(c(FI_low_r, FI_low_l), na.rm = TRUE),
-      FI_high_r = mean(c(audio_right_4000, audio_right_6000, audio_right_8000), na.rm = TRUE),
-      FI_high_l = mean(c(audio_left_4000, audio_left_6000, audio_left_8000), na.rm = TRUE),
-      FI_high = mean(c(FI_high_r, FI_high_l), na.rm = TRUE),
+      audio_right_1000_mean = mean(c(audio_right_1000, audio_right_1000_retest)),
+      audio_left_1000_mean = mean(c(audio_left_1000, audio_left_1000_retest)),
+      FI_low_r = mean(c(audio_right_500, audio_right_1000_mean, audio_right_2000)),
+      FI_low_l = mean(c(audio_left_500, audio_left_1000_mean, audio_left_2000)),
+      FI_low = mean(c(FI_low_r, FI_low_l)),
+      FI_high_r = mean(c(audio_right_4000, audio_right_6000, audio_right_8000)),
+      FI_high_l = mean(c(audio_left_4000, audio_left_6000, audio_left_8000)),
+      FI_high = mean(c(FI_high_r, FI_high_l)),
       pta_r = mean(c(
         audio_right_500,
         audio_right_1000,
         audio_right_2000,
         audio_right_4000
-      ), na.rm = TRUE),
+      )),
       pta_l = mean(c(
         audio_left_500,
         audio_left_1000,
         audio_left_2000,
         audio_left_4000
-      ), na.rm = TRUE),
-      pta = mean(c(pta_r, pta_l), na.rm = TRUE),
+      )),
+      pta = mean(c(pta_r, pta_l)),
       pta_diff = abs(pta_r - pta_l)
     ) %>%
     ungroup()
@@ -455,10 +458,10 @@ subset_data <- function(design) {
       test_retest_diff_left < 10 & test_retest_diff_right < 10,
       label = "too large test-retest difference."
     ) %>%
-    verbose_subset(
-      pta_diff < 15,
-      label = "too large imbalance in left/right hearing loss."
-    ) %>%
+    # verbose_subset(
+    # pta_diff < 15,
+    # label = "too large imbalance in left/right hearing loss."
+    # ) %>%
     verbose_subset(
       smoking %in% c(1, 2),
       label = "smoking refused or 'don't know'."
@@ -531,110 +534,110 @@ changes, sampling differences, and large variances. No other issues.
 
 ```{r}
 insert_bioage <- function(design) {
-bioage_calc <- function(data, training_data_path, HD_training_data_path) {
-  v1_biomarkers <- c(
-    "fev", "sbp", "totchol", "hba1c", "albumin", "lncreat", "lncrp", "alp", "bun"
+  bioage_calc <- function(data, training_data_path, HD_training_data_path) {
+    v1_biomarkers <- c(
+      "fev", "sbp", "totchol", "hba1c", "albumin", "lncreat", "lncrp", "alp", "bun"
+    )
+    v2_biomarkers <- c(
+      "albumin", "alp", "lncrp", "totchol", "lncreat", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc"
+    )
+    v2_biomarkers_phenoage <- c(
+      "albumin_gL", "alp", "lncrp", "totchol", "lncreat_umol", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc"
+    )
+
+    load(training_data_path)
+    load(HD_training_data_path)
+
+    # Calculate KDM V2
+    train_fem_kdm_v2 <- kdm_calc(
+      data = NHANES3 %>%
+        filter(gender == 2 & age >= 30 & age <= 75 & pregnant == 0),
+      biomarkers = v2_biomarkers,
+      fit = NULL,
+      s_ba2 = NULL,
+      n_allowed_missing_biomarkers = 0
+    )
+    train_male_kdm_v2 <- kdm_calc(
+      data = NHANES3 %>%
+        filter(gender == 1 & age >= 30 & age <= 75),
+      biomarkers = v2_biomarkers,
+      fit = NULL,
+      s_ba2 = NULL,
+      n_allowed_missing_biomarkers = 0
+    )
+    test_fem_kdm_v2 <- kdm_calc(
+      data = data %>%
+        filter(gender == 2),
+      biomarkers = v2_biomarkers,
+      fit = train_fem_kdm_v2$fit,
+      s_ba2 = train_fem_kdm_v2$fit$s_ba2,
+      n_allowed_missing_biomarkers = 0
+    )
+    test_male_kdm_v2 <- kdm_calc(
+      data = data %>%
+        filter(gender == 1),
+      biomarkers = v2_biomarkers,
+      fit = train_male_kdm_v2$fit,
+      s_ba2 = train_male_kdm_v2$fit$s_ba2,
+      n_allowed_missing_biomarkers = 0
+    )
+
+    test_kdm_v2 <- rbind(test_fem_kdm_v2$data, test_male_kdm_v2$data)
+
+    data <- left_join(data, test_kdm_v2[, c("sampleID", "kdm", "kdm_advance")], by = "sampleID")
+
+    # Calculate PhenoAge V2
+    train_phenoage_v2 <- phenoage_calc(
+      data = NHANES3 %>%
+        filter(age >= 20 & age <= 84),
+      biomarkers = v2_biomarkers_phenoage,
+      fit = NULL
+    )
+
+    test_phenoage_v2 <- phenoage_calc(
+      data = data,
+      biomarkers = v2_biomarkers_phenoage,
+      fit = train_phenoage_v2$fit
+    )
+
+    data <- left_join(data, test_phenoage_v2$data[, c("sampleID", "phenoage", "phenoage_advance")], by = "sampleID")
+
+    # Calculate HD
+    fem_hd <- hd_calc(
+      data = data %>%
+        filter(gender == 2),
+      reference = NHANES3_HDTrain %>%
+        filter(gender == 2),
+      biomarkers = v2_biomarkers
+    )
+    male_hd <- hd_calc(
+      data = data %>%
+        filter(gender == 1),
+      reference = NHANES3_HDTrain %>%
+        filter(gender == 1),
+      biomarkers = v2_biomarkers
+    )
+
+    hd <- rbind(fem_hd$data, male_hd$data)
+
+    data <- left_join(data, hd[, c("sampleID", "hd", "hd_log")], by = "sampleID")
+
+    data
+  }
+
+  df <- design$variables %>% bioage_calc(
+    training_data_path = here("data", "training_data", "NHANES3.rda"),
+    HD_training_data_path = here("data", "training_data", "NHANES3_HDTrain.rda")
   )
-  v2_biomarkers <- c(
-    "albumin", "alp", "lncrp", "totchol", "lncreat", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc"
+
+  update(design,
+    kdm = df$kdm,
+    kdm_advance = df$kdm_advance,
+    phenoage = df$phenoage,
+    phenoage_advance = df$phenoage_advance,
+    hd = df$hd,
+    hd_log = df$hd_log
   )
-  v2_biomarkers_phenoage <- c(
-    "albumin_gL", "alp", "lncrp", "totchol", "lncreat_umol", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc"
-  )
-
-  load(training_data_path)
-  load(HD_training_data_path)
-
-  # Calculate KDM V2
-  train_fem_kdm_v2 <- kdm_calc(
-    data = NHANES3 %>%
-      filter(gender == 2 & age >= 30 & age <= 75 & pregnant == 0),
-    biomarkers = v2_biomarkers,
-    fit = NULL,
-    s_ba2 = NULL,
-    n_allowed_missing_biomarkers = 0
-  )
-  train_male_kdm_v2 <- kdm_calc(
-    data = NHANES3 %>%
-      filter(gender == 1 & age >= 30 & age <= 75),
-    biomarkers = v2_biomarkers,
-    fit = NULL,
-    s_ba2 = NULL,
-    n_allowed_missing_biomarkers = 0
-  )
-  test_fem_kdm_v2 <- kdm_calc(
-    data = data %>%
-      filter(gender == 2),
-    biomarkers = v2_biomarkers,
-    fit = train_fem_kdm_v2$fit,
-    s_ba2 = train_fem_kdm_v2$fit$s_ba2,
-    n_allowed_missing_biomarkers = 0
-  )
-  test_male_kdm_v2 <- kdm_calc(
-    data = data %>%
-      filter(gender == 1),
-    biomarkers = v2_biomarkers,
-    fit = train_male_kdm_v2$fit,
-    s_ba2 = train_male_kdm_v2$fit$s_ba2,
-    n_allowed_missing_biomarkers = 0
-  )
-
-  test_kdm_v2 <- rbind(test_fem_kdm_v2$data, test_male_kdm_v2$data)
-
-  data <- left_join(data, test_kdm_v2[, c("sampleID", "kdm", "kdm_advance")], by = "sampleID")
-
-  # Calculate PhenoAge V2
-  train_phenoage_v2 <- phenoage_calc(
-    data = NHANES3 %>%
-      filter(age >= 20 & age <= 84),
-    biomarkers = v2_biomarkers_phenoage,
-    fit = NULL
-  )
-
-  test_phenoage_v2 <- phenoage_calc(
-    data = data,
-    biomarkers = v2_biomarkers_phenoage,
-    fit = train_phenoage_v2$fit
-  )
-
-  data <- left_join(data, test_phenoage_v2$data[, c("sampleID", "phenoage", "phenoage_advance")], by = "sampleID")
-
-  # Calculate HD
-  fem_hd <- hd_calc(
-    data = data %>%
-      filter(gender == 2),
-    reference = NHANES3_HDTrain %>%
-      filter(gender == 2),
-    biomarkers = v2_biomarkers
-  )
-  male_hd <- hd_calc(
-    data = data %>%
-      filter(gender == 1),
-    reference = NHANES3_HDTrain %>%
-      filter(gender == 1),
-    biomarkers = v2_biomarkers
-  )
-
-  hd <- rbind(fem_hd$data, male_hd$data)
-
-  data <- left_join(data, hd[, c("sampleID", "hd", "hd_log")], by = "sampleID")
-
-  data
-}
-
-df <- design$variables %>% bioage_calc(
-  training_data_path = here("data", "training_data", "NHANES3.rda"),
-  HD_training_data_path = here("data", "training_data", "NHANES3_HDTrain.rda")
-)
-
-update(design, 
-  kdm          = df$kdm,
-  kdm_advance  = df$kdm_advance,
-  phenoage     = df$phenoage,
-  phenoage_advance     = df$phenoage_advance,
-  hd           = df$hd,
-  hd_log           = df$hd_log
-)
 }
 
 design <- insert_bioage(design)
@@ -684,7 +687,7 @@ calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
   )
 
   groups <- c(Gender = "gender", Race = "race", Smoking = "smoking", Education = "education")
-  age_groups <- c("Overall", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80")
+  age_groups <- factor(c("Overall", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80"))
   hearing_var <- as.formula(paste0("~", params$hearing_var))
   results <- list()
 
@@ -710,24 +713,24 @@ calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
 
     rows <- bind_rows(
       data.frame(
-        Age_group = age_group_val,
-        Group = "Overall",
-        Category = "Overall",
-        N = nrow(design_subset),
-        Proportion = nrow(design_subset) / nrow(design),
-        Proportion_w = proportion_w,
-        Mean = coef(svymean(hearing_var, design_subset)),
-        SD = sqrt(coef(svyvar(hearing_var, design_subset)))
+        age_group = age_group_val,
+        group = "Overall",
+        category = "Overall",
+        n = nrow(design_subset),
+        proportion = nrow(design_subset) / nrow(design),
+        proportion_w = proportion_w,
+        mean_w = coef(svymean(hearing_var, design_subset)),
+        sd_w = sqrt(coef(svyvar(hearing_var, design_subset)))
       ) %>%
         {
           if (isTRUE(incl_bioage)) {
             mutate(.,
-              Mean_KDM = coef(svymean(~kdm, design_subset)),
-              Mean_PhenoAge = coef(svymean(~phenoage, design_subset)),
-              Mean_HD_log = coef(svymean(~hd_log, design_subset)),
-              SD_KDM = sqrt(coef(svyvar(~kdm, design_subset))),
-              SD_PhenoAge = sqrt(coef(svyvar(~phenoage, design_subset))),
-              SD_HD_log = sqrt(coef(svyvar(~hd_log, design_subset)))
+              mean_w_kdm = coef(svymean(~kdm, design_subset)),
+              mean_w_phenoage = coef(svymean(~phenoage, design_subset)),
+              mean_w_hd_log = coef(svymean(~hd_log, design_subset)),
+              sd_w_kdm = sqrt(coef(svyvar(~kdm, design_subset))),
+              sd_w_phenoage = sqrt(coef(svyvar(~phenoage, design_subset))),
+              sd_w_hd_log = sqrt(coef(svyvar(~hd_log, design_subset)))
             )
           } else {
             .
@@ -739,24 +742,24 @@ calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
         counts <- table(design_subset$variables[[groups[[group]]]])
 
         data.frame(
-          Age_group = age_group_val,
-          Group = group,
-          Category = svyby(hearing_var, grouping_variable, design_subset, svymean)[[groups[[group]]]],
-          N = as.vector(counts),
-          Proportion = as.vector(counts) / nrow(design_subset),
-          Proportion_w = as.vector(proportions_w),
-          Mean = svyby(hearing_var, grouping_variable, design_subset, svymean)[[params$hearing_var]],
-          SD = sqrt(svyby(hearing_var, grouping_variable, design_subset, svyvar)[[params$hearing_var]])
+          age_group = age_group_val,
+          group = group,
+          category = svyby(hearing_var, grouping_variable, design_subset, svymean)[[groups[[group]]]],
+          n = as.vector(counts),
+          proportion = as.vector(counts) / nrow(design_subset),
+          proportion_w = as.vector(proportions_w),
+          mean_w = svyby(hearing_var, grouping_variable, design_subset, svymean)[[params$hearing_var]],
+          sd_w = sqrt(svyby(hearing_var, grouping_variable, design_subset, svyvar)[[params$hearing_var]])
         ) %>%
           {
             if (isTRUE(incl_bioage)) {
               mutate(.,
-                Mean_KDM = svyby(~kdm, grouping_variable, design_subset, svymean)$kdm,
-                Mean_PhenoAge = svyby(~phenoage, grouping_variable, design_subset, svymean)$phenoage,
-                Mean_HD_log = svyby(~hd_log, grouping_variable, design_subset, svymean)$hd_log,
-                SD_KDM = sqrt(svyby(~kdm, grouping_variable, design_subset, svyvar)$kdm),
-                SD_PhenoAge = sqrt(svyby(~phenoage, grouping_variable, design_subset, svyvar)$phenoage),
-                SD_HD_log = sqrt(svyby(~hd_log, grouping_variable, design_subset, svyvar)$hd_log)
+                mean_w_kdm = svyby(~kdm, grouping_variable, design_subset, svymean)$kdm,
+                mean_w_phenoage = svyby(~phenoage, grouping_variable, design_subset, svymean)$phenoage,
+                mean_w_hd_log = svyby(~hd_log, grouping_variable, design_subset, svymean)$hd_log,
+                sd_w_kdm = sqrt(svyby(~kdm, grouping_variable, design_subset, svyvar)$kdm),
+                sd_w_phenoage = sqrt(svyby(~phenoage, grouping_variable, design_subset, svyvar)$phenoage),
+                sd_w_hd_log = sqrt(svyby(~hd_log, grouping_variable, design_subset, svyvar)$hd_log)
               )
             } else {
               .
@@ -769,7 +772,10 @@ calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
   }
 
   bind_rows(results) %>%
-    mutate(across(c(Mean, SD), \(x) round(x, 3)))
+    mutate(
+      group = factor(group, levels = c("Overall", "Gender", "Race", "Smoking", "Education")),
+      age_group = factor(age_group, levels = c("Overall", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80"))
+    )
 }
 
 descriptive_statistics_unfiltered <- calculate_descriptive_statistics(design_no_missing)
@@ -781,79 +787,79 @@ descriptive_statistics <- calculate_descriptive_statistics(design, incl_bioage =
 ```{r}
 plot_proportions <- function(data, y_variable, title) {
   ggplot(
-  data,
-  aes(x = Category, y = .data[[y_variable]], group = Group)
-) +
-  geom_col(aes(fill = Category, color = Category)) +
-  geom_text(
-    aes(y = .data[[y_variable]]/2, label = signif(.data[[y_variable]], 2)),
-    size = 2
+    data,
+    aes(x = category, y = .data[[y_variable]], group = group)
   ) +
-  facet_grid(Age_group ~ Group, scales = "free_x", space = "free_x") +
-  labs(
-    title = title, 
-       y = paste0(if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index\n (dB HL)")
+    geom_col(aes(fill = category, color = category)) +
+    geom_text(
+      aes(y = .data[[y_variable]] / 2, label = signif(.data[[y_variable]], 2)),
+      size = 2
     ) +
-  theme_few() +
-  scale_y_continuous(breaks = seq(0, 1, 0.5), labels = c("0", "0.5", "1")) +
-  coord_cartesian(ylim = c(0, 1)) +
-  theme(
-    axis.text.x  = element_text(angle = 45, hjust = 1),
-    legend.position = "none",
-    axis.title.x = element_blank()
-  )
+    facet_grid(age_group ~ group, scales = "free_x", space = "free_x") +
+    labs(
+      title = title,
+      y = paste0(if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index\n (dB HL)")
+    ) +
+    theme_few() +
+    scale_y_continuous(breaks = seq(0, 1, 0.5), labels = c("0", "0.5", "1")) +
+    coord_cartesian(ylim = c(0, 1)) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "none",
+      axis.title.x = element_blank()
+    )
 }
 p1 <- plot_proportions(
   data = descriptive_statistics_unfiltered,
-  y_variable = "Proportion_w",
+  y_variable = "proportion_w",
   title = "Weighted unfiltered strata proportions"
 )
 
 p2 <- plot_proportions(
   data = descriptive_statistics,
-  y_variable = "Proportion_w",
+  y_variable = "proportion_w",
   title = "Weighted filtered strata proportions"
 )
 
 p3 <- plot_proportions(
   data = descriptive_statistics_unfiltered,
-  y_variable = "Proportion",
+  y_variable = "proportion",
   title = "Unweighted unfiltered strata proportions"
 )
 
 p4 <- plot_proportions(
   data = descriptive_statistics,
-  y_variable = "Proportion",
+  y_variable = "proportion",
   title = "Unweighted filtered strata proportions"
 )
 
-sameplot(  
+sameplot(
   p1,
   width = params$double_column_width,
   height = 6,
   res = 600
-  )
+)
 
-sameplot( 
+sameplot(
   p2,
   width = params$double_column_width,
   height = 6,
   res = 600
-  )
+)
 
-sameplot(  
+sameplot(
   p3,
   width = params$double_column_width,
   height = 6,
   res = 600
-  )
+)
 
-sameplot( 
+sameplot(
   p4,
   width = params$double_column_width,
   height = 6,
   res = 600
-  )
+)
 ```
 
 **Proportions remain roughly the same before and after filtering. Proportions are still roughly the
@@ -876,23 +882,24 @@ descriptive_statistics %>%
   )
 
 plot_descriptives <- function(data, title) {
-ggplot(
-  data,
-  aes(x = Category, y = Mean, group = Group)
-) +
-  geom_col(aes(fill = Category, color = Category)) +
-  geom_errorbar(aes(ymin = Mean - SD, ymax = Mean + SD), width = 0.2) +
-  facet_grid(Age_group ~ Group, scales = "free_x", space = "free_x") +
-  labs(title = title,
-    y = paste0(if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index\n (dB HL)")
+  ggplot(
+    data,
+    aes(x = category, y = mean_w, group = group)
+  ) +
+    geom_col(aes(fill = category, color = category)) +
+    geom_errorbar(aes(ymin = mean_w - sd_w, ymax = mean_w + sd_w), width = 0.2) +
+    facet_grid(age_group ~ group, scales = "free_x", space = "free_x") +
+    labs(
+      title = title,
+      y = paste0(if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index\n (dB HL)")
     ) +
-  theme_few() +
-  coord_cartesian(ylim = c(0, 80)) +
-  theme(
-    axis.text.x  = element_text(angle = 45, hjust = 1),
-    legend.position = "none",
-    axis.title.x = element_blank()
-  )
+    theme_few() +
+    coord_cartesian(ylim = c(0, 80)) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "none",
+      axis.title.x = element_blank()
+    )
 }
 
 p1 <- plot_descriptives(
@@ -905,19 +912,19 @@ p2 <- plot_descriptives(
   title = paste0("Mean Weighted Filtered ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index")
 )
 
-sameplot(  
+sameplot(
   p1,
   width = params$double_column_width,
   height = 8,
   res = 600
-  )
+)
 
-sameplot( 
+sameplot(
   p2,
   width = params$double_column_width,
   height = 8,
   res = 600
-  )
+)
 ```
 
 **Hearing is slightly worse without filtering, which suggests we disproportionally exclude people
@@ -929,19 +936,20 @@ are slightly conservative up to 3 dB at the**
 
 ```{r}
 plot_selection_bias <- function(ref, test) {
-  ref <- ref %>% filter(Group == "Overall")
-  test <- test %>% filter(Group == "Overall")
-  
-  diff <- ref$Mean - test$Mean
-  
-  ref %>% mutate(
-    delta = diff
-  ) %>%
+  ref <- ref %>% filter(group == "Overall")
+  test <- test %>% filter(group == "Overall")
+
+  diff <- ref$mean_w - test$mean_w
+
+  ref %>%
+    mutate(
+      delta = diff
+    ) %>%
     filter(
-      Age_group != "Overall"
-    ) %>%  
-    ggplot(aes(x = Age_group, y = delta)) +
-    geom_point(aes(color = Age_group), size = 4, show.legend = FALSE) +
+      age_group != "Overall"
+    ) %>%
+    ggplot(aes(x = age_group, y = delta)) +
+    geom_point(aes(color = age_group), size = 4, show.legend = FALSE) +
     geom_hline(yintercept = 0, linetype = "dashed") +
     theme_few() +
     labs(x = "Age (Years)", y = paste0("Underestimation ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index", "\n(dB SPL)"))
@@ -952,12 +960,12 @@ p <- plot_selection_bias(
   test = descriptive_statistics
 )
 
-sameplot( 
+sameplot(
   p,
   width = params$double_column_width,
   height = 4,
   res = 600
-  )
+)
 ```
 
 ## Prepare dataframe
@@ -1010,7 +1018,7 @@ df <- df %>%
     weights,
     age,
     age_group,
-    all_of(confounder_vars),
+    all_of(covariate_vars),
     kdm,
     kdm_advance,
     phenoage,

@@ -570,16 +570,16 @@ cross_validation <- function(
 
       # Make a tibble with predictions and sample sizes used in the model used for predictions
       test_subset %>%
-          as_tibble() %>%
-          mutate(
-            predictors = predictor_label,
-            age_group = age_group_val,
-            r = repeat_value,
-            k = fold,
-            n_train = nrow(train_subset),
-            n_test = nrow(test_subset),
-            predicted = pred
-          )
+        as_tibble() %>%
+        mutate(
+          predictors = predictor_label,
+          age_group = age_group_val,
+          r = repeat_value,
+          k = fold,
+          n_train = nrow(train_subset),
+          n_test = nrow(test_subset),
+          predicted = pred
+        )
     })
   }
 
@@ -608,7 +608,7 @@ cross_validation <- function(
 
   cv_output %>%
     unlist(recursive = FALSE) %>%
-    map_dfr(~ .) %>%
+    map_dfr(~.) %>%
     mutate(
       predictors = factor(
         predictors,
@@ -660,9 +660,9 @@ load_model_results is FALSE. Results are stored if store_model_results is TRUE.
 system.time({
   df_pred_bioage_bidirectional <- if (
     isTRUE(params$load_model_results) &&
-      file.exists(generate_model_path("bioage"))
+      file.exists(generate_model_path("bioage_predictions"))
   ) {
-    readRDS(generate_model_path("bioage"))
+    readRDS(generate_model_path("bioage_predictions"))
   } else {
     cross_validation(
       df,
@@ -685,7 +685,7 @@ system.time({
 if (isTRUE(params$store_model_results)) {
   saveRDS(
     object = df_pred_bioage_bidirectional,
-    file = generate_model_path("bioage"),
+    file = generate_model_path("bioage_predictions"),
     compress = "xz"
   )
 }
@@ -700,9 +700,9 @@ if (isFALSE(params$telolength)) {
   system.time({
     df_pred_biomarkers_bidirectional <- if (
       isTRUE(params$load_model_results) &&
-        file.exists(generate_model_path("biomarkers"))
+        file.exists(generate_model_path("biomarkers_predictions"))
     ) {
-      readRDS(generate_model_path("biomarkers"))
+      readRDS(generate_model_path("biomarkers_predictions"))
     } else {
       cross_validation(
         df,
@@ -726,7 +726,7 @@ if (isFALSE(params$telolength)) {
 if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
   saveRDS(
     object = df_pred_biomarkers_bidirectional,
-    file = generate_model_path("biomarkers"),
+    file = generate_model_path("biomarkers_predictions"),
     compress = "xz"
   )
 }
@@ -741,9 +741,9 @@ if (isFALSE(params$telolength)) {
   system.time({
     df_pred_covariates <- if (
       isTRUE(params$load_model_results) &&
-        file.exists(generate_model_path("covariates"))
+        file.exists(generate_model_path("covariates_predictions"))
     ) {
-      readRDS(generate_model_path("covariates"))
+      readRDS(generate_model_path("covariates_predictions"))
     } else {
       cross_validation(
         df,
@@ -806,13 +806,13 @@ if (isFALSE(params$telolength)) {
 ```{r store_conf_res}
 if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
   saveRDS(
-    object = output_covariates,
-    file = generate_model_path("covariates"),
+    object = df_pred_covariates,
+    file = generate_model_path("covariates_predictions"),
     compress = "xz"
   )
   saveRDS(
-    object = output_covariates,
-    file = generate_model_path("covariates"),
+    object = models_covariates,
+    file = generate_model_path("covariates_models"),
     compress = "xz"
   )
 }
