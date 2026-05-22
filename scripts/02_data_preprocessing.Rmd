@@ -778,8 +778,8 @@ calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
     )
 }
 
-descriptive_statistics_unfiltered <- calculate_descriptive_statistics(design_no_missing)
-descriptive_statistics <- calculate_descriptive_statistics(design, incl_bioage = TRUE)
+descriptives_unfiltered <- calculate_descriptive_statistics(design_no_missing)
+descriptives <- calculate_descriptive_statistics(design, incl_bioage = TRUE)
 ```
 
 ### Check survey proportion representation
@@ -810,25 +810,25 @@ plot_proportions <- function(data, y_variable, title) {
     )
 }
 p1 <- plot_proportions(
-  data = descriptive_statistics_unfiltered,
+  data = descriptives_unfiltered,
   y_variable = "proportion_w",
   title = "Weighted unfiltered strata proportions"
 )
 
 p2 <- plot_proportions(
-  data = descriptive_statistics,
+  data = descriptives,
   y_variable = "proportion_w",
   title = "Weighted filtered strata proportions"
 )
 
 p3 <- plot_proportions(
-  data = descriptive_statistics_unfiltered,
+  data = descriptives_unfiltered,
   y_variable = "proportion",
   title = "Unweighted unfiltered strata proportions"
 )
 
 p4 <- plot_proportions(
-  data = descriptive_statistics,
+  data = descriptives,
   y_variable = "proportion",
   title = "Unweighted filtered strata proportions"
 )
@@ -871,12 +871,12 @@ We plot survey design-adjusted hearing means and variances per-stratum of covari
 filtered dataset to assess whether the filtered dataset is representative of the general population.
 
 ```{r survey_balance_check}
-descriptive_statistics_unfiltered %>%
+descriptives_unfiltered %>%
   construct_table(
     title = "Descriptive statistics (before filtering)"
   )
 
-descriptive_statistics %>%
+descriptives %>%
   construct_table(
     title = "Descriptive statistics (after filtering)"
   )
@@ -903,12 +903,12 @@ plot_descriptives <- function(data, title) {
 }
 
 p1 <- plot_descriptives(
-  data = descriptive_statistics_unfiltered,
+  data = descriptives_unfiltered,
   title = paste0("Mean Weighted Unfiltered ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index")
 )
 
 p2 <- plot_descriptives(
-  data = descriptive_statistics,
+  data = descriptives,
   title = paste0("Mean Weighted Filtered ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index")
 )
 
@@ -956,8 +956,8 @@ plot_selection_bias <- function(ref, test) {
 }
 
 p <- plot_selection_bias(
-  ref = descriptive_statistics_unfiltered,
-  test = descriptive_statistics
+  ref = descriptives_unfiltered,
+  test = descriptives
 )
 
 sameplot(
@@ -1010,7 +1010,7 @@ rm(df_raw)
 rm(df_unfiltered)
 rm(df_no_missing)
 rm(design_no_missing)
-rm(descriptive_statistics_unfiltered)
+rm(descriptives_unfiltered)
 
 df <- df %>%
   select(

@@ -340,7 +340,7 @@ extract_predictors <- function(formula, collapse = "") {
 ### Generate formulas bioage
 
 ```{r build_bioage_forms}
-formula_list_bioage <- formula_generator(
+formulas_bioage <- formula_generator(
   data = df,
   k = params$global_k,
   auto_limit_k = TRUE,
@@ -364,7 +364,7 @@ formula_list_bioage <- formula_generator(
 
 tibble(
   Formulas = unlist(
-    formula_list_bioage
+    formulas_bioage
   )
 ) %>% construct_table(
   title = "Bioage Formulas"
@@ -374,7 +374,7 @@ tibble(
 ### Generate formulas biomarkers
 
 ```{r build_biomark_forms}
-formula_list_biomarkers <- formula_generator(
+formulas_biomarkers <- formula_generator(
   data = df,
   k = params$global_k,
   auto_limit_k = TRUE,
@@ -403,7 +403,7 @@ formula_list_biomarkers <- formula_generator(
 
 tibble(
   Formulas = unlist(
-    formula_list_biomarkers
+    formulas_biomarkers
   )
 ) %>% construct_table(
   title = "Biomarker Formulas"
@@ -414,7 +414,7 @@ tibble(
 
 ```{r build_conf_forms}
 if (isFALSE(params$telolength)) {
-  formula_list_covariates <- formula_generator(
+  formulas_covariates <- formula_generator(
     data = df,
     k = params$global_k,
     auto_limit_k = TRUE,
@@ -426,7 +426,7 @@ if (isFALSE(params$telolength)) {
 
   tibble(
     Formulas = unlist(
-      formula_list_covariates
+      formulas_covariates
     )
   ) %>% construct_table(
     title = "Covariate Formulas"
@@ -658,7 +658,7 @@ load_model_results is FALSE. Results are stored if store_model_results is TRUE.
 
 ```{r bioage_cv, warning=FALSE}
 system.time({
-  df_pred_bioage_bidirectional <- if (
+  pred_bioage_bidirectional <- if (
     isTRUE(params$load_model_results) &&
       file.exists(generate_model_path("bioage_predictions"))
   ) {
@@ -666,7 +666,7 @@ system.time({
   } else {
     cross_validation(
       df,
-      formula_list_bioage,
+      formulas_bioage,
       folds = params$global_folds,
       repeats = params$global_repeats,
       discrete = params$global_discrete,
@@ -684,7 +684,7 @@ system.time({
 ```{r store_bioage_res}
 if (isTRUE(params$store_model_results)) {
   saveRDS(
-    object = df_pred_bioage_bidirectional,
+    object = pred_bioage_bidirectional,
     file = generate_model_path("bioage_predictions"),
     compress = "xz"
   )
@@ -698,7 +698,7 @@ if (isTRUE(params$store_model_results)) {
 ```{r biomarkers_cv, warning=FALSE}
 if (isFALSE(params$telolength)) {
   system.time({
-    df_pred_biomarkers_bidirectional <- if (
+    pred_biomarkers <- if (
       isTRUE(params$load_model_results) &&
         file.exists(generate_model_path("biomarkers_predictions"))
     ) {
@@ -706,7 +706,7 @@ if (isFALSE(params$telolength)) {
     } else {
       cross_validation(
         df,
-        formula_list_biomarkers,
+        formulas_biomarkers,
         folds = params$global_folds,
         repeats = params$global_repeats,
         discrete = params$global_discrete,
@@ -725,7 +725,7 @@ if (isFALSE(params$telolength)) {
 ```{r store_biomarkers_cv}
 if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
   saveRDS(
-    object = df_pred_biomarkers_bidirectional,
+    object = pred_biomarkers,
     file = generate_model_path("biomarkers_predictions"),
     compress = "xz"
   )
@@ -739,7 +739,7 @@ if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
 ```{r covariates_cv, warning=FALSE}
 if (isFALSE(params$telolength)) {
   system.time({
-    df_pred_covariates <- if (
+    pred_covariates <- if (
       isTRUE(params$load_model_results) &&
         file.exists(generate_model_path("covariates_predictions"))
     ) {
@@ -747,7 +747,7 @@ if (isFALSE(params$telolength)) {
     } else {
       cross_validation(
         df,
-        formula_list_covariates,
+        formulas_covariates,
         folds = params$global_folds,
         repeats = params$global_repeats,
         discrete = params$global_discrete,
@@ -762,57 +762,13 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-#### Build covariate named step-down models
-
-Build models for covariate analysis to use for in-sample statistics or predictions. Includes
-weighting.
-
-```{r fit_conf_models}
-if (isFALSE(params$telolength)) {
-  models_covariates <- if (
-    isTRUE(params$load_model_results) &&
-      file.exists(generate_model_path("covariates_models"))
-  ) {
-    readRDS(generate_model_path("covariates_models"))
-  } else {
-    models_covariates <- list()
-    for (formula in formula_list_covariates) {
-      models_covariates <- append(
-        models_covariates,
-        list(
-          bam(
-            as.formula(formula),
-            data = df,
-            weights = weights / mean(weights),
-            family = gaussian(),
-            method = "REML",
-            discrete = FALSE
-          )
-        )
-      )
-    }
-
-    names(models_covariates) <- c(
-      "full",
-      paste0("no_", covariate_interactions),
-      "full_with_phenoage"
-    )
-  }
-}
-```
-
 #### Store covariates modeling results
 
 ```{r store_conf_res}
 if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
   saveRDS(
-    object = df_pred_covariates,
+    object = pred_covariates,
     file = generate_model_path("covariates_predictions"),
-    compress = "xz"
-  )
-  saveRDS(
-    object = models_covariates,
-    file = generate_model_path("covariates_models"),
     compress = "xz"
   )
 }
@@ -837,7 +793,7 @@ We can use k.check with a small k to see if its enough. With a k of 10 we alread
 Survey weights are used.
 
 ```{r aging_models}
-output_age_rate <- list(models = list(), predictions = list())
+models_age_rate <- list()
 
 model_age_rate <- function(terms, model_type = "gam") {
   if (model_type == "gam") {
@@ -859,24 +815,25 @@ model_age_rate <- function(terms, model_type = "gam") {
   }
 }
 
-output_age_rate$models <- append(
-  output_age_rate$models,
+models_age_rate <- append(
+  models_age_rate,
   list(
     linear = model_age_rate("age"),
     quadratic = model_age_rate(c("age", "I(age^2)")),
-    smooth = model_age_rate(c("age", "I(age^2)", "s(age, k = 10)"))
+    smooth = model_age_rate(c("age", "I(age^2)", "s(age, k = 15)"))
   )
 )
 
 set.seed(1)
-k.check(output_age_rate$models$smooth)
+k.check(models_age_rate$smooth)
 ```
 
 ### Build covariate age rate models
 
 ```{r aging_covariate_models}
-output_age_rate$models <- append(
-  output_age_rate$models,
+models_covariates <- list()
+models_covariates <- append(
+  models_covariates,
   list(
     smooth_gender = model_age_rate(
       terms = c(
@@ -1385,7 +1342,7 @@ if (isTRUE(params$run_optional_chunks)) {
   }
 
   inspect_k_values(df,
-    formula_list_bioage,
+    formulas_bioage,
     discrete = params$global_discrete,
     subsample = 5000,
     reps = 400
@@ -1393,7 +1350,7 @@ if (isTRUE(params$run_optional_chunks)) {
     construct_table(title = "Inspect K Bioage")
 
   inspect_k_values(df,
-    formula_list_biomarkers,
+    formulas_biomarkers,
     discrete = params$global_discrete,
     subsample = 5000,
     reps = 400
@@ -1410,7 +1367,7 @@ Test k-fold validation on a single formula with specified k.
 if (isTRUE(params$run_optional_chunks)) {
   test_cv <- function(run = FALSE, k = params$global_k, discrete = params$global_discrete) {
     if (isTRUE(run)) {
-      formula_list_test <- formula_generator(
+      formulas_test <- formula_generator(
         data = df,
         k = k,
         auto_limit_k = TRUE,
@@ -1421,7 +1378,7 @@ if (isTRUE(params$run_optional_chunks)) {
       system.time({
         output_test <- cross_validation(
           df,
-          formula_list_test,
+          formulas_test,
           folds = k,
           repeats = params$global_repeats,
           discrete = discrete,

@@ -983,37 +983,6 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-## Confounder model comparison
-
-```{r}
-if (isFALSE(params$telolength)) {
-  anova(
-    output_confounders$models$full,
-    output_confounders$models$full_with_phenoage
-  )
-  anova(
-    output_confounders$models$full,
-    output_confounders$models$no_gender
-  )
-  anova(
-    output_confounders$models$full,
-    output_confounders$models$no_smoking
-  )
-  anova(
-    output_confounders$models$full,
-    output_confounders$models$no_race
-  )
-  anova(
-    output_confounders$models$full,
-    output_confounders$models$no_education
-  )
-  anova(
-    output_confounders$models$full,
-    output_confounders$models$`no_gender, race`
-  )
-}
-```
-
 ## Assess rate of aging
 
 ### Compare linear vs quadratic vs smooth age fits
