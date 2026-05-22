@@ -472,10 +472,15 @@ cross_validation <- function(
 
   # Set predictor combination names
   if (isTRUE(covariate_analysis)) {
+    covariate_interactions <- gsub(", ", "_", covariate_interactions)
+
     predictor_labels <- c(
-      "full",
-      paste0("no_", covariate_interactions),
-      "full_with_phenoage"
+      paste(c("age", covariate_interactions), collapse = ", "),
+      sapply(
+        seq_along(covariate_interactions),
+        function(i) paste(c("age", covariate_interactions[-i]), collapse = ", ")
+      ),
+      paste(c("age", covariate_interactions, "phenoage"), collapse = ", ")
     )
   } else {
     predictor_labels <- unique(
