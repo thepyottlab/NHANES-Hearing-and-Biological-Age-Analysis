@@ -809,53 +809,46 @@ plot_proportions <- function(data, y_variable, title) {
       axis.title.x = element_blank()
     )
 }
-p1 <- plot_proportions(
-  data = descriptives_unfiltered,
-  y_variable = "proportion_w",
-  title = "Weighted unfiltered strata proportions"
-)
-
-p2 <- plot_proportions(
-  data = descriptives,
-  y_variable = "proportion_w",
-  title = "Weighted filtered strata proportions"
-)
-
-p3 <- plot_proportions(
-  data = descriptives_unfiltered,
-  y_variable = "proportion",
-  title = "Unweighted unfiltered strata proportions"
-)
-
-p4 <- plot_proportions(
-  data = descriptives,
-  y_variable = "proportion",
-  title = "Unweighted filtered strata proportions"
-)
 
 sameplot(
-  p1,
+  plot_proportions(
+    data = descriptives_unfiltered,
+    y_variable = "proportion_w",
+    title = "Weighted unfiltered strata proportions"
+  ),
   width = params$double_column_width,
   height = 6,
   res = 600
 )
 
 sameplot(
-  p2,
+  plot_proportions(
+    data = descriptives,
+    y_variable = "proportion_w",
+    title = "Weighted filtered strata proportions"
+  ),
   width = params$double_column_width,
   height = 6,
   res = 600
 )
 
 sameplot(
-  p3,
+  plot_proportions(
+    data = descriptives_unfiltered,
+    y_variable = "proportion",
+    title = "Unweighted unfiltered strata proportions"
+  ),
   width = params$double_column_width,
   height = 6,
   res = 600
 )
 
 sameplot(
-  p4,
+  plot_proportions(
+    data = descriptives,
+    y_variable = "proportion",
+    title = "Unweighted filtered strata proportions"
+  ),
   width = params$double_column_width,
   height = 6,
   res = 600
@@ -902,25 +895,21 @@ plot_descriptives <- function(data, title) {
     )
 }
 
-p1 <- plot_descriptives(
-  data = descriptives_unfiltered,
-  title = paste0("Mean Weighted Unfiltered ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index")
-)
-
-p2 <- plot_descriptives(
-  data = descriptives,
-  title = paste0("Mean Weighted Filtered ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index")
-)
-
 sameplot(
-  p1,
+  plot_descriptives(
+    data = descriptives_unfiltered,
+    title = paste0("Mean Weighted Unfiltered ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index")
+  ),
   width = params$double_column_width,
   height = 8,
   res = 600
 )
 
 sameplot(
-  p2,
+  plot_descriptives(
+    data = descriptives,
+    title = paste0("Mean Weighted Filtered ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index")
+  ),
   width = params$double_column_width,
   height = 8,
   res = 600
@@ -955,13 +944,11 @@ plot_selection_bias <- function(ref, test) {
     labs(x = "Age (Years)", y = paste0("Underestimation ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index", "\n(dB SPL)"))
 }
 
-p <- plot_selection_bias(
-  ref = descriptives_unfiltered,
-  test = descriptives
-)
-
 sameplot(
-  p,
+  plot_selection_bias(
+    ref = descriptives_unfiltered,
+    test = descriptives
+  ),
   width = params$double_column_width,
   height = 4,
   res = 600
