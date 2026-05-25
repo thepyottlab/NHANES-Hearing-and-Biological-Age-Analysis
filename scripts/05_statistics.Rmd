@@ -103,6 +103,7 @@ results_bioage <- pred_bioage %>%
     per_age_group = TRUE
   )
 
+if (isFALSE(params$telolength)) {
 results_bioage_reverse_overall <- pred_bioage_reverse %>%
   calculate_mse_per_fold(
     reference = c("phenoage", "kdm", "hd_log")
@@ -113,7 +114,6 @@ results_bioage_reverse <- pred_bioage_reverse %>%
     per_age_group = TRUE
   )
 
-if (isFALSE(params$telolength)) {
   results_biomarkers_overall <- pred_biomarkers %>%
     calculate_mse_per_fold(
       reference = "age"
@@ -289,7 +289,7 @@ We flip the sign and order of upper and lower CIs of covariates. Survey weights 
 calculate weighted column means.
 
 ```{r calc_RMSE_CI}
-compute_rmse_CI <- function(
+compute_rmse_ci <- function(
   summary,
   predictions,
   n_boot,
@@ -352,6 +352,7 @@ compute_rmse_CI <- function(
       w_target <- w_target / mean(w_target)
 
       if (length(error_ref) != length(error_target)) {
+        browser()
         stop("Length of target and reference predictor subsets are not equal")
       }
 
@@ -417,7 +418,7 @@ summary_bioage_overall <- results_bioage_overall %>%
     predictions = pred_bioage,
     data = df
   ) %>%
-  compute_rmse_CI(
+  compute_rmse_ci(
     predictions = pred_bioage,
     n_boot = params$n_boot
     )
@@ -428,19 +429,20 @@ summary_bioage <- results_bioage %>%
     data = df,
     per_age_group = TRUE
   ) %>%
-  compute_rmse_CI(
+  compute_rmse_ci(
     predictions = pred_bioage,
     n_boot = params$n_boot,
     per_age_group = TRUE
     )
 
+if (isFALSE(params$telolength)) {
 summary_bioage_reverse_overall <- results_bioage_reverse_overall %>%
   calculate_pooled_mse() %>%
   calculate_statistics_across_folds(
     predictions = pred_bioage_reverse,
     data = df
   ) %>%
-  compute_rmse_CI(
+  compute_rmse_ci(
     predictions = pred_bioage_reverse,
     n_boot = params$n_boot
     )
@@ -451,20 +453,19 @@ summary_bioage_reverse <- results_bioage_reverse %>%
     data = df,
     per_age_group = TRUE
   ) %>%
-  compute_rmse_CI(
+  compute_rmse_ci(
     predictions = pred_bioage_reverse,
     n_boot = params$n_boot,
     per_age_group = TRUE
     )
 
-if (isFALSE(params$telolength)) {
 summary_biomarkers_overall <- results_biomarkers_overall %>%
   calculate_pooled_mse() %>%
   calculate_statistics_across_folds(
     predictions = pred_biomarkers,
     data = df
   ) %>%
-  compute_rmse_CI(
+  compute_rmse_ci(
     predictions = pred_biomarkers,
     n_boot = params$n_boot
     )
@@ -475,7 +476,7 @@ summary_biomarkers <- results_biomarkers %>%
     data = df,
     per_age_group = TRUE
   ) %>%
-  compute_rmse_CI(
+  compute_rmse_ci(
     predictions = pred_biomarkers,
     n_boot = params$n_boot,
     per_age_group = TRUE
@@ -488,7 +489,7 @@ summary_covariates_overall <- results_covariates_overall %>%
     data = df,
     covariate_analysis = TRUE
   ) %>%
-  compute_rmse_CI(
+  compute_rmse_ci(
     predictions = pred_covariates,
     n_boot = params$n_boot,
     covariate_analysis = TRUE
@@ -501,7 +502,7 @@ summary_covariates <- results_covariates %>%
     per_age_group = TRUE,
     covariate_analysis = TRUE
   ) %>%
-  compute_rmse_CI(
+  compute_rmse_ci(
     predictions = pred_covariates,
     n_boot = params$n_boot,
     per_age_group = TRUE,
@@ -545,15 +546,21 @@ nb_corrected_repeated_t_test <- function(summary,
                                          exceptions = NULL,
                                          exception_include_exclude,
                                          adjust_method) {
-  if (exception_include_exclude == "include") {
+  if ("p" %in% colnames(summary)) {
     summary <- summary %>%
+      select(
+        -t, -df, -p, -p_adj, -signif
+      )
+  }
+  if (exception_include_exclude == "include") {
+    pwc <- summary %>%
       filter(predictors %in% exceptions)
   } else {
-    summary <- summary %>%
+    pwc <- summary %>%
       filter(!predictors %in% exceptions)
   }
 
-  summary <- summary %>%
+  pwc <- pwc %>%
     mutate(
       t = delta_mse_w / se_delta_mse_w_nb,
       df = n - 1,
@@ -565,7 +572,14 @@ nb_corrected_repeated_t_test <- function(summary,
         p_adj <= 0.05 ~ "*",
         TRUE ~ "ns"
       )
+    ) %>%
+    select(
+      age_group, predictors, t, df, p, p_adj, signif
     )
+  
+  summary <- summary %>%
+  left_join(pwc,
+            by = c("age_group", "predictors"))
 
   summary
 }
@@ -608,8 +622,7 @@ if (isFALSE(params$telolength)) {
     ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
-  ) %>%
-    arrange(p_adj)
+  )
 
   summary_biomarkers <- nb_corrected_repeated_t_test(
     summary_biomarkers,
@@ -629,8 +642,7 @@ if (isFALSE(params$telolength)) {
     ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
-  ) %>%
-    arrange(p_adj)
+  ) 
 
   summary_covariates <- nb_corrected_repeated_t_test(
     summary_covariates,
@@ -755,31 +767,31 @@ significantly improves fit. We also calculate RMSEs with a weighted mean of resi
 
 ```{r compare_aging_models}
 aov_quadratic <- anova(
-  output_age_rate$models$linear,
-  output_age_rate$models$quadratic
+  models_age_rate$linear,
+  models_age_rate$quadratic
 )
 
 aov_gam <- anova(
-  output_age_rate$models$quadratic,
-  output_age_rate$models$smooth
+  models_age_rate$quadratic,
+  models_age_rate$smooth
 )
 
 c(
   linear = sqrt(
     weighted.mean(
-      residuals(output_age_rate$models$linear, type = "response")^2,
+      residuals(models_age_rate$linear, type = "response")^2,
       w = df$weights / mean(df$weights)
     )
   ),
   quadratic = sqrt(
     weighted.mean(
-      residuals(output_age_rate$models$quadratic, type = "response")^2,
+      residuals(models_age_rate$quadratic, type = "response")^2,
       w = df$weights / mean(df$weights)
     )
   ),
   smooth = sqrt(
     weighted.mean(
-      residuals(output_age_rate$models$smooth, type = "response")^2,
+      residuals(models_age_rate$smooth, type = "response")^2,
       w = df$weights / mean(df$weights)
     )
   )
@@ -814,7 +826,10 @@ calculate_f_test_statistics <- function(anova) {
     signif(anova_table$`Partial Omega2`[2], 1)
   )
 
-  list(anova_table, htmltools::HTML(report))
+  list(anova_table %>%
+  construct_table(
+    title = "RMSE (In-Sample)"
+  ), htmltools::HTML(report))
 }
 
 calculate_f_test_statistics(aov_quadratic)
@@ -873,7 +888,7 @@ one is, also change by 1 to identify stretches. Then take the first and last val
 to identify boundaries. Only keep the significant stretches.
 
 ```{r find_sig_ages}
-pwc_age_rate <- output_age_rate$derivative_smooth %>%
+pwc_age_rate <- pred_age_rate$derivative_smooth %>%
   mutate(
     z_score = derivative_adj / SE_adj,
     p = 2 * pnorm(abs(z_score), lower.tail = FALSE),

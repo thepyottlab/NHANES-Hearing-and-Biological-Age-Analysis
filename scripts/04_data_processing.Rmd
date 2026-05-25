@@ -12,20 +12,23 @@ The reverse dataframe compares models with age and biological age to only biolog
 the effect of age beyond biological age.
 
 ```{r split_bioage_preds}
-split_bioage_reverse <- function(predictions) {
-  predictions %>%
-    filter(predictors != "age") %>%
-    mutate(predictors = fct_drop(predictors))
-}
-
 split_bioage <- function(predictions) {
   predictions %>%
     filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
     mutate(predictors = fct_drop(predictors))
 }
 
-pred_bioage_reverse <- split_bioage_reverse(pred_bioage_bidirectional)
+split_bioage_reverse <- function(predictions) {
+  predictions %>%
+    filter(predictors != "age") %>%
+    mutate(predictors = fct_drop(predictors))
+}
+
 pred_bioage <- split_bioage(pred_bioage_bidirectional)
+
+if (isFALSE(params$telolength)) {
+pred_bioage_reverse <- split_bioage_reverse(pred_bioage_bidirectional)
+}
 ```
 
 ## Build predictions dataframe age rate
@@ -193,6 +196,7 @@ predict_age_rate_covariate <- function(
         paste0("~ ", predictor, " + ", covariate)
       ),
       at = ages,
+      by = covariate,
       type = "response",
       data = df
     )
@@ -203,13 +207,14 @@ predict_age_rate_covariate <- function(
         paste0("~ ", predictor, " + ", covariate)
       ),
       var = "age",
+      by = covariate,
       at = ages,
       data = df
     )
   }
 
   predictions <- as.data.frame(
-    confint(em, adjust = "mvt", by = covariate)
+    confint(em, adjust = "mvt")
   )
 
   if (type == "predict") {

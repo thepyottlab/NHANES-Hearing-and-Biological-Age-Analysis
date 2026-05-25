@@ -18,8 +18,8 @@ Round R² and delta RMSE, rename variables, set p values to bold and to " \< 0.0
 format_table <- function(summary_data, per_age_group = FALSE) {
   table <- summary_data %>%
     mutate(
-      r2 = round(r2, 3),
-      delta_rmse = round(delta_rmse, 2)
+      r2 = round(r2_w, 3),
+      delta_rmse = round(delta_rmse_w, 2)
     ) %>%
     rename(
       "Predictors" = predictors,
@@ -28,6 +28,7 @@ format_table <- function(summary_data, per_age_group = FALSE) {
       "p (vs age)" = p_adj
     ) %>%
     mutate(
+      `p (vs age)` = as.character(round(`p (vs age)`, 3)),
       `p (vs age)` = case_when(
         signif == "***" ~
           cell_spec("< 0.001", "html", bold = TRUE),
@@ -45,7 +46,6 @@ format_table <- function(summary_data, per_age_group = FALSE) {
           ),
         TRUE ~ `p (vs age)`
       ),
-      `p (vs age)` = as.character(`p (vs age)`),
       `p (vs age)` = case_when(
         Predictors == "age" ~ "",
         TRUE ~ `p (vs age)`
@@ -146,19 +146,19 @@ rename_biomarker_table <- function(biomarker_table) {
   biomarker_table
 }
 
-rename_confounder_table <- function(confounders_table) {
-  confounders_table <- confounders_table %>%
+rename_covariate_table <- function(covariates_table) {
+  covariates_table <- covariates_table %>%
     filter(
-      Predictors != "full"
+      Predictors != "age, gender, smoking, race, education, gender_race"
     ) %>%
     mutate(
       Predictors = case_when(
-        Predictors == "full_with_phenoage" ~ "Phenoage",
-        Predictors == "no_gender" ~ "Gender",
-        Predictors == "no_smoking" ~ "Smoking",
-        Predictors == "no_race" ~ "Race",
-        Predictors == "no_education" ~ "Education",
-        Predictors == "no_gender, race" ~ "Gender * Race"
+        Predictors == "age, gender, smoking, race, education, gender_race, phenoage" ~ "Phenoage",
+        Predictors == "age, smoking, race, education, gender_race" ~ "Gender",
+        Predictors == "age, gender, race, education, gender_race" ~ "Smoking",
+        Predictors == "age, gender, smoking, education, gender_race" ~ "Race",
+        Predictors == "age, gender, smoking, race, gender_race" ~ "Education",
+        Predictors == "age, gender, smoking, race, education" ~ "Gender * Race"
       ),
       Predictors = factor(Predictors, levels = c(
         "Phenoage",
@@ -175,43 +175,43 @@ rename_confounder_table <- function(confounders_table) {
     ) %>%
     arrange(Predictors)
 
-  confounders_table
+  covariates_table
 }
 ```
 
 #### Run table formatting pipeline
 
 ```{r table_format_pipe}
-table_bioage <- df_summary_bioage %>%
+table_bioage <- summary_bioage %>%
   format_table(
     per_age_group = TRUE
   ) %>%
   rename_bioage_table()
 
-table_bioage_overall <- df_summary_bioage_overall %>%
+table_bioage_overall <- summary_bioage_overall %>%
   format_table() %>%
   rename_bioage_table()
 
 if (isFALSE(params$telolength)) {
-  table_biomarkers <- df_summary_biomarkers %>%
+  table_biomarkers <- summary_biomarkers %>%
     format_table(
       per_age_group = TRUE
     ) %>%
     rename_biomarker_table()
 
-  table_biomarkers_overall <- df_summary_biomarkers_overall %>%
+  table_biomarkers_overall <- summary_biomarkers_overall %>%
     format_table() %>%
     rename_biomarker_table()
 
-  table_confounders <- df_summary_confounders %>%
+  table_covariates <- summary_covariates %>%
     format_table(
       per_age_group = TRUE
     ) %>%
-    rename_confounder_table()
+    rename_covariate_table()
 
-  table_confounders_overall <- df_summary_confounders_overall %>%
+  table_covariates_overall <- summary_covariates_overall %>%
     format_table() %>%
-    rename_confounder_table()
+    rename_covariate_table()
 }
 ```
 
@@ -262,105 +262,57 @@ if (isFALSE(params$telolength)) {
   )
 
   render_and_save_table(
-    table = table_confounders,
-    path = here("output", "figures", params$hearing_var, "table_confounders.html")
+    table = table_covariates,
+    path = here("output", "figures", params$hearing_var, "table_covariates.html")
   ) %>%
     scroll_box(width = "100%", height = "400px")
 
   render_and_save_table(
-    table = table_confounders_overall,
-    path = here("output", "figures", params$hearing_var, "table_confounders_overall.html")
+    table = table_covariates_overall,
+    path = here("output", "figures", params$hearing_var, "table_covariates_overall.html")
   )
 }
 ```
 
-### Confounders table
+### Covariates table
 
-#### Build table and recode values
-
-Recode has a namespace conflict and is called explicitly from dplyr.
-
-```{r build_conf_table}
-build_confounder_table <- function(data, y = params$hearing_var) {
-  variables <- c("Gender", "Smoking", "Race", "Education")
-
-  data <- data %>%
-    mutate(
-      gender = dplyr::recode(
-        gender,
-        "1" = "Male",
-        "2" = "Female"
-      ),
-      smoking = dplyr::recode(
-        smoking,
-        "1" = "Smoker",
-        "2" = "Non-smoker"
-      ),
-      race = dplyr::recode(
-        race,
-        "1" = "Hispanic",
-        "3" = "White",
-        "4" = "Black",
-        "5" = "Other"
-      ),
-      education = dplyr::recode(
-        education,
-        "1" = "< 9th grade",
-        "2" = "9-11th grade",
-        "3" = "High school",
-        "4" = "Some college or AA degree",
-        "5" = "College graduate or higher"
-      )
-    ) %>%
-    rename(
-      "Smoking" = smoking,
-      "Gender" = gender,
-      "Race" = race,
-      "Education" = education
-    )
-
-  bind_rows(
-    lapply(variables, function(variable) {
-      data %>%
-        mutate(level = .data[[variable]]) %>%
-        group_by(age_group, level) %>%
-        summarise(
-          mean = mean(.data[[y]], na.rm = TRUE),
-          sd = sd(.data[[y]], na.rm = TRUE),
-          .groups = "drop"
-        ) %>%
-        mutate(
-          variable = factor(
-            variable,
-            levels = c(
-              "Gender",
-              "Smoking",
-              "Race",
-              "Education"
-            )
-          ),
-          .before = 1
-        )
-    })
-  )
-}
-```
-
-#### Create confounder table and format confounder table
+#### Create covariate table and format covariate table
 
 We recode variables, combine means and SDs, pivot table, and format it
 
 ```{r pivot_conf_table}
 if (isFALSE(params$telolength)) {
-  table_confounders_descriptive <- df %>%
-    build_confounder_table() %>%
-    mutate(stat = sprintf("%.2f (%.2f)", mean, sd)) %>%
-    select(variable, level, age_group, stat) %>%
-    pivot_wider(names_from = age_group, values_from = stat) %>%
-    group_by(variable) %>%
-    mutate(variable = if_else(row_number() == 1L, variable, "")) %>%
-    ungroup() %>%
-    rename(" " = variable, "  " = level)
+  table_covariates_descriptive <- descriptives %>%
+  filter(
+    age_group != "Overall",
+    group != "Overall"
+  ) %>%
+  mutate(
+    stat = sprintf("%.2f (%.2f)", mean_w, sd_w),
+    category = factor(category, levels = c(
+      "Male", 
+      "Female", 
+      "White", 
+      "Hispanic", 
+      "Black", 
+      "Other", 
+      "Smoker", 
+      "Non-smoker", 
+      "< 9th grade",
+      "9-11th grade",
+      "High school",
+      "Some college or AA degree",
+      "College graduate or higher"
+    ))
+  ) %>%
+  select(
+    age_group, group, category, stat
+  ) %>%
+  pivot_wider(names_from = age_group, values_from = stat) %>%
+  group_by(group) %>%
+  mutate(group = if_else(row_number() == 1L, group, "")) %>%
+  ungroup() %>%
+  rename(" " = group, "  " = category)
 }
 ```
 
@@ -369,12 +321,12 @@ if (isFALSE(params$telolength)) {
 ```{r store_conf_table}
 if (isFALSE(params$telolength)) {
   render_and_save_table(
-    table_confounders_descriptive,
+    table_covariates_descriptive,
     path = here(
       "output",
       "figures",
       params$hearing_var,
-      "table_confounders_descriptives.html"
+      "table_covariates_descriptives.html"
     )
   )
 }
@@ -663,36 +615,36 @@ color_scales <- function(color_list_name) {
         "age, telolength" = if (isTRUE(params$telolength)) "Age + Telolength" else NULL
       )
     ),
-    confounders = build_color_scale(
+    covariates = build_color_scale(
       colors = c(
-        "full" = "#000000",
-        "no_gender" = "#059748",
-        "no_race" = "#E5126F",
-        "no_education" = "#DF5C24",
-        "no_smoking" = "#9D722A",
-        "no_gender, race" = "#7B3A96",
-        "full_with_phenoage" = "#256DAB"
+        "age, gender, smoking, race, education, gender_race"  = "#000000",
+        "age, smoking, race, education, gender_race"  = "#059748",
+        "age, gender, smoking, education, gender_race"  = "#E5126F",
+        "age, gender, smoking, race, gender_race"  = "#DF5C24",
+        "age, gender, race, education, gender_race"  = "#9D722A",
+        "age, gender, smoking, race, education"  = "#7B3A96",
+        "age, gender, smoking, race, education, gender_race, phenoage" = "#256DAB"
       ),
       fill_colors = c(
-        "full" = "#8C8C8C",
-        "no_gender" = "#90CD97",
-        "no_race" = "#F6AAC9",
-        "no_education" = "#FBB258",
-        "no_smoking" = "#BFA554",
-        "no_gender, race" = "#BC99C7",
-        "full_with_phenoage" = "#88BDE6"
+        "age, gender, smoking, race, education, gender_race"  = "#8C8C8C",
+        "age, smoking, race, education, gender_race"  = "#90CD97",
+        "age, gender, smoking, education, gender_race"  = "#F6AAC9",
+        "age, gender, smoking, race, gender_race"  = "#FBB258",
+        "age, gender, race, education, gender_race"  = "#BFA554",
+        "age, gender, smoking, race, education"  = "#BC99C7",
+        "age, gender, smoking, race, education, gender_race, phenoage" = "#88BDE6"
       ),
       labels = c(
-        "full" = "Full",
-        "no_gender" = "Gender",
-        "no_race" = "Race",
-        "no_education" = "Education",
-        "no_smoking" = "Smoking",
-        "no_gender, race" = "Gender*Race",
-        "full_with_phenoage" = "Phenoage"
+        "age, gender, smoking, race, education, gender_race"  = "Full",
+        "age, smoking, race, education, gender_race"  = "Gender",
+        "age, gender, smoking, education, gender_race"  = "Race",
+        "age, gender, smoking, race, gender_race"  = "Education",
+        "age, gender, race, education, gender_race"  = "Smoking",
+        "age, gender, smoking, race, education"  = "Gender*Race",
+        "age, gender, smoking, race, education, gender_race, phenoage" = "Phenoage"
       )
     ),
-    confounders_overall = build_color_scale(
+    covariates_overall = build_color_scale(
       colors = c(
         "Full" = "#000000",
         "Gender" = "#059748",
@@ -887,14 +839,14 @@ p0 <- ggplot() +
     )
   ) +
   geom_line(
-    data = output_age_rate$predictions$linear,
+    data = pred_age_rate$linear,
     aes(
       x = age,
       y = estimate
     )
   ) +
   geom_ribbon(
-    data = output_age_rate$predictions$linear,
+    data = pred_age_rate$linear,
     aes(
       x = age,
       ymin = ci_lower,
@@ -920,14 +872,14 @@ p1 <- ggplot() +
     )
   ) +
   geom_line(
-    data = output_age_rate$predictions$quadratic,
+    data = pred_age_rate$quadratic,
     aes(
       x = age,
       y = estimate
     )
   ) +
   geom_ribbon(
-    data = output_age_rate$predictions$quadratic,
+    data = pred_age_rate$quadratic,
     aes(
       x = age,
       ymin = ci_lower,
@@ -963,7 +915,7 @@ p2 <- ggplot() +
     )
   ) +
   geom_ribbon(
-    data = output_age_rate$predictions$smooth,
+    data = pred_age_rate$smooth,
     aes(
       x = age,
       ymin = ci_lower,
@@ -971,7 +923,7 @@ p2 <- ggplot() +
     )
   ) +
   geom_line(
-    data = output_age_rate$predictions$smooth,
+    data = pred_age_rate$smooth,
     aes(
       x = age,
       y = estimate
@@ -991,14 +943,14 @@ p2 <- ggplot() +
 p3 <- ggplot() +
   geom_hline(yintercept = 0) +
   geom_line(
-    data = output_age_rate$predictions$linear_derivative,
+    data = pred_age_rate$linear_derivative,
     aes(
       x = age,
       y = derivative
     )
   ) +
   geom_ribbon(
-    data = output_age_rate$predictions$linear_derivative,
+    data = pred_age_rate$linear_derivative,
     aes(
       x = age,
       ymin = ci_lower,
@@ -1015,14 +967,14 @@ p3 <- ggplot() +
 p4 <- ggplot() +
   geom_hline(yintercept = 0) +
   geom_line(
-    data = output_age_rate$predictions$quadratic_derivative,
+    data = pred_age_rate$quadratic_derivative,
     aes(
       x = age,
       y = derivative
     )
   ) +
   geom_ribbon(
-    data = output_age_rate$predictions$quadratic_derivative,
+    data = pred_age_rate$quadratic_derivative,
     aes(
       x = age,
       ymin = ci_lower,
@@ -1051,7 +1003,7 @@ p5 <- ggplot() +
   ) +
   geom_hline(yintercept = 0) +
   geom_ribbon(
-    data = output_age_rate$predictions$derivative_smooth,
+    data = pred_age_rate$derivative_smooth,
     aes(
       x = age,
       ymin = ci_lower,
@@ -1059,7 +1011,7 @@ p5 <- ggplot() +
     )
   ) +
   geom_line(
-    data = output_age_rate$predictions$derivative_smooth,
+    data = pred_age_rate$derivative_smooth,
     aes(
       x = age,
       y = derivative
@@ -1087,7 +1039,7 @@ p6 <- ggplot() +
   ) +
   geom_hline(yintercept = 0) +
   geom_ribbon(
-    data = output_age_rate$predictions$derivative_smooth,
+    data = pred_age_rate$derivative_smooth,
     aes(
       x = age,
       ymin = ci_lower_adj,
@@ -1095,7 +1047,7 @@ p6 <- ggplot() +
     )
   ) +
   geom_line(
-    data = output_age_rate$predictions$derivative_smooth,
+    data = pred_age_rate$derivative_smooth,
     aes(
       x = age,
       y = derivative_adj
@@ -1271,7 +1223,7 @@ if (isFALSE(params$telolength)) {
       yintercept = 0
     ) +
     geom_line(
-      data = output_age_rate$predictions$linear_derivative,
+      data = pred_age_rate$linear_derivative,
       aes(
         x = age,
         y = derivative
@@ -1290,7 +1242,7 @@ if (isFALSE(params$telolength)) {
       yintercept = 0
     ) +
     geom_line(
-      data = output_age_rate$predictions$quadratic_derivative,
+      data = pred_age_rate$quadratic_derivative,
       aes(
         x = age,
         y = derivative
@@ -1312,7 +1264,7 @@ if (isFALSE(params$telolength)) {
       yintercept = 0
     ) +
     geom_line(
-      data = output_age_rate$predictions$derivative_smooth,
+      data = pred_age_rate$derivative_smooth,
       aes(
         x = age,
         y = derivative
@@ -1382,14 +1334,14 @@ if (isFALSE(params$telolength)) {
       )
     ) +
     geom_line(
-      data = output_age_rate$predictions$linear,
+      data = pred_age_rate$linear,
       aes(
         x = age,
         y = estimate
       )
     ) +
     geom_ribbon(
-      data = output_age_rate$predictions$linear,
+      data = pred_age_rate$linear,
       aes(
         x = age,
         ymin = ci_lower,
@@ -1415,14 +1367,14 @@ if (isFALSE(params$telolength)) {
       )
     ) +
     geom_line(
-      data = output_age_rate$predictions$quadratic,
+      data = pred_age_rate$quadratic,
       aes(
         x = age,
         y = estimate
       )
     ) +
     geom_ribbon(
-      data = output_age_rate$predictions$quadratic,
+      data = pred_age_rate$quadratic,
       aes(
         x = age,
         ymin = ci_lower,
@@ -1449,7 +1401,7 @@ if (isFALSE(params$telolength)) {
       )
     ) +
     geom_ribbon(
-      data = output_age_rate$predictions$smooth_gender,
+      data = pred_covariates_full$smooth_gender,
       aes(
         x = age,
         ymin = ci_lower,
@@ -1459,7 +1411,7 @@ if (isFALSE(params$telolength)) {
       show.legend = FALSE
     ) +
     geom_line(
-      data = output_age_rate$predictions$smooth_gender,
+      data = pred_covariates_full$smooth_gender,
       aes(
         x = age,
         y = estimate,
@@ -1484,14 +1436,14 @@ if (isFALSE(params$telolength)) {
       yintercept = 0
     ) +
     geom_line(
-      data = output_age_rate$predictions$linear_derivative,
+      data = pred_age_rate$linear_derivative,
       aes(
         x = age,
         y = derivative
       )
     ) +
     geom_ribbon(
-      data = output_age_rate$predictions$linear_derivative,
+      data = pred_age_rate$linear_derivative,
       aes(
         x = age,
         ymin = ci_lower,
@@ -1510,14 +1462,14 @@ if (isFALSE(params$telolength)) {
       yintercept = 0
     ) +
     geom_line(
-      data = output_age_rate$predictions$quadratic_derivative,
+      data = pred_age_rate$quadratic_derivative,
       aes(
         x = age,
         y = derivative
       )
     ) +
     geom_ribbon(
-      data = output_age_rate$predictions$quadratic_derivative,
+      data = pred_age_rate$quadratic_derivative,
       aes(
         x = age,
         ymin = ci_lower,
@@ -1539,7 +1491,7 @@ if (isFALSE(params$telolength)) {
       yintercept = 0
     ) +
     geom_ribbon(
-      data = output_age_rate$predictions$smooth_gender_derivative,
+      data = pred_covariates_full$smooth_gender_derivative,
       aes(
         x = age,
         ymin = ci_lower,
@@ -1549,7 +1501,7 @@ if (isFALSE(params$telolength)) {
       show.legend = FALSE
     ) +
     geom_line(
-      data = output_age_rate$predictions$smooth_gender_derivative,
+      data = pred_covariates_full$smooth_gender_derivative,
       aes(x = age, y = derivative, color = gender),
       show.legend = FALSE
     ) +
@@ -1610,7 +1562,7 @@ if (isFALSE(params$telolength)) {
 
 ##### Plot aging coviariates
 
-###### Plot aging mean without confounders
+###### Plot aging mean without covariates
 
 ```{r plot_aging_mean}
 if (isFALSE(params$telolength)) {
@@ -1623,7 +1575,7 @@ if (isFALSE(params$telolength)) {
       )
     ) +
     geom_line(
-      data = output_age_rate$predictions$smooth,
+      data = pred_age_rate$smooth,
       aes(
         x = age,
         y = estimate
@@ -1674,7 +1626,7 @@ if (isFALSE(params$telolength)) {
       show.legend = FALSE
     ) +
     geom_line(
-      data = output_age_rate$predictions$smooth_gender,
+      data = pred_covariates_full$smooth_gender,
       aes(
         x = age,
         y = estimate,
@@ -1703,7 +1655,7 @@ if (isFALSE(params$telolength)) {
       show.legend = FALSE
     ) +
     geom_line(
-      data = output_age_rate$predictions$smooth_smoking,
+      data = pred_covariates_full$smooth_smoking,
       aes(
         x = age,
         y = estimate,
@@ -1733,7 +1685,7 @@ if (isFALSE(params$telolength)) {
       show.legend = FALSE
     ) +
     geom_line(
-      data = output_age_rate$predictions$smooth_race,
+      data = pred_covariates_full$smooth_race,
       aes(
         x = age,
         y = estimate,
@@ -1759,7 +1711,7 @@ if (isFALSE(params$telolength)) {
       show.legend = FALSE
     ) +
     geom_line(
-      data = output_age_rate$predictions$smooth_education,
+      data = pred_covariates_full$smooth_education,
       aes(
         x = age,
         y = estimate,
@@ -1814,128 +1766,20 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-###### Plot aging mean per race
-
-```{r plot_race_aging_mean}
-if (isFALSE(params$telolength)) {
-  p0 <- ggplot() +
-    geom_point(
-      data = df,
-      aes(
-        x = age,
-        y = .data[[params$hearing_var]]
-      )
-    ) +
-    geom_line(
-      data = df %>%
-        group_by(age, race) %>%
-        summarize(
-          hearing_var = mean(.data[[params$hearing_var]]),
-          .groups = "drop"
-        ),
-      aes(
-        x = age,
-        y = hearing_var,
-        color = race
-      )
-    ) +
-    axes(
-      x = "age",
-      y = "hl"
-    ) +
-    color_scales("race") +
-    plot_theme()
-
-  sameplot(
-    p0,
-    file = here(plot_config("figure_dir"), "Extras", "age_rate_mean_race.png"),
-    width = params$single_column_width,
-    height = 3,
-    res = 600,
-    save = TRUE
-  )
-}
-```
-
 ### Bioage prediction panel
-
-#### Bioage MSE plot
-
-```{r plot_bioage}
-update_geom_defaults("point", set_geom_theme("mse_point"))
-update_geom_defaults("line", set_geom_theme("mse_line"))
-
-p <- df_summary_bioage %>%
-  {
-    if (isTRUE(params$telolength)) filter(., !predictors %in% c("age, phenoage", "age, kdm", "age, hd_log")) else .
-  } %>%
-  ggplot(
-    aes(
-      x = age_group,
-      y = mean_delta_mse
-    )
-  ) +
-  geom_hline(yintercept = 0) +
-  geom_ribbon(
-    aes(
-      fill = predictors,
-      group = predictors,
-      ymin = ci_low_delta_mse,
-      ymax = ci_high_delta_mse
-    ),
-    show.legend = FALSE
-  ) +
-  geom_line(
-    aes(
-      color = predictors,
-      group = predictors
-    ),
-    show.legend = TRUE
-  ) +
-  geom_point(
-    aes(
-      color = predictors
-    ),
-    show.legend = TRUE
-  ) +
-  geom_text(
-    data = . %>%
-      filter(p_adj != "ns"),
-    aes(
-      x = age_group,
-      y = ci_high_delta_mse + 0.25,
-      label = signif,
-      color = predictors
-    ),
-    size = plot_config("signif_size") / (14 / 5)
-  ) +
-  axes(
-    x = "age_group",
-    y = "dmse_bioage"
-  ) +
-  color_scales("bioage") +
-  plot_theme()
-
-sameplot(
-  p,
-  file = here(plot_config("figure_dir"), "bioage_panel.png"),
-  width = params$single_column_width,
-  height = 2.15,
-  res = 600,
-  save = params$save_figures
-)
-```
 
 #### Bioage RMSE plot (paper)
 
 ```{r plot_bioage_rmse}
-p <- df_summary_bioage %>%
+update_geom_defaults("point", set_geom_theme("mse_point"))
+update_geom_defaults("line", set_geom_theme("mse_line"))
+p <- summary_bioage %>%
   {
     if (isTRUE(params$telolength)) filter(., !predictors %in% c("age, phenoage", "age, kdm", "age, hd_log")) else .
   } %>%
   ggplot(
     aes(
-      x = age_group, y = delta_rmse
+      x = age_group, y = delta_rmse_w
     )
   ) +
   geom_hline(yintercept = 0) +
@@ -1958,7 +1802,7 @@ p <- df_summary_bioage %>%
   ) +
   geom_text(
     data = . %>%
-      filter(p_adj != "ns"),
+      filter(signif != "ns"),
     aes(
       x = age_group,
       y = ci_high_delta_rmse + 0.01,
@@ -1985,77 +1829,6 @@ sameplot(
 ```
 
 #### Additional Plots
-
-##### Plot PhenoAge only
-
-```{r plot_phenoage_only, warning=FALSE}
-if (isFALSE(params$telolength)) {
-  p <- df_summary_bioage %>%
-    filter(predictors %in% c("age", "age, phenoage")) %>%
-    ggplot(
-      aes(
-        x = age_group,
-        y = mean_delta_mse
-      )
-    ) +
-    geom_hline(
-      yintercept = 0
-    ) +
-    geom_ribbon(
-      aes(
-        fill = predictors,
-        group = predictors,
-        ymin = ci_low_delta_mse,
-        ymax = ci_high_delta_mse
-      ),
-      show.legend = FALSE
-    ) +
-    geom_line(
-      aes(
-        color = predictors,
-        group = predictors
-      ),
-      show.legend = TRUE
-    ) +
-    geom_point(
-      aes(
-        color = predictors
-      ),
-      show.legend = TRUE
-    ) +
-    geom_text(
-      data = . %>%
-        filter(p_adj != "ns"),
-      aes(
-        x = age_group,
-        y = ci_high_delta_mse + 0.25,
-        label = signif,
-        color = predictors
-      ),
-      size = plot_config("signif_size") / (14 / 5)
-    ) +
-    axes(
-      x = "age_group",
-      y = "dmse_bioage"
-    ) +
-    color_scales("phenoage") +
-    plot_theme()
-
-  sameplot(
-    p,
-    file = here(
-      plot_config("figure_dir"),
-      "Extras",
-      "phenoage_only_bioage_panel.png"
-    ),
-    width = params$single_column_width * 1.8,
-    height = 2.15 * 1.8,
-    scaling = 1.8,
-    res = 600,
-    save = params$save_figures
-  )
-}
-```
 
 ##### Advance bioage plot (supplementary)
 
@@ -2152,16 +1925,16 @@ sameplot(
 )
 ```
 
-##### Confounders predictive capacity plot
+##### covariates predictive capacity plot
 
-```{r plot_confounders, warning=FALSE}
+```{r plot_covariates, warning=FALSE}
 if (isFALSE(params$telolength)) {
-  p <- df_summary_confounders %>%
-    filter(!predictors %in% c("full_with_phenoage", "no_gender, race")) %>%
+  p <- summary_covariates %>%
+    filter(!predictors %in% c("age, gender, smoking, race, education", "age, gender, smoking, race, education, gender_race, phenoage")) %>%
     ggplot(
       aes(
         x = age_group,
-        y = delta_rmse
+        y = delta_rmse_w
       )
     ) +
     geom_hline(
@@ -2191,7 +1964,7 @@ if (isFALSE(params$telolength)) {
     ) +
     geom_text(
       data = . %>%
-        filter(p_adj != "ns"),
+        filter(signif != "ns"),
       aes(
         x = age_group,
         y = ci_high_delta_rmse,
@@ -2204,12 +1977,12 @@ if (isFALSE(params$telolength)) {
       x = "age_group",
       y = "drmse_conf"
     ) +
-    color_scales("confounders") +
+    color_scales("covariates") +
     plot_theme()
 
   sameplot(
     p,
-    file = here(plot_config("figure_dir"), "confounder_panel.png"),
+    file = here(plot_config("figure_dir"), "covariate_panel.png"),
     width = params$single_column_width,
     height = 2.15,
     res = 600,
@@ -2218,19 +1991,19 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-##### Confounders predictive capacity overall plot
+##### covariates predictive capacity overall plot
 
-```{r plot_confounders_overall, warning=FALSE}
+```{r plot_covariates_overall, warning=FALSE}
 if (isFALSE(params$telolength)) {
-  p <- df_summary_confounders_overall %>%
-    filter(!predictors %in% c("full", "full_with_phenoage", "no_gender, race")) %>%
+  p <- summary_covariates_overall %>%
+    filter(!predictors %in% c("age, gender, smoking, race, education, gender_race", "age, gender, smoking, race, education", "age, gender, smoking, race, education, gender_race, phenoage")) %>%
     mutate(predictors = factor(
       predictors,
       levels = c(
-        "no_gender",
-        "no_race",
-        "no_education",
-        "no_smoking"
+        "age, smoking, race, education, gender_race" ,
+        "age, gender, smoking, education, gender_race" ,
+        "age, gender, smoking, race, gender_race" ,
+        "age, gender, race, education, gender_race" 
       ),
       labels = c(
         "Gender",
@@ -2242,7 +2015,7 @@ if (isFALSE(params$telolength)) {
     ggplot(
       aes(
         x = predictors,
-        y = delta_rmse
+        y = delta_rmse_w
       )
     ) +
     geom_hline(
@@ -2295,7 +2068,7 @@ if (isFALSE(params$telolength)) {
     axes(
       y = "drmse_conf"
     ) +
-    color_scales("confounders_overall") +
+    color_scales("covariates_overall") +
     plot_theme() +
     theme(
       axis.title.x = element_blank()
@@ -2303,7 +2076,7 @@ if (isFALSE(params$telolength)) {
 
   sameplot(
     p,
-    file = here(plot_config("figure_dir"), "confounder_panel.png"),
+    file = here(plot_config("figure_dir"), "covariate_panel.png"),
     width = params$single_column_width,
     height = 2.15,
     res = 600,
@@ -2312,11 +2085,11 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-##### Plot additional variance confounders
+##### Plot additional variance covariates
 
-```{r plot_confounders_var, warning=FALSE}
+```{r plot_covariates_var, warning=FALSE}
 if (isFALSE(params$telolength)) {
-  p <- df_summary_confounders %>%
+  p <- summary_covariates %>%
     ggplot(
       aes(
         x = age_group,
@@ -2363,12 +2136,12 @@ if (isFALSE(params$telolength)) {
       x = "age_group",
       y = "add_pred_conf"
     ) +
-    color_scales("confounders") +
+    color_scales("covariates") +
     plot_theme()
 
   sameplot(
     p,
-    file = here(plot_config("figure_dir"), "confounder_panel_var.png"),
+    file = here(plot_config("figure_dir"), "covariate_panel_var.png"),
     width = params$single_column_width,
     height = 2.15,
     res = 600,
@@ -2383,7 +2156,7 @@ if (isFALSE(params$telolength)) {
 
 ```{r plot_biomarkers, include=FALSE}
 if (isFALSE(params$telolength)) {
-  p1 <- df_summary_biomarkers %>%
+  p1 <- summary_biomarkers %>%
     filter(predictors %in% c("age, lncrp")) %>%
     mutate(
       label = predictors,
@@ -2476,7 +2249,7 @@ if (isFALSE(params$telolength)) {
 
 ```{r plot_explained_var, include=FALSE}
 if (isFALSE(params$telolength)) {
-  p2 <- df_summary_biomarkers %>%
+  p2 <- summary_biomarkers %>%
     filter(
       predictors %in% c(
         "age, phenoage",
@@ -2579,7 +2352,7 @@ if (isFALSE(params$telolength)) {
   update_geom_defaults("linerange", set_geom_theme("biomarker_linerange"))
   update_geom_defaults("point", set_geom_theme("biomarker_point"))
 
-  p <- df_summary_biomarkers_overall %>%
+  p <- summary_biomarkers_overall %>%
     filter(!(
       predictors %in% c(
         "age",

@@ -347,17 +347,13 @@ formulas_bioage <- formula_generator(
   equal_wiggliness = TRUE,
   formulas = c(
     "age",
-    "phenoage",
-    "kdm",
-    "hd_log",
+    if (isFALSE(params$telolength)) "phenoage" else NULL,
+    if (isFALSE(params$telolength)) "kdm" else NULL,
+    if (isFALSE(params$telolength)) "hd_log" else NULL,
     "age, phenoage",
     "age, kdm",
     "age, hd_log",
-    if (isTRUE(params$telolength)) {
-      "age, telolength"
-    } else {
-      NULL
-    }
+    if (isTRUE(params$telolength)) "age, telolength" else NULL
   ),
   covariates = covariate_interactions
 )
@@ -371,9 +367,12 @@ tibble(
 )
 ```
 
+"
+
 ### Generate formulas biomarkers
 
 ```{r build_biomark_forms}
+if (isFALSE(params$telolength)) {
 formulas_biomarkers <- formula_generator(
   data = df,
   k = params$global_k,
@@ -408,6 +407,7 @@ tibble(
 ) %>% construct_table(
   title = "Biomarker Formulas"
 )
+}
 ```
 
 ### Generate formulas covariates
@@ -825,7 +825,7 @@ models_age_rate <- append(
   list(
     linear = model_age_rate("age"),
     quadratic = model_age_rate(c("age", "I(age^2)")),
-    smooth = model_age_rate(c("age", "I(age^2)", "s(age, k = 15)"))
+    smooth = model_age_rate(c("age", "I(age^2)", "s(age, k = 10)"))
   )
 )
 
@@ -835,6 +835,12 @@ k.check(models_age_rate$smooth)
 
 ### Build covariate age rate models
 
+bs = "sz" ensures that the individual factor levels sum to zero, so that we can estimate both the
+main effect of age as well as the levels of individual strata. However, we don't need to estimate
+the main effect of age because we already assess this in a separate analysis. The purpose of these
+models is solely to visualize the per-stratum predictions, so it's fine if the main effect of age
+gets absorbed.
+
 ```{r aging_covariate_models}
 models_covariates <- list()
 models_covariates <- append(
@@ -843,28 +849,28 @@ models_covariates <- append(
     smooth_gender = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
-        paste0("s(age, gender, bs = 'sz', k = ", params$global_k, ")")
+        paste0("s(age, by = gender, k = ", params$global_k, ")")
       ),
       model_type = "bam"
     ),
     smooth_smoking = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
-        paste0("s(age, smoking, bs = 'sz', k = ", params$global_k, ")")
+        paste0("s(age, by = smoking, k = ", params$global_k, ")")
       ),
       model_type = "bam"
     ),
     smooth_race = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
-        paste0("s(age, race, bs = 'sz', k = ", params$global_k, ")")
+        paste0("s(age, by = race, k = ", params$global_k, ")")
       ),
       model_type = "bam"
     ),
     smooth_education = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
-        paste0("s(age, education, bs = 'sz', k = ", params$global_k, ")")
+        paste0("s(age, by = education, k = ", params$global_k, ")")
       ),
       model_type = "bam"
     )
