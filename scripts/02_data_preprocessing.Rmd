@@ -461,10 +461,6 @@ subset_data <- function(design) {
       test_retest_diff_left < 10 & test_retest_diff_right < 10,
       label = "too large test-retest difference."
     ) %>%
-    # verbose_subset(
-    # pta_diff < 15,
-    # label = "too large imbalance in left/right hearing loss."
-    # ) %>%
     verbose_subset(
       smoking %in% c(1, 2),
       label = "smoking refused or 'don't know'."
@@ -742,11 +738,11 @@ calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
               mean_w_kdm = coef(svymean(~kdm, design_subset)),
               mean_w_phenoage = coef(svymean(~phenoage, design_subset)),
               mean_w_hd_log = coef(svymean(~hd_log, design_subset)),
-              mean_w_telolength = coef(svymean(~telolength, design_subset, na.rm = TRUE)),
+              mean_w_telolength_log = coef(svymean(~telolength_log, design_subset, na.rm = TRUE)),
               sd_w_kdm = sqrt(coef(svyvar(~kdm, design_subset))),
               sd_w_phenoage = sqrt(coef(svyvar(~phenoage, design_subset))),
               sd_w_hd_log = sqrt(coef(svyvar(~hd_log, design_subset))),
-              sd_w_telolength = sqrt(coef(svyvar(~telolength, design_subset, na.rm = TRUE))),
+              sd_w_telolength_log = sqrt(coef(svyvar(~telolength_log, design_subset, na.rm = TRUE))),
             )
           } else {
             .
@@ -773,11 +769,11 @@ calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
                 mean_w_kdm = svyby(~kdm, grouping_variable, design_subset, svymean)$kdm,
                 mean_w_phenoage = svyby(~phenoage, grouping_variable, design_subset, svymean)$phenoage,
                 mean_w_hd_log = svyby(~hd_log, grouping_variable, design_subset, svymean)$hd_log,
-                mean_w_telolength = svyby(~telolength, grouping_variable, design_subset, svymean, na.rm = TRUE)$telolength,
+                mean_w_telolength_log = svyby(~telolength_log, grouping_variable, design_subset, svymean, na.rm = TRUE)$telolength_log,
                 sd_w_kdm = sqrt(svyby(~kdm, grouping_variable, design_subset, svyvar)$kdm),
                 sd_w_phenoage = sqrt(svyby(~phenoage, grouping_variable, design_subset, svyvar)$phenoage),
                 sd_w_hd_log = sqrt(svyby(~hd_log, grouping_variable, design_subset, svyvar)$hd_log),
-                sd_w_telolength = sqrt(svyby(~telolength, grouping_variable, design_subset, svyvar, na.rm = TRUE)$telolength)
+                sd_w_telolength_log = sqrt(svyby(~telolength_log, grouping_variable, design_subset, svyvar, na.rm = TRUE)$telolength_log)
               )
             } else {
               .
@@ -1029,7 +1025,7 @@ df <- df %>%
     phenoage,
     phenoage_advance,
     hd_log,
-    telolength,
+    telolength_log,
     all_of(params$hearing_var),
     albumin_gL,
     alp,

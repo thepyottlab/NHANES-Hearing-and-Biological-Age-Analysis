@@ -81,7 +81,7 @@ rename_bioage_table <- function(bioage_table) {
         Predictors == "age, hd_log" ~ "Age + HD",
         Predictors == "age, kdm" ~ "Age + KDM",
         Predictors == "age, phenoage" ~ "Age + PhenoAge",
-        isTRUE(params$telolength) & Predictors == "age, telolength" ~ "Age + Telolength",
+        isTRUE(params$telolength) & Predictors == "age, telolength_log" ~ "Age + Telolength",
         TRUE ~ Predictors
       ),
       Predictors = factor(
@@ -355,7 +355,7 @@ plot_config <- function(variable = NULL, global_params = params) {
         "output",
         "figures",
         if (isTRUE(global_params$telolength)) {
-          paste0(global_params$hearing_var, "_telolength")
+          paste0(global_params$hearing_var, "_telolength_log")
         } else {
           global_params$hearing_var
         }
@@ -597,21 +597,21 @@ color_scales <- function(color_list_name) {
         "age, hd_log" = if (isFALSE(params$telolength)) "#256DAB" else NULL,
         "age, kdm" = if (isFALSE(params$telolength)) "#059748" else NULL,
         "age, phenoage" = if (isFALSE(params$telolength)) "#CB2027" else NULL,
-        "age, telolength" = if (isTRUE(params$telolength)) "#7B3A96" else NULL
+        "age, telolength_log" = if (isTRUE(params$telolength)) "#7B3A96" else NULL
       ),
       fill_colors = c(
         "age" = "#8C8C8C",
         "age, hd_log" = if (isFALSE(params$telolength)) "#88BDE6" else NULL,
         "age, kdm" = if (isFALSE(params$telolength)) "#90CD97" else NULL,
         "age, phenoage" = if (isFALSE(params$telolength)) "#F07E6E" else NULL,
-        "age, telolength" = if (isTRUE(params$telolength)) "#B276B2" else NULL
+        "age, telolength_log" = if (isTRUE(params$telolength)) "#B276B2" else NULL
       ),
       labels = c(
         "age" = "Age",
         "age, hd_log" = if (isFALSE(params$telolength)) "Age + HD" else NULL,
         "age, kdm" = if (isFALSE(params$telolength)) "Age + KDM" else NULL,
         "age, phenoage" = if (isFALSE(params$telolength)) "Age + PhenoAge" else NULL,
-        "age, telolength" = if (isTRUE(params$telolength)) "Age + Telolength" else NULL
+        "age, telolength_log" = if (isTRUE(params$telolength)) "Age + Telolength" else NULL
       )
     ),
     covariates = build_color_scale(

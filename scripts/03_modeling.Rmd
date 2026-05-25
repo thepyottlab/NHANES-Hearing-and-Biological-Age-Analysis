@@ -353,7 +353,7 @@ formulas_bioage <- formula_generator(
     "age, phenoage",
     "age, kdm",
     "age, hd_log",
-    if (isTRUE(params$telolength)) "age, telolength" else NULL
+    if (isTRUE(params$telolength)) "age, telolength_log" else NULL
   ),
   covariates = covariate_interactions
 )
