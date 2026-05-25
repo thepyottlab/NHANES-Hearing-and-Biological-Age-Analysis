@@ -248,7 +248,8 @@ calculate_statistics_across_folds <- function(summary, predictions, data, per_ag
   if (isFALSE(covariate_analysis)) {
     summary %>%
       mutate(
-        delta_rmse_w = rmse_w_ref - rmse_w
+        delta_rmse_w = rmse_w_ref - rmse_w,
+        additional_variance_pct = (mse_w_ref - mse_w) / mse_w_ref * 100
       ) %>%
       select(-mse_w_ref, -rmse_w_ref)
   } else {
@@ -257,6 +258,10 @@ calculate_statistics_across_folds <- function(summary, predictions, data, per_ag
         delta_rmse_w = case_when(
           predictors == "age, gender, smoking, race, education, phenoage" ~ rmse_w_ref - rmse_w,
           TRUE ~ rmse_w - rmse_w_ref
+        ),
+        additional_variance_pct = case_when(
+          predictors == "age, gender, smoking, race, education, phenoage" ~ (mse_w_ref - mse_w) / mse_w_ref * 100,
+          TRUE ~ (mse_w - mse_w_ref) / mse_w * 100
         )
       ) %>%
       select(-mse_w_ref, -rmse_w_ref)
