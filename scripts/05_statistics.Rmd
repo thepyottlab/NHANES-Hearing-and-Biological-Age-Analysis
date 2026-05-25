@@ -61,7 +61,7 @@ calculate_mse_per_fold <- function(predictions, reference, per_age_group = FALSE
     results <- results %>%
       mutate(
         delta_mse_w = case_when(
-          predictors == "age, gender, smoking, race, education, gender_race, phenoage" ~ mse_w_ref - mse_w,
+          predictors == "age, gender, smoking, race, education, phenoage" ~ mse_w_ref - mse_w,
           TRUE ~ mse_w - mse_w_ref
         )
       )
@@ -104,15 +104,15 @@ results_bioage <- pred_bioage %>%
   )
 
 if (isFALSE(params$telolength)) {
-results_bioage_reverse_overall <- pred_bioage_reverse %>%
-  calculate_mse_per_fold(
-    reference = c("phenoage", "kdm", "hd_log")
-  )
-results_bioage_reverse <- pred_bioage_reverse %>%
-  calculate_mse_per_fold(
-    reference = c("phenoage", "kdm", "hd_log"),
-    per_age_group = TRUE
-  )
+  results_bioage_reverse_overall <- pred_bioage_reverse %>%
+    calculate_mse_per_fold(
+      reference = c("phenoage", "kdm", "hd_log")
+    )
+  results_bioage_reverse <- pred_bioage_reverse %>%
+    calculate_mse_per_fold(
+      reference = c("phenoage", "kdm", "hd_log"),
+      per_age_group = TRUE
+    )
 
   results_biomarkers_overall <- pred_biomarkers %>%
     calculate_mse_per_fold(
@@ -126,12 +126,12 @@ results_bioage_reverse <- pred_bioage_reverse %>%
 
   results_covariates_overall <- pred_covariates %>%
     calculate_mse_per_fold(
-      reference = "age, gender, smoking, race, education, gender_race",
+      reference = "age, gender, smoking, race, education",
       covariate_analysis = TRUE
     )
   results_covariates <- pred_covariates %>%
     calculate_mse_per_fold(
-      reference = "age, gender, smoking, race, education, gender_race",
+      reference = "age, gender, smoking, race, education",
       per_age_group = TRUE,
       covariate_analysis = TRUE
     )
@@ -160,29 +160,29 @@ calculate_pooled_mse <- function(results) {
     mutate(
       mse_w_mean = sum(sum_weights * mse_w) / sum(sum_weights),
       delta_mse_w_mean = sum(sum_weights * delta_mse_w) / sum(sum_weights)
-      ) %>%
-  summarize(
-    reference = first(reference),
-    mse_w_ref = sum(sum_weights * mse_w_ref) / sum(sum_weights),
-    n = length(unique(r)) * length(unique(k)),
-    sum_n_train = sum(n_train),
-    sum_n_test = sum(n_test),
-    mse_w = sum(sum_weights * mse_w) / sum(sum_weights),
-    delta_mse_w = sum(sum_weights * delta_mse_w) / sum(sum_weights),
-    s2_mse_w = sum(sum_weights * (mse_w - mse_w_mean)^2) / (sum(sum_weights) - 1),
-    delta_s2_mse_w = sum(sum_weights * (delta_mse_w - delta_mse_w_mean)^2) / (sum(sum_weights) - 1),
-    .groups = "drop"
-  ) %>%
+    ) %>%
+    summarize(
+      reference = first(reference),
+      mse_w_ref = sum(sum_weights * mse_w_ref) / sum(sum_weights),
+      n = length(unique(r)) * length(unique(k)),
+      sum_n_train = sum(n_train),
+      sum_n_test = sum(n_test),
+      mse_w = sum(sum_weights * mse_w) / sum(sum_weights),
+      delta_mse_w = sum(sum_weights * delta_mse_w) / sum(sum_weights),
+      s2_mse_w = sum(sum_weights * (mse_w - mse_w_mean)^2) / (sum(sum_weights) - 1),
+      delta_s2_mse_w = sum(sum_weights * (delta_mse_w - delta_mse_w_mean)^2) / (sum(sum_weights) - 1),
+      .groups = "drop"
+    ) %>%
     mutate(
-    se_delta_mse_w_nb = sqrt(
-      delta_s2_mse_w * (1 / n + sum_n_test / sum_n_train)
-    ),
-    se_mse_w_nb = sqrt(
-      s2_mse_w * (1 / n + sum_n_test / sum_n_train)
-    ),
-    n_train = sum_n_train / n,
-    n_test = sum_n_test / n
-  )
+      se_delta_mse_w_nb = sqrt(
+        delta_s2_mse_w * (1 / n + sum_n_test / sum_n_train)
+      ),
+      se_mse_w_nb = sqrt(
+        s2_mse_w * (1 / n + sum_n_test / sum_n_train)
+      ),
+      n_train = sum_n_train / n,
+      n_test = sum_n_test / n
+    )
 }
 ```
 
@@ -232,8 +232,8 @@ calculate_statistics_across_folds <- function(summary, predictions, data, per_ag
     summarize(
       sst_w = sum(weights * (.data[[params$hearing_var]] - weighted_mean)^2) / sum(weights),
       .groups = "drop"
-    ) 
-  
+    )
+
   summary <- summary %>%
     left_join(
       sst,
@@ -244,7 +244,7 @@ calculate_statistics_across_folds <- function(summary, predictions, data, per_ag
       rmse_w = sqrt(mse_w),
       rmse_w_ref = sqrt(mse_w_ref)
     )
-  
+
   if (isFALSE(covariate_analysis)) {
     summary %>%
       mutate(
@@ -255,7 +255,7 @@ calculate_statistics_across_folds <- function(summary, predictions, data, per_ag
     summary %>%
       mutate(
         delta_rmse_w = case_when(
-          predictors == "age, gender, smoking, race, education, gender_race, phenoage" ~ rmse_w_ref - rmse_w,
+          predictors == "age, gender, smoking, race, education, phenoage" ~ rmse_w_ref - rmse_w,
           TRUE ~ rmse_w - rmse_w_ref
         )
       ) %>%
@@ -421,7 +421,7 @@ summary_bioage_overall <- results_bioage_overall %>%
   compute_rmse_ci(
     predictions = pred_bioage,
     n_boot = params$n_boot
-    )
+  )
 summary_bioage <- results_bioage %>%
   calculate_pooled_mse() %>%
   calculate_statistics_across_folds(
@@ -433,80 +433,80 @@ summary_bioage <- results_bioage %>%
     predictions = pred_bioage,
     n_boot = params$n_boot,
     per_age_group = TRUE
-    )
+  )
 
 if (isFALSE(params$telolength)) {
-summary_bioage_reverse_overall <- results_bioage_reverse_overall %>%
-  calculate_pooled_mse() %>%
-  calculate_statistics_across_folds(
-    predictions = pred_bioage_reverse,
-    data = df
-  ) %>%
-  compute_rmse_ci(
-    predictions = pred_bioage_reverse,
-    n_boot = params$n_boot
+  summary_bioage_reverse_overall <- results_bioage_reverse_overall %>%
+    calculate_pooled_mse() %>%
+    calculate_statistics_across_folds(
+      predictions = pred_bioage_reverse,
+      data = df
+    ) %>%
+    compute_rmse_ci(
+      predictions = pred_bioage_reverse,
+      n_boot = params$n_boot
     )
-summary_bioage_reverse <- results_bioage_reverse %>%
-  calculate_pooled_mse() %>%
-  calculate_statistics_across_folds(
-    predictions = pred_bioage_reverse,
-    data = df,
-    per_age_group = TRUE
-  ) %>%
-  compute_rmse_ci(
-    predictions = pred_bioage_reverse,
-    n_boot = params$n_boot,
-    per_age_group = TRUE
-    )
-
-summary_biomarkers_overall <- results_biomarkers_overall %>%
-  calculate_pooled_mse() %>%
-  calculate_statistics_across_folds(
-    predictions = pred_biomarkers,
-    data = df
-  ) %>%
-  compute_rmse_ci(
-    predictions = pred_biomarkers,
-    n_boot = params$n_boot
-    )
-summary_biomarkers <- results_biomarkers %>%
-  calculate_pooled_mse() %>%
-  calculate_statistics_across_folds(
-    predictions = pred_biomarkers,
-    data = df,
-    per_age_group = TRUE
-  ) %>%
-  compute_rmse_ci(
-    predictions = pred_biomarkers,
-    n_boot = params$n_boot,
-    per_age_group = TRUE
+  summary_bioage_reverse <- results_bioage_reverse %>%
+    calculate_pooled_mse() %>%
+    calculate_statistics_across_folds(
+      predictions = pred_bioage_reverse,
+      data = df,
+      per_age_group = TRUE
+    ) %>%
+    compute_rmse_ci(
+      predictions = pred_bioage_reverse,
+      n_boot = params$n_boot,
+      per_age_group = TRUE
     )
 
-summary_covariates_overall <- results_covariates_overall %>%
-  calculate_pooled_mse() %>%
-  calculate_statistics_across_folds(
-    predictions = pred_covariates,
-    data = df,
-    covariate_analysis = TRUE
-  ) %>%
-  compute_rmse_ci(
-    predictions = pred_covariates,
-    n_boot = params$n_boot,
-    covariate_analysis = TRUE
+  summary_biomarkers_overall <- results_biomarkers_overall %>%
+    calculate_pooled_mse() %>%
+    calculate_statistics_across_folds(
+      predictions = pred_biomarkers,
+      data = df
+    ) %>%
+    compute_rmse_ci(
+      predictions = pred_biomarkers,
+      n_boot = params$n_boot
     )
-summary_covariates <- results_covariates %>%
-  calculate_pooled_mse() %>%
-  calculate_statistics_across_folds(
-    predictions = pred_covariates,
-    data = df,
-    per_age_group = TRUE,
-    covariate_analysis = TRUE
-  ) %>%
-  compute_rmse_ci(
-    predictions = pred_covariates,
-    n_boot = params$n_boot,
-    per_age_group = TRUE,
-    covariate_analysis = TRUE
+  summary_biomarkers <- results_biomarkers %>%
+    calculate_pooled_mse() %>%
+    calculate_statistics_across_folds(
+      predictions = pred_biomarkers,
+      data = df,
+      per_age_group = TRUE
+    ) %>%
+    compute_rmse_ci(
+      predictions = pred_biomarkers,
+      n_boot = params$n_boot,
+      per_age_group = TRUE
+    )
+
+  summary_covariates_overall <- results_covariates_overall %>%
+    calculate_pooled_mse() %>%
+    calculate_statistics_across_folds(
+      predictions = pred_covariates,
+      data = df,
+      covariate_analysis = TRUE
+    ) %>%
+    compute_rmse_ci(
+      predictions = pred_covariates,
+      n_boot = params$n_boot,
+      covariate_analysis = TRUE
+    )
+  summary_covariates <- results_covariates %>%
+    calculate_pooled_mse() %>%
+    calculate_statistics_across_folds(
+      predictions = pred_covariates,
+      data = df,
+      per_age_group = TRUE,
+      covariate_analysis = TRUE
+    ) %>%
+    compute_rmse_ci(
+      predictions = pred_covariates,
+      n_boot = params$n_boot,
+      per_age_group = TRUE,
+      covariate_analysis = TRUE
     )
 }
 ```
@@ -576,10 +576,11 @@ nb_corrected_repeated_t_test <- function(summary,
     select(
       age_group, predictors, t, df, p, p_adj, signif
     )
-  
+
   summary <- summary %>%
-  left_join(pwc,
-            by = c("age_group", "predictors"))
+    left_join(pwc,
+      by = c("age_group", "predictors")
+    )
 
   summary
 }
@@ -642,7 +643,7 @@ if (isFALSE(params$telolength)) {
     ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
-  ) 
+  )
 
   summary_covariates <- nb_corrected_repeated_t_test(
     summary_covariates,
@@ -827,9 +828,9 @@ calculate_f_test_statistics <- function(anova) {
   )
 
   list(anova_table %>%
-  construct_table(
-    title = "RMSE (In-Sample)"
-  ), htmltools::HTML(report))
+    construct_table(
+      title = "RMSE (In-Sample)"
+    ), htmltools::HTML(report))
 }
 
 calculate_f_test_statistics(aov_quadratic)

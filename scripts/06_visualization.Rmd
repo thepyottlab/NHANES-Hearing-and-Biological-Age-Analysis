@@ -149,16 +149,15 @@ rename_biomarker_table <- function(biomarker_table) {
 rename_covariate_table <- function(covariates_table) {
   covariates_table <- covariates_table %>%
     filter(
-      Predictors != "age, gender, smoking, race, education, gender_race"
+      Predictors != "age, gender, smoking, race, education"
     ) %>%
     mutate(
       Predictors = case_when(
-        Predictors == "age, gender, smoking, race, education, gender_race, phenoage" ~ "Phenoage",
-        Predictors == "age, smoking, race, education, gender_race" ~ "Gender",
-        Predictors == "age, gender, race, education, gender_race" ~ "Smoking",
-        Predictors == "age, gender, smoking, education, gender_race" ~ "Race",
-        Predictors == "age, gender, smoking, race, gender_race" ~ "Education",
-        Predictors == "age, gender, smoking, race, education" ~ "Gender * Race"
+        Predictors == "age, gender, smoking, race, education, phenoage" ~ "Phenoage",
+        Predictors == "age, smoking, race, education" ~ "Gender",
+        Predictors == "age, gender, race, education" ~ "Smoking",
+        Predictors == "age, gender, smoking, education" ~ "Race",
+        Predictors == "age, gender, smoking, race" ~ "Education"
       ),
       Predictors = factor(Predictors, levels = c(
         "Phenoage",
@@ -283,36 +282,36 @@ We recode variables, combine means and SDs, pivot table, and format it
 ```{r pivot_conf_table}
 if (isFALSE(params$telolength)) {
   table_covariates_descriptive <- descriptives %>%
-  filter(
-    age_group != "Overall",
-    group != "Overall"
-  ) %>%
-  mutate(
-    stat = sprintf("%.2f (%.2f)", mean_w, sd_w),
-    category = factor(category, levels = c(
-      "Male", 
-      "Female", 
-      "White", 
-      "Hispanic", 
-      "Black", 
-      "Other", 
-      "Smoker", 
-      "Non-smoker", 
-      "< 9th grade",
-      "9-11th grade",
-      "High school",
-      "Some college or AA degree",
-      "College graduate or higher"
-    ))
-  ) %>%
-  select(
-    age_group, group, category, stat
-  ) %>%
-  pivot_wider(names_from = age_group, values_from = stat) %>%
-  group_by(group) %>%
-  mutate(group = if_else(row_number() == 1L, group, "")) %>%
-  ungroup() %>%
-  rename(" " = group, "  " = category)
+    filter(
+      age_group != "Overall",
+      group != "Overall"
+    ) %>%
+    mutate(
+      stat = sprintf("%.2f (%.2f)", mean_w, sd_w),
+      category = factor(category, levels = c(
+        "Male",
+        "Female",
+        "White",
+        "Hispanic",
+        "Black",
+        "Other",
+        "Smoker",
+        "Non-smoker",
+        "< 9th grade",
+        "9-11th grade",
+        "High school",
+        "Some college or AA degree",
+        "College graduate or higher"
+      ))
+    ) %>%
+    select(
+      age_group, group, category, stat
+    ) %>%
+    pivot_wider(names_from = age_group, values_from = stat) %>%
+    group_by(group) %>%
+    mutate(group = if_else(row_number() == 1L, group, "")) %>%
+    ungroup() %>%
+    rename(" " = group, "  " = category)
 }
 ```
 
@@ -617,31 +616,28 @@ color_scales <- function(color_list_name) {
     ),
     covariates = build_color_scale(
       colors = c(
-        "age, gender, smoking, race, education, gender_race"  = "#000000",
-        "age, smoking, race, education, gender_race"  = "#059748",
-        "age, gender, smoking, education, gender_race"  = "#E5126F",
-        "age, gender, smoking, race, gender_race"  = "#DF5C24",
-        "age, gender, race, education, gender_race"  = "#9D722A",
-        "age, gender, smoking, race, education"  = "#7B3A96",
-        "age, gender, smoking, race, education, gender_race, phenoage" = "#256DAB"
+        "age, gender, smoking, race, education" = "#000000",
+        "age, smoking, race, education" = "#059748",
+        "age, gender, smoking, education" = "#E5126F",
+        "age, gender, smoking, race" = "#DF5C24",
+        "age, gender, race, education" = "#9D722A",
+        "age, gender, smoking, race, education, phenoage" = "#256DAB"
       ),
       fill_colors = c(
-        "age, gender, smoking, race, education, gender_race"  = "#8C8C8C",
-        "age, smoking, race, education, gender_race"  = "#90CD97",
-        "age, gender, smoking, education, gender_race"  = "#F6AAC9",
-        "age, gender, smoking, race, gender_race"  = "#FBB258",
-        "age, gender, race, education, gender_race"  = "#BFA554",
-        "age, gender, smoking, race, education"  = "#BC99C7",
-        "age, gender, smoking, race, education, gender_race, phenoage" = "#88BDE6"
+        "age, gender, smoking, race, education" = "#8C8C8C",
+        "age, smoking, race, education" = "#90CD97",
+        "age, gender, smoking, education" = "#F6AAC9",
+        "age, gender, smoking, race" = "#FBB258",
+        "age, gender, race, education" = "#BFA554",
+        "age, gender, smoking, race, education, phenoage" = "#88BDE6"
       ),
       labels = c(
-        "age, gender, smoking, race, education, gender_race"  = "Full",
-        "age, smoking, race, education, gender_race"  = "Gender",
-        "age, gender, smoking, education, gender_race"  = "Race",
-        "age, gender, smoking, race, gender_race"  = "Education",
-        "age, gender, race, education, gender_race"  = "Smoking",
-        "age, gender, smoking, race, education"  = "Gender*Race",
-        "age, gender, smoking, race, education, gender_race, phenoage" = "Phenoage"
+        "age, gender, smoking, race, education" = "Full",
+        "age, smoking, race, education" = "Gender",
+        "age, gender, smoking, education" = "Race",
+        "age, gender, smoking, race" = "Education",
+        "age, gender, race, education" = "Smoking",
+        "age, gender, smoking, race, education, phenoage" = "Phenoage"
       )
     ),
     covariates_overall = build_color_scale(
@@ -1321,245 +1317,6 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-##### Plot rate of aging gender
-
-```{r plot_age_rate_gender}
-if (isFALSE(params$telolength)) {
-  p0 <- ggplot() +
-    geom_point(
-      data = df,
-      aes(
-        x = age,
-        y = .data[[params$hearing_var]]
-      )
-    ) +
-    geom_line(
-      data = pred_age_rate$linear,
-      aes(
-        x = age,
-        y = estimate
-      )
-    ) +
-    geom_ribbon(
-      data = pred_age_rate$linear,
-      aes(
-        x = age,
-        ymin = ci_lower,
-        ymax = ci_upper
-      )
-    ) +
-    axes(
-      x = "age",
-      y = "hl"
-    ) +
-    plot_theme() +
-    theme(
-      axis.title.x = element_blank(),
-      plot.margin = margin(1, 0, 0, 1, unit = "pt")
-    )
-
-  p1 <- ggplot() +
-    geom_point(
-      data = df,
-      aes(
-        x = age,
-        y = .data[[params$hearing_var]]
-      )
-    ) +
-    geom_line(
-      data = pred_age_rate$quadratic,
-      aes(
-        x = age,
-        y = estimate
-      )
-    ) +
-    geom_ribbon(
-      data = pred_age_rate$quadratic,
-      aes(
-        x = age,
-        ymin = ci_lower,
-        ymax = ci_upper
-      )
-    ) +
-    axes(
-      x = "age",
-      y = "hl"
-    ) +
-    plot_theme() +
-    theme(
-      axis.title.x = element_blank(),
-      axis.title.y = element_blank(),
-      plot.margin = margin(1, 0, 0, 1, unit = "pt")
-    )
-
-  p2 <- ggplot() +
-    geom_point(
-      data = df,
-      aes(
-        x = age,
-        y = .data[[params$hearing_var]]
-      )
-    ) +
-    geom_ribbon(
-      data = pred_covariates_full$smooth_gender,
-      aes(
-        x = age,
-        ymin = ci_lower,
-        ymax = ci_upper,
-        fill = gender
-      ),
-      show.legend = FALSE
-    ) +
-    geom_line(
-      data = pred_covariates_full$smooth_gender,
-      aes(
-        x = age,
-        y = estimate,
-        color = gender
-      ),
-      show.legend = FALSE
-    ) +
-    axes(
-      x = "age",
-      y = "hl"
-    ) +
-    color_scales("gender") +
-    plot_theme() +
-    theme(
-      axis.title.x = element_blank(),
-      axis.title.y = element_blank(),
-      plot.margin = margin(1, 1, 0, 0, unit = "pt")
-    )
-
-  p3 <- ggplot() +
-    geom_hline(
-      yintercept = 0
-    ) +
-    geom_line(
-      data = pred_age_rate$linear_derivative,
-      aes(
-        x = age,
-        y = derivative
-      )
-    ) +
-    geom_ribbon(
-      data = pred_age_rate$linear_derivative,
-      aes(
-        x = age,
-        ymin = ci_lower,
-        ymax = ci_upper
-      )
-    ) +
-    axes(
-      x = "age",
-      y = "hl_rate"
-    ) +
-    plot_theme() +
-    theme(plot.margin = margin(0, 0, 0, 1, unit = "pt"))
-
-  p4 <- ggplot() +
-    geom_hline(
-      yintercept = 0
-    ) +
-    geom_line(
-      data = pred_age_rate$quadratic_derivative,
-      aes(
-        x = age,
-        y = derivative
-      )
-    ) +
-    geom_ribbon(
-      data = pred_age_rate$quadratic_derivative,
-      aes(
-        x = age,
-        ymin = ci_lower,
-        ymax = ci_upper
-      )
-    ) +
-    axes(
-      x = "age",
-      y = "hl_rate"
-    ) +
-    plot_theme() +
-    theme(
-      axis.title.y = element_blank(),
-      plot.margin = margin(0, 0, 0, 1, unit = "pt")
-    )
-
-  p5 <- ggplot() +
-    geom_hline(
-      yintercept = 0
-    ) +
-    geom_ribbon(
-      data = pred_covariates_full$smooth_gender_derivative,
-      aes(
-        x = age,
-        ymin = ci_lower,
-        ymax = ci_upper,
-        fill = gender
-      ),
-      show.legend = FALSE
-    ) +
-    geom_line(
-      data = pred_covariates_full$smooth_gender_derivative,
-      aes(x = age, y = derivative, color = gender),
-      show.legend = FALSE
-    ) +
-    axes(
-      x = "age",
-      y = "hl_rate"
-    ) +
-    color_scales("gender") +
-    plot_theme() +
-    theme(
-      axis.title.y = element_blank(),
-      plot.margin = margin(0, 1, 0, 0, unit = "pt")
-    )
-
-  p <- align_plots(p0, p1, p2, p3, p4, p5, align = "hv")
-
-  p <- plot_grid(
-    plot_grid(
-      p[[1]], NULL,
-      p[[2]], NULL,
-      p[[3]],
-      labels = c("A", "", "B", "", "C"),
-      nrow = 1,
-      rel_widths = c(1, -0.01, 1, -0.01, 1),
-      label_x = 0.04,
-      label_y = 1.02
-    ),
-    NULL,
-    plot_grid(
-      p[[4]], NULL,
-      p[[5]], NULL,
-      p[[6]],
-      labels = c("D", "", "E", "", "F"),
-      nrow = 1,
-      rel_widths = c(1, -0.01, 1, -0.01, 1),
-      label_x = 0.04,
-      label_y = 1.02
-    ),
-    ncol = 1,
-    rel_heights = c(1, -0.15, 1)
-  )
-
-  sameplot(
-    p,
-    file = here(
-      plot_config("figure_dir"),
-      "Extras",
-      "simplified_age_rate_panel_gender.png"
-    ),
-    width = params$double_column_width * 1.8,
-    height = 3 * 1.8,
-    scaling = 1.8,
-    res = 600,
-    save = params$save_figures
-  )
-}
-```
-
 ##### Plot aging coviariates
 
 ###### Plot aging mean without covariates
@@ -1930,7 +1687,7 @@ sameplot(
 ```{r plot_covariates, warning=FALSE}
 if (isFALSE(params$telolength)) {
   p <- summary_covariates %>%
-    filter(!predictors %in% c("age, gender, smoking, race, education", "age, gender, smoking, race, education, gender_race, phenoage")) %>%
+    filter(!predictors %in% c("age, gender, smoking, race, education", "age, gender, smoking, race, education, phenoage")) %>%
     ggplot(
       aes(
         x = age_group,
@@ -1996,14 +1753,14 @@ if (isFALSE(params$telolength)) {
 ```{r plot_covariates_overall, warning=FALSE}
 if (isFALSE(params$telolength)) {
   p <- summary_covariates_overall %>%
-    filter(!predictors %in% c("age, gender, smoking, race, education, gender_race", "age, gender, smoking, race, education", "age, gender, smoking, race, education, gender_race, phenoage")) %>%
+    filter(!predictors %in% c("age, gender, smoking, race, education", "age, gender, smoking, race, education, phenoage")) %>%
     mutate(predictors = factor(
       predictors,
       levels = c(
-        "age, smoking, race, education, gender_race" ,
-        "age, gender, smoking, education, gender_race" ,
-        "age, gender, smoking, race, gender_race" ,
-        "age, gender, race, education, gender_race" 
+        "age, smoking, race, education",
+        "age, gender, smoking, education",
+        "age, gender, smoking, race",
+        "age, gender, race, education"
       ),
       labels = c(
         "Gender",
@@ -2055,7 +1812,7 @@ if (isFALSE(params$telolength)) {
     ) +
     geom_text(
       data = . %>%
-        filter(p_adj != "ns"),
+        filter(signif != "ns"),
       aes(
         x = predictors,
         y = ci_high_delta_rmse,
@@ -2077,71 +1834,6 @@ if (isFALSE(params$telolength)) {
   sameplot(
     p,
     file = here(plot_config("figure_dir"), "covariate_panel.png"),
-    width = params$single_column_width,
-    height = 2.15,
-    res = 600,
-    save = params$save_figures
-  )
-}
-```
-
-##### Plot additional variance covariates
-
-```{r plot_covariates_var, warning=FALSE}
-if (isFALSE(params$telolength)) {
-  p <- summary_covariates %>%
-    ggplot(
-      aes(
-        x = age_group,
-        y = mean_additional_variance
-      )
-    ) +
-    geom_hline(
-      yintercept = 0
-    ) +
-    geom_ribbon(
-      aes(
-        fill = predictors,
-        group = predictors,
-        ymin = ci_low_additional_variance,
-        ymax = ci_high_additional_variance
-      ),
-      show.legend = FALSE
-    ) +
-    geom_line(
-      aes(
-        color = predictors,
-        group = predictors
-      ),
-      show.legend = TRUE
-    ) +
-    geom_point(
-      aes(
-        color = predictors
-      ),
-      show.legend = TRUE
-    ) +
-    geom_text(
-      data = . %>%
-        filter(p_adj != "ns"),
-      aes(
-        x = age_group,
-        y = ci_high_additional_variance,
-        label = signif,
-        color = predictors
-      ),
-      size = plot_config("signif_size") / (14 / 5)
-    ) +
-    axes(
-      x = "age_group",
-      y = "add_pred_conf"
-    ) +
-    color_scales("covariates") +
-    plot_theme()
-
-  sameplot(
-    p,
-    file = here(plot_config("figure_dir"), "covariate_panel_var.png"),
     width = params$single_column_width,
     height = 2.15,
     res = 600,
@@ -2172,7 +1864,7 @@ if (isFALSE(params$telolength)) {
     ggplot(
       aes(
         x = age_group,
-        y = delta_rmse
+        y = delta_rmse_w
       )
     ) +
     geom_hline(
@@ -2268,7 +1960,7 @@ if (isFALSE(params$telolength)) {
     ggplot(
       aes(
         x = age_group,
-        y = delta_rmse
+        y = delta_rmse_w
       )
     ) +
     geom_hline(
@@ -2398,7 +2090,7 @@ if (isFALSE(params$telolength)) {
     ggplot(
       aes(
         x = predictors,
-        y = delta_rmse
+        y = delta_rmse_w
       )
     ) +
     geom_point(
@@ -2421,7 +2113,7 @@ if (isFALSE(params$telolength)) {
     ) +
     geom_text(
       data = . %>%
-        filter(p_adj != "ns"),
+        filter(signif != "ns"),
       aes(
         x = predictors,
         y = ci_high_delta_rmse + 0.01,

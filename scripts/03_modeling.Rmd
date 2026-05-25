@@ -373,40 +373,40 @@ tibble(
 
 ```{r build_biomark_forms}
 if (isFALSE(params$telolength)) {
-formulas_biomarkers <- formula_generator(
-  data = df,
-  k = params$global_k,
-  auto_limit_k = TRUE,
-  equal_wiggliness = TRUE,
-  formulas = c(
-    "age",
-    "age, phenoage",
-    "age, albumin_gL",
-    "age, alp",
-    "age, lncreat",
-    "age, glucose",
-    "age, lncrp",
-    "age, lymph",
-    "age, mcv",
-    "age, rdw",
-    "age, wbc",
-    "age, sbp",
-    "age, bun",
-    "age, totchol",
-    "age, hba1c",
-    "age, uap",
-    "age, lncrp, phenoage"
-  ),
-  covariates = covariate_interactions
-)
-
-tibble(
-  Formulas = unlist(
-    formulas_biomarkers
+  formulas_biomarkers <- formula_generator(
+    data = df,
+    k = params$global_k,
+    auto_limit_k = TRUE,
+    equal_wiggliness = TRUE,
+    formulas = c(
+      "age",
+      "age, phenoage",
+      "age, albumin_gL",
+      "age, alp",
+      "age, lncreat",
+      "age, glucose",
+      "age, lncrp",
+      "age, lymph",
+      "age, mcv",
+      "age, rdw",
+      "age, wbc",
+      "age, sbp",
+      "age, bun",
+      "age, totchol",
+      "age, hba1c",
+      "age, uap",
+      "age, lncrp, phenoage"
+    ),
+    covariates = covariate_interactions
   )
-) %>% construct_table(
-  title = "Biomarker Formulas"
-)
+
+  tibble(
+    Formulas = unlist(
+      formulas_biomarkers
+    )
+  ) %>% construct_table(
+    title = "Biomarker Formulas"
+  )
 }
 ```
 
@@ -420,7 +420,7 @@ if (isFALSE(params$telolength)) {
     auto_limit_k = TRUE,
     equal_wiggliness = TRUE,
     formulas = c("age", "age, phenoage"),
-    covariates = covariate_interactions,
+    covariates = covariate_vars,
     stepdown = TRUE
   )
 
@@ -849,28 +849,28 @@ models_covariates <- append(
     smooth_gender = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
-        paste0("s(age, by = gender, k = ", params$global_k, ")")
+        paste0("s(age, gender, bs = 'sz', k = ", params$global_k, ", id = 1)")
       ),
       model_type = "bam"
     ),
     smooth_smoking = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
-        paste0("s(age, by = smoking, k = ", params$global_k, ")")
+        paste0("s(age, smoking, bs = 'sz', k = ", params$global_k, ", id = 1)")
       ),
       model_type = "bam"
     ),
     smooth_race = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
-        paste0("s(age, by = race, k = ", params$global_k, ")")
+        paste0("s(age, race, bs = 'sz', k = ", params$global_k, ", id = 1)")
       ),
       model_type = "bam"
     ),
     smooth_education = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
-        paste0("s(age, by = education, k = ", params$global_k, ")")
+        paste0("s(age, education, bs = 'sz', k = ", params$global_k, ", id = 1)")
       ),
       model_type = "bam"
     )

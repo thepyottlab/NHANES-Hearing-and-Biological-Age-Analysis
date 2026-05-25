@@ -27,7 +27,7 @@ split_bioage_reverse <- function(predictions) {
 pred_bioage <- split_bioage(pred_bioage_bidirectional)
 
 if (isFALSE(params$telolength)) {
-pred_bioage_reverse <- split_bioage_reverse(pred_bioage_bidirectional)
+  pred_bioage_reverse <- split_bioage_reverse(pred_bioage_bidirectional)
 }
 ```
 
@@ -176,8 +176,7 @@ predict_age_rate_covariate <- function(
   df,
   model,
   predictor = "age",
-  covariate,
-  type = c("predict", "predict_derivative")
+  covariate
 ) {
   ages <- setNames(
     list(
@@ -189,49 +188,28 @@ predict_age_rate_covariate <- function(
     ),
     predictor
   )
-  if (type == "predict") {
-    em <- emmeans(
-      model,
-      as.formula(
-        paste0("~ ", predictor, " + ", covariate)
-      ),
-      at = ages,
-      by = covariate,
-      type = "response",
-      data = df
-    )
-  } else {
-    em <- emtrends(
-      model,
-      as.formula(
-        paste0("~ ", predictor, " + ", covariate)
-      ),
-      var = "age",
-      by = covariate,
-      at = ages,
-      data = df
-    )
-  }
+
+  em <- emmeans(
+    model,
+    as.formula(
+      paste0("~ ", predictor, " + ", covariate)
+    ),
+    at = ages,
+    by = covariate,
+    type = "response",
+    data = df
+  )
 
   predictions <- as.data.frame(
     confint(em, adjust = "mvt")
   )
 
-  if (type == "predict") {
     predictions %>%
       rename(
         "estimate" = emmean,
         "ci_lower" = lower.CL,
         "ci_upper" = upper.CL
       )
-  } else {
-    predictions %>%
-      rename(
-        "derivative" = !!paste0(predictor, ".trend"),
-        "ci_lower" = lower.CL,
-        "ci_upper" = upper.CL
-      )
-  }
 }
 
 pred_covariates_full <- list()
@@ -242,50 +220,22 @@ pred_covariates_full <- append(
     smooth_gender = predict_age_rate_covariate(
       df,
       models_covariates$smooth_gender,
-      covariate = "gender",
-      type = "predict"
-    ),
-    smooth_gender_derivative = predict_age_rate_covariate(
-      df,
-      models_covariates$smooth_gender,
-      covariate = "gender",
-      type = "predict_derivative"
+      covariate = "gender"
     ),
     smooth_smoking = predict_age_rate_covariate(
       df,
       models_covariates$smooth_smoking,
-      covariate = "smoking",
-      type = "predict"
-    ),
-    smooth_smoking_derivative = predict_age_rate_covariate(
-      df,
-      models_covariates$smooth_smoking,
-      covariate = "smoking",
-      type = "predict_derivative"
+      covariate = "smoking"
     ),
     smooth_race = predict_age_rate_covariate(
       df,
       models_covariates$smooth_race,
-      covariate = "race",
-      type = "predict"
-    ),
-    smooth_race_derivative = predict_age_rate_covariate(
-      df,
-      models_covariates$smooth_race,
-      covariate = "race",
-      type = "predict_derivative"
+      covariate = "race"
     ),
     smooth_education = predict_age_rate_covariate(
       df,
       models_covariates$smooth_education,
-      covariate = "education",
-      type = "predict"
-    ),
-    smooth_education_derivative = predict_age_rate_covariate(
-      df,
-      models_covariates$smooth_education,
-      covariate = "education",
-      type = "predict_derivative"
+      covariate = "education"
     )
   )
 )
