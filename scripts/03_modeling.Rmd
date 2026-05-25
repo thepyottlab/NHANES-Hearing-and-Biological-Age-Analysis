@@ -364,7 +364,7 @@ tibble(
   )
 ) %>% construct_table(
   title = "Bioage Formulas"
-)
+){r}
 ```
 
 "

@@ -19,7 +19,7 @@ and row-binds into a dataframe (dfr).
 We select the IDs in the 'Audiometry' files, then open the df from each file, return the df if the
 file contains "Audiometry" otherwise, filter the IDs to the list of audiometry IDs.
 
-```{r}
+```{r select_audiometry_sample}
 select_audiometry_sample <- function(data_map) {
   # Extract all subject IDs from audiometry files
   audiometry_sample_ids <- data_map %>%
@@ -108,7 +108,7 @@ rename_columns <- function(data_map, column_name_path) {
 
 ### Merge dataframe and create ID vars
 
-```{r}
+```{r merge_cycles}
 merge_data <- function(data_map) {
   data_map %>%
     pull(data) %>%
@@ -542,7 +542,7 @@ changes, sampling differences, and large variances. No other issues.
 
 ## Calculate biological age
 
-```{r warning=FALSE}
+```{r calc_bioage, warning=FALSE}
 insert_bioage <- function(design) {
   bioage_calc <- function(data, training_data_path, HD_training_data_path) {
     v1_biomarkers <- c(
@@ -662,7 +662,7 @@ unfiltered audiometry samples across cycles. We calculate both weighted and unwe
 and check n per stratum. We only include the strata in the unfiltered dataset that's in the filtered
 dataset and remove NA values. Bioage descriptive statistics are also optionally calculated.
 
-```{r}
+```{r calc_descriptives}
 calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
   design <- update(
     design,
@@ -798,7 +798,7 @@ descriptives <- calculate_descriptive_statistics(design, incl_bioage = TRUE)
 
 ### Check survey proportion representation
 
-```{r}
+```{r plot_props}
 plot_proportions <- function(data, y_variable, title) {
   ggplot(
     data,
@@ -832,7 +832,19 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 6,
-  res = 600
+  res = 600,
+  save = TRUE,
+  file = here(
+        "output",
+        "figures",
+        if (isTRUE(params$telolength)) {
+          paste0(params$hearing_var, "_telolength_log")
+        } else {
+          params$hearing_var
+        },
+        "Extras",
+        "Weighted unfiltered strata proportions"
+      )
 )
 
 sameplot(
@@ -843,7 +855,19 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 6,
-  res = 600
+  res = 600,
+  save = TRUE,
+  file = here(
+        "output",
+        "figures",
+        if (isTRUE(params$telolength)) {
+          paste0(params$hearing_var, "_telolength_log")
+        } else {
+          params$hearing_var
+        },
+        "Extras",
+        "Weighted filtered strata proportions"
+      )
 )
 
 sameplot(
@@ -854,7 +878,19 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 6,
-  res = 600
+  res = 600,
+  save = TRUE,
+  file = here(
+        "output",
+        "figures",
+        if (isTRUE(params$telolength)) {
+          paste0(params$hearing_var, "_telolength_log")
+        } else {
+          params$hearing_var
+        },
+        "Extras",
+        "Unweighted unfiltered strata proportions"
+      )
 )
 
 sameplot(
@@ -865,7 +901,19 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 6,
-  res = 600
+  res = 600,
+  save = TRUE,
+  file = here(
+        "output",
+        "figures",
+        if (isTRUE(params$telolength)) {
+          paste0(params$hearing_var, "_telolength_log")
+        } else {
+          params$hearing_var
+        },
+        "Extras",
+        "Unweighted filtered strata proportions"
+      )
 )
 ```
 
@@ -916,7 +964,19 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 8,
-  res = 600
+  res = 600,
+  save = TRUE,
+  file = here(
+        "output",
+        "figures",
+        if (isTRUE(params$telolength)) {
+          paste0(params$hearing_var, "_telolength_log")
+        } else {
+          params$hearing_var
+        },
+        "Extras",
+        paste0("Weighted unfiltered strata ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index")
+      )
 )
 
 sameplot(
@@ -926,7 +986,20 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 8,
-  res = 600
+  res = 600,
+  save = TRUE,
+  save = TRUE,
+  file = here(
+        "output",
+        "figures",
+        if (isTRUE(params$telolength)) {
+          paste0(params$hearing_var, "_telolength_log")
+        } else {
+          params$hearing_var
+        },
+        "Extras",
+        paste0("Weighted filtered strata ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index")
+      )
 )
 ```
 
@@ -937,7 +1010,7 @@ are slightly conservative up to 3 dB at the**
 
 ### Assessment of selection bias
 
-```{r}
+```{r check_selection_bias}
 plot_selection_bias <- function(ref, test) {
   ref <- ref %>% filter(group == "Overall")
   test <- test %>% filter(group == "Overall")
@@ -980,7 +1053,7 @@ estimate prediction error differences between models that share the same design,
 variance estimate due to PSU/strata. Moreover, gam() doesn't support PSU and strata uncertainty
 adjustment.
 
-```{r create dataframe}
+```{r extract_df}
 df <- design$variables
 ```
 
