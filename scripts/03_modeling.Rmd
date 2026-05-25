@@ -364,7 +364,7 @@ tibble(
   )
 ) %>% construct_table(
   title = "Bioage Formulas"
-){r}
+)
 ```
 
 "
@@ -380,7 +380,7 @@ if (isFALSE(params$telolength)) {
     equal_wiggliness = TRUE,
     formulas = c(
       "age",
-      "age, phenoage",
+      if (isTRUE(params$run_biomarker_add_analysis)) "age, phenoage" else NULL,
       "age, albumin_gL",
       "age, alp",
       "age, lncreat",
@@ -395,7 +395,7 @@ if (isFALSE(params$telolength)) {
       "age, totchol",
       "age, hba1c",
       "age, uap",
-      "age, lncrp, phenoage"
+      if (isTRUE(params$run_biomarker_add_analysis)) "age, lncrp, phenoage" else NULL
     ),
     covariates = covariate_interactions
   )
@@ -419,9 +419,17 @@ if (isFALSE(params$telolength)) {
     k = params$global_k,
     auto_limit_k = TRUE,
     equal_wiggliness = TRUE,
-    formulas = c("age", "age, phenoage"),
+    formulas = "age",
     covariates = covariate_vars,
     stepdown = TRUE
+  )
+
+  tibble(
+    Formulas = unlist(
+      formulas_covariates
+    )
+  ) %>% construct_table(
+    title = "Covariate Formulas"
   )
 
   tibble(

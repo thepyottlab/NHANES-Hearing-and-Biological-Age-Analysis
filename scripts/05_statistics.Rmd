@@ -60,10 +60,7 @@ calculate_mse_per_fold <- function(predictions, reference, per_age_group = FALSE
   } else {
     results <- results %>%
       mutate(
-        delta_mse_w = case_when(
-          predictors == "age, gender, smoking, race, education, phenoage" ~ mse_w_ref - mse_w,
-          TRUE ~ mse_w - mse_w_ref
-        )
+        delta_mse_w = mse_w - mse_w_ref
       )
   }
   sample_sizes <- predictions %>%
@@ -197,18 +194,17 @@ folds directly from residuals this way, so the mean weighted MSE is calculated f
 Because the `mse_w` that's computed across folds is already weighted, we can calculate RMSE directly
 from it.
 
-We import the weighted mean Fletcher Index from the dataframe. This is used as a reference for the
-R². Thereafter, we group over the 100 (10x10) folds per model to calculate the R² (using MSE but we
+We import the weighted mean PTA from the dataframe. This is used as a reference for the R².
+Thereafter, we group over the 100 (10x10) folds per model to calculate the R² (using MSE but we
 could use also use sum of squares) and RMSE with survey weights taken into account.
 
 **Total sum of squares calculation when binning R² per age group**: It's imperative that for the age
 group stratified descriptives, the global mean is used. Otherwise it's as if the total sum of
 squares is calculated within each age-bin, which is as if a linear regression is fitted through the
-mean Fletcher Index per age group, explaining a lot of variation while it shouldn't. We want to
-assess the predictive effect on age, so the total sum of squares should be calculated by taking the
-distance from each Fletcher Index within an age group to the global mean. Of course, the models are
-trained on the whole dataset, not just one age group. We're just assessing performance per age
-group.
+mean PTA per age group, explaining a lot of variation while it shouldn't. We want to assess the
+predictive effect on age, so the total sum of squares should be calculated by taking the distance
+from each PTA within an age group to the global mean. Of course, the models are trained on the whole
+dataset, not just one age group. We're just assessing performance per age group.
 
 Sample sizes, R², and RMSE are inserted into the summary dataframe, and delta RMSEs are calculated
 relative to one or multiple reference variables across all ages or within age groups.
@@ -255,14 +251,8 @@ calculate_statistics_across_folds <- function(summary, predictions, data, per_ag
   } else {
     summary %>%
       mutate(
-        delta_rmse_w = case_when(
-          predictors == "age, gender, smoking, race, education, phenoage" ~ rmse_w_ref - rmse_w,
-          TRUE ~ rmse_w - rmse_w_ref
-        ),
-        additional_variance_pct = case_when(
-          predictors == "age, gender, smoking, race, education, phenoage" ~ (mse_w_ref - mse_w) / mse_w_ref * 100,
-          TRUE ~ (mse_w - mse_w_ref) / mse_w * 100
-        )
+        delta_rmse_w = rmse_w - rmse_w_ref,
+        additional_variance_pct = (mse_w - mse_w_ref) / mse_w * 100
       ) %>%
       select(-mse_w_ref, -rmse_w_ref)
   }
@@ -599,7 +589,7 @@ summary_bioage_overall <- nb_corrected_repeated_t_test(
 
 summary_bioage <- nb_corrected_repeated_t_test(
   summary_bioage,
-  exceptions = c("age, phenoage", if (params$hearing_var == "FI_low") c("age, hd", "age, kdm") else NULL),
+  exceptions = c("age, phenoage", if (params$hearing_var == "pta_lf") c("age, hd", "age, kdm") else NULL),
   exception_include_exclude = "include",
   adjust_method = "holm"
 )
@@ -854,11 +844,11 @@ nested quadratic model, we can test against zero to test deviations from a quadr
 When making a smooth (or linear) model, we fit a line to noisy data as best we can, but other lines
 with different coefficients might fit almost as well and be better for some data points then for
 others. Therefore, there is an uncertainty. We can say that, for example, the best-guess slope is 5
-(5 increase fletcher index per year). But because the data is noisy, assuming a normal distribution,
-we know that the true slope that would actually fit the sampling population may be something
-different within a certain range of uncertainty (say, 2), which we can express as a standard error.
-When figuring out the derivative, we inherent this uncertainty. This standard error is what we can
-use to assess the likelihood of the null-hypothesis:
+(5 increase PTA per year). But because the data is noisy, assuming a normal distribution, we know
+that the true slope that would actually fit the sampling population may be something different
+within a certain range of uncertainty (say, 2), which we can express as a standard error. When
+figuring out the derivative, we inherent this uncertainty. This standard error is what we can use to
+assess the likelihood of the null-hypothesis:
 
 **H0**: The rate of aging is quadratic, so the GAM derivative minus the quadratic coefficients
 equals 0.

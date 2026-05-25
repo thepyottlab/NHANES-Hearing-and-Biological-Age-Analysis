@@ -249,12 +249,12 @@ calculate_hearing <- function(data) {
       test_retest_diff_right = abs(audio_right_1000 - audio_right_1000_retest),
       audio_right_1000_mean = mean(c(audio_right_1000, audio_right_1000_retest)),
       audio_left_1000_mean = mean(c(audio_left_1000, audio_left_1000_retest)),
-      FI_low_r = mean(c(audio_right_500, audio_right_1000_mean, audio_right_2000)),
-      FI_low_l = mean(c(audio_left_500, audio_left_1000_mean, audio_left_2000)),
-      FI_low = mean(c(FI_low_r, FI_low_l)),
-      FI_high_r = mean(c(audio_right_4000, audio_right_6000, audio_right_8000)),
-      FI_high_l = mean(c(audio_left_4000, audio_left_6000, audio_left_8000)),
-      FI_high = mean(c(FI_high_r, FI_high_l)),
+      pta_lf_r = mean(c(audio_right_500, audio_right_1000_mean, audio_right_2000)),
+      pta_lf_l = mean(c(audio_left_500, audio_left_1000_mean, audio_left_2000)),
+      pta_lf = mean(c(pta_lf_r, pta_lf_l)),
+      pta_hf_r = mean(c(audio_right_4000, audio_right_6000, audio_right_8000)),
+      pta_hf_l = mean(c(audio_left_4000, audio_left_6000, audio_left_8000)),
+      pta_hf = mean(c(pta_hf_r, pta_hf_l)),
       pta_r = mean(c(
         audio_right_500,
         audio_right_1000,
@@ -308,7 +308,7 @@ no values at all.
 
 ```{r check_complete}
 construct_table <- function(input, title) {
-  table <- input %>%
+  input %>%
     kable(
       "html",
       caption = title
@@ -321,9 +321,6 @@ construct_table <- function(input, title) {
       fixed_thead = TRUE
     ) %>%
     scroll_box(width = "100%", height = "400px")
-
-  print(table)
-  invisible(table)
 }
 
 df_unfiltered %>%
@@ -517,8 +514,8 @@ design$variables %>%
   group_by(year) %>%
   summarize(
     age = paste0(round(mean(age), 1), "(", round(sd(age), 1), ")"),
-    FI_high = paste0(round(mean(FI_high), 1), "(", round(sd(FI_high), 1), ")"),
-    FI_low = paste0(round(mean(FI_low), 1), "(", round(sd(FI_low), 1), ")"),
+    pta_hf = paste0(round(mean(pta_hf), 1), "(", round(sd(pta_hf), 1), ")"),
+    pta_lf = paste0(round(mean(pta_lf), 1), "(", round(sd(pta_lf), 1), ")"),
     albumin = paste0(round(mean(albumin), 1), "(", round(sd(albumin), 1), ")"),
     alp = paste0(round(mean(alp), 1), "(", round(sd(alp), 1), ")"),
     lncrp = paste0(round(mean(lncrp), 1), "(", round(sd(lncrp), 1), ")"),
@@ -812,7 +809,7 @@ plot_proportions <- function(data, y_variable, title) {
     facet_grid(age_group ~ group, scales = "free_x", space = "free_x") +
     labs(
       title = title,
-      y = paste0(if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index\n (dB HL)")
+      y = paste0(if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", "\n (dB HL)")
     ) +
     theme_few() +
     scale_y_continuous(breaks = seq(0, 1, 0.5), labels = c("0", "0.5", "1")) +
@@ -835,16 +832,16 @@ sameplot(
   res = 600,
   save = TRUE,
   file = here(
-        "output",
-        "figures",
-        if (isTRUE(params$telolength)) {
-          paste0(params$hearing_var, "_telolength_log")
-        } else {
-          params$hearing_var
-        },
-        "Extras",
-        "Weighted unfiltered strata proportions"
-      )
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Extras",
+    "Weighted unfiltered strata proportions.png"
+  )
 )
 
 sameplot(
@@ -858,16 +855,16 @@ sameplot(
   res = 600,
   save = TRUE,
   file = here(
-        "output",
-        "figures",
-        if (isTRUE(params$telolength)) {
-          paste0(params$hearing_var, "_telolength_log")
-        } else {
-          params$hearing_var
-        },
-        "Extras",
-        "Weighted filtered strata proportions"
-      )
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Extras",
+    "Weighted filtered strata proportions.png"
+  )
 )
 
 sameplot(
@@ -881,16 +878,16 @@ sameplot(
   res = 600,
   save = TRUE,
   file = here(
-        "output",
-        "figures",
-        if (isTRUE(params$telolength)) {
-          paste0(params$hearing_var, "_telolength_log")
-        } else {
-          params$hearing_var
-        },
-        "Extras",
-        "Unweighted unfiltered strata proportions"
-      )
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Extras",
+    "Unweighted unfiltered strata proportions.png"
+  )
 )
 
 sameplot(
@@ -904,16 +901,16 @@ sameplot(
   res = 600,
   save = TRUE,
   file = here(
-        "output",
-        "figures",
-        if (isTRUE(params$telolength)) {
-          paste0(params$hearing_var, "_telolength_log")
-        } else {
-          params$hearing_var
-        },
-        "Extras",
-        "Unweighted filtered strata proportions"
-      )
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Extras",
+    "Unweighted filtered strata proportions.png"
+  )
 )
 ```
 
@@ -946,7 +943,7 @@ plot_descriptives <- function(data, title) {
     facet_grid(age_group ~ group, scales = "free_x", space = "free_x") +
     labs(
       title = title,
-      y = paste0(if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index\n (dB HL)")
+      y = paste0(if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", "\n (dB HL)")
     ) +
     theme_few() +
     coord_cartesian(ylim = c(0, 80)) +
@@ -960,46 +957,45 @@ plot_descriptives <- function(data, title) {
 sameplot(
   plot_descriptives(
     data = descriptives_unfiltered,
-    title = paste0("Mean Weighted Unfiltered ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index")
+    title = paste0("Mean Weighted Unfiltered ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA")
   ),
   width = params$double_column_width,
   height = 8,
   res = 600,
   save = TRUE,
   file = here(
-        "output",
-        "figures",
-        if (isTRUE(params$telolength)) {
-          paste0(params$hearing_var, "_telolength_log")
-        } else {
-          params$hearing_var
-        },
-        "Extras",
-        paste0("Weighted unfiltered strata ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index")
-      )
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Extras",
+    paste0("Weighted unfiltered strata ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", ".png")
+  )
 )
 
 sameplot(
   plot_descriptives(
     data = descriptives,
-    title = paste0("Mean Weighted Filtered ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index")
+    title = paste0("Mean Weighted Filtered ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA")
   ),
   width = params$double_column_width,
   height = 8,
   res = 600,
   save = TRUE,
-  save = TRUE,
   file = here(
-        "output",
-        "figures",
-        if (isTRUE(params$telolength)) {
-          paste0(params$hearing_var, "_telolength_log")
-        } else {
-          params$hearing_var
-        },
-        "Extras",
-        paste0("Weighted filtered strata ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index")
-      )
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Extras",
+    paste0("Weighted filtered strata ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", ".png")
+  )
 )
 ```
 
@@ -1028,7 +1024,7 @@ plot_selection_bias <- function(ref, test) {
     geom_point(aes(color = age_group), size = 4, show.legend = FALSE) +
     geom_hline(yintercept = 0, linetype = "dashed") +
     theme_few() +
-    labs(x = "Age (Years)", y = paste0("Underestimation ", if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index", "\n(dB SPL)"))
+    labs(x = "Age (Years)", y = paste0("Underestimation ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", "", "\n(dB SPL)"))
 }
 
 sameplot(

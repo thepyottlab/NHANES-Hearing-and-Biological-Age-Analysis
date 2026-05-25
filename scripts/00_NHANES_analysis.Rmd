@@ -44,9 +44,9 @@ editor_options:
 params:
   hearing_var:
     label: "Hearing predictor variable"
-    value: "FI_high"
+    value: "pta_hf"
     input: select
-    choices: ["FI_high", "FI_low"]
+    choices: ["pta_hf", "pta_sf"]
     help: "Set predictor variable"
   telolength:
     label: "Analyze telomere length"
@@ -98,6 +98,11 @@ params:
     value: 2000
     input: numeric
     help: "Set number of samples to take when bootstrapping RMSEs for CI calculations"
+  run_biomarker_add_analysis:
+    label: "Run biomarker additional variance analysis"
+    value: FALSE
+    input: checkbox
+    help: "Set to fit an additional biomarker model to see how much variance within phenoage is explained by the biomarker"
   run_optional_chunks:
     label: "Run tests and validations"
     value: FALSE
@@ -105,7 +110,7 @@ params:
     help: "Set to run tests and validations, which can take a long time to compute"
   save_figures:
     label: "Save figures"
-    value: FALSE
+    value: TRUE
     input: checkbox
     help: "Set to store figures and overwrite old figures"
   single_column_width:

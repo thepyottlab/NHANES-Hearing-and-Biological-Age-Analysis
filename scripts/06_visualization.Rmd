@@ -504,7 +504,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         type = "continuous",
         breaks = seq(0, 90, 30),
         limits = c(-10, 100),
-        name = paste0(if (params$hearing_var == "FI_high") "High" else "Low", " Fletcher Index"),
+        name = paste0(if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA"),
         unit = "dB HL"
       ),
       hl_rate = define_axis(
@@ -1847,7 +1847,7 @@ if (isFALSE(params$telolength)) {
 ###### Plot Delta mse Biomarkers (only relevant ones)
 
 ```{r plot_biomarkers, include=FALSE}
-if (isFALSE(params$telolength)) {
+if (isFALSE(params$telolength) && isTRUE(params$run_biomarker_add_analysis)) {
   p1 <- summary_biomarkers %>%
     filter(predictors %in% c("age, lncrp")) %>%
     mutate(
@@ -1940,7 +1940,7 @@ if (isFALSE(params$telolength)) {
 ###### Plot biomarkers together vs biomarkers + phenoage
 
 ```{r plot_explained_var, include=FALSE}
-if (isFALSE(params$telolength)) {
+if (isFALSE(params$telolength) && isTRUE(params$run_biomarker_add_analysis)) {
   p2 <- summary_biomarkers %>%
     filter(
       predictors %in% c(
@@ -2013,7 +2013,7 @@ if (isFALSE(params$telolength)) {
 ###### Composite plot
 
 ```{r plot_biomark_panel}
-if (isFALSE(params$telolength)) {
+if (isFALSE(params$telolength) && isTRUE(params$run_biomarker_add_analysis)) {
   p <- ggarrange(
     p1,
     NULL,

@@ -204,12 +204,12 @@ predict_age_rate_covariate <- function(
     confint(em, adjust = "mvt")
   )
 
-    predictions %>%
-      rename(
-        "estimate" = emmean,
-        "ci_lower" = lower.CL,
-        "ci_upper" = upper.CL
-      )
+  predictions %>%
+    rename(
+      "estimate" = emmean,
+      "ci_lower" = lower.CL,
+      "ci_upper" = upper.CL
+    )
 }
 
 pred_covariates_full <- list()
