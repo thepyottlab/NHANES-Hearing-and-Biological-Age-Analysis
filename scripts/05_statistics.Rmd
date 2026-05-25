@@ -150,7 +150,7 @@ estimate as `S² * (1/J + n2/n1)`, where `S2` is the variance (squared standard 
 the total number of folds, `n2` is the validation/test set and `n1` is the training set size. They
 also show that when `J` is appropriate (`10*10`), it provides a good variance estimate.
 
-```{r}
+```{r calc_pooled_mse}
 calculate_pooled_mse <- function(results) {
   results %>%
     group_by(age_group, predictors) %>%
@@ -166,8 +166,8 @@ calculate_pooled_mse <- function(results) {
       sum_n_test = sum(n_test),
       mse_w = sum(sum_weights * mse_w) / sum(sum_weights),
       delta_mse_w = sum(sum_weights * delta_mse_w) / sum(sum_weights),
-      s2_mse_w = sum(sum_weights * (mse_w - mse_w_mean)^2) / (sum(sum_weights) - 1),
-      delta_s2_mse_w = sum(sum_weights * (delta_mse_w - delta_mse_w_mean)^2) / (sum(sum_weights) - 1),
+      s2_mse_w = sum(sum_weights * (mse_w - mse_w_mean)^2) / (sum(sum_weights)),
+      delta_s2_mse_w = sum(sum_weights * (delta_mse_w - delta_mse_w_mean)^2) / (sum(sum_weights)),
       .groups = "drop"
     ) %>%
     mutate(
@@ -209,7 +209,7 @@ dataset, not just one age group. We're just assessing performance per age group.
 Sample sizes, R², and RMSE are inserted into the summary dataframe, and delta RMSEs are calculated
 relative to one or multiple reference variables across all ages or within age groups.
 
-```{r}
+```{r calc_stats}
 calculate_statistics_across_folds <- function(summary, predictions, data, per_age_group = FALSE, covariate_analysis = FALSE) {
   weighted_mean <- data %>%
     summarize(
@@ -589,7 +589,7 @@ summary_bioage_overall <- nb_corrected_repeated_t_test(
 
 summary_bioage <- nb_corrected_repeated_t_test(
   summary_bioage,
-  exceptions = c("age, phenoage", if (params$hearing_var == "pta_lf") c("age, hd", "age, kdm") else NULL),
+  exceptions = c("age, phenoage", if (params$hearing_var == "pta_lf") c("age, hd_log", "age, kdm") else NULL),
   exception_include_exclude = "include",
   adjust_method = "holm"
 )
@@ -655,7 +655,7 @@ if (isFALSE(params$telolength)) {
 summary_bioage %>%
   mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
   construct_table(
-    title = "Overall Bioage Pairwise Comparisons"
+    title = "Per-Age Group Bioage Pairwise Comparisons"
   )
 
 summary_bioage_overall %>%
@@ -665,36 +665,36 @@ summary_bioage_overall %>%
   )
 
 if (isFALSE(params$telolength)) {
-  summary_bioage_reverse %>%
+  print(summary_bioage_reverse %>%
+    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    construct_table(
+      title = "Per-Age Group Bioage Reverse Analysis Pairwise Comparisons"
+    ))
+  print(summary_bioage_reverse_overall %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
       title = "Overall Bioage Reverse Analysis Pairwise Comparisons"
-    )
-  summary_bioage_reverse_overall %>%
+    ))
+  print(summary_biomarkers %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
-      title = "Overall Bioage Reverse Analysis Pairwise Comparisons"
-    )
-  summary_biomarkers %>%
-    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
-    construct_table(
-      title = "Overall Biomarker Pairwise Comparisons"
-    )
-  summary_biomarkers_overall %>%
+      title = "Per-Age Group Biomarker Pairwise Comparisons"
+    ))
+  print(summary_biomarkers_overall %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
       title = "Overall Biomarker Pairwise Comparisons"
-    )
-  summary_covariates %>%
+    ))
+  print(summary_covariates %>%
+    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    construct_table(
+      title = "Per-Age Group Covariate Pairwise Comparisons"
+    ))
+  print(summary_covariates_overall %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
       title = "Overall Covariate Pairwise Comparisons"
-    )
-  summary_covariates_overall %>%
-    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
-    construct_table(
-      title = "Overall Covariate Pairwise Comparisons"
-    )
+    ))
 }
 ```
 

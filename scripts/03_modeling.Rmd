@@ -367,8 +367,6 @@ tibble(
 )
 ```
 
-"
-
 ### Generate formulas biomarkers
 
 ```{r build_biomark_forms}
@@ -431,14 +429,6 @@ if (isFALSE(params$telolength)) {
   ) %>% construct_table(
     title = "Covariate Formulas"
   )
-
-  tibble(
-    Formulas = unlist(
-      formulas_covariates
-    )
-  ) %>% construct_table(
-    title = "Covariate Formulas"
-  )
 }
 ```
 
@@ -480,15 +470,12 @@ cross_validation <- function(
 
   # Set predictor combination names
   if (isTRUE(covariate_analysis)) {
-    covariate_interactions <- gsub(", ", "_", covariate_interactions)
-
     predictor_labels <- c(
-      paste(c("age", covariate_interactions), collapse = ", "),
+      paste(c("age", covariate_vars), collapse = ", "),
       sapply(
-        seq_along(covariate_interactions),
-        function(i) paste(c("age", covariate_interactions[-i]), collapse = ", ")
-      ),
-      paste(c("age", covariate_interactions, "phenoage"), collapse = ", ")
+        seq_along(covariate_vars),
+        function(i) paste(c("age", covariate_vars[-i]), collapse = ", ")
+      )
     )
   } else {
     predictor_labels <- unique(
@@ -884,6 +871,90 @@ models_covariates <- append(
     )
   )
 )
+```
+
+## (Temp) segmented linear regression
+
+```{r}
+mod_seg_m <- segmented(
+  lm(reformulate("age", params$hearing_var), data = filter(df, gender == 1),
+     weights = weights / mean(weights)),
+  seg.Z = ~age, psi = c(50, 70)
+)
+mod_seg_f <- segmented(
+  lm(reformulate("age", params$hearing_var), data = filter(df, gender == 2),
+     weights = weights / mean(weights)),
+  seg.Z = ~age, psi = 50
+)
+
+pred_m <- tibble(age =seq(
+    min(df[["age"]]),
+    max(df[["age"]]),
+    by = 1
+)) %>%
+  mutate(
+    pred = predict(mod_seg_m, newdata = .),
+    gender = 1
+  )
+
+pred_f <- tibble(age = seq(
+    min(df[["age"]]),
+    max(df[["age"]]),
+    by = 1
+)) %>%
+  mutate(
+    pred = predict(mod_seg_f, newdata = .),
+    gender = 2
+  )
+
+preds_seg <- bind_rows(pred_m, pred_f)
+
+  p1 <- ggplot() +
+    geom_line(
+      data = preds_seg,
+      aes(
+        x = age,
+        y = pred,
+        color = as.factor(gender)
+      ),
+      alpha = 1,
+      show.legend = TRUE
+    ) +
+    geom_line(
+      data = pred_covariates_full$smooth_gender,
+      aes(
+        x = age,
+        y = estimate
+      ),
+      alpha = 0.4,
+      color = "black"
+      show.legend = TRUE
+    ) +
+    geom_line(data = svyby(as.formula(paste0("~", params$hearing_var)), ~ gender*age, design, svymean),
+      aes(
+        x = as.numeric(age),
+        y = .data[[params$hearing_var]],
+        color = as.factor(gender)
+      ),
+      alpha = 0.2
+    ) +
+    axes(
+      x = "age",
+      y = "hl"
+    ) +
+    color_scales("gender") +
+    plot_theme() +
+    theme(
+      axis.title.x = element_blank()
+    )
+  
+    sameplot(
+    p1,
+    file = here(plot_config("figure_dir"), "Extras", "covariate_strata_panel.png"),
+    width = params$single_column_width,
+    height = 3,
+    res = 600
+  )
 ```
 
 ## Optional tests

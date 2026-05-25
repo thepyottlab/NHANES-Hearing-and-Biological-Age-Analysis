@@ -76,6 +76,7 @@ predict_age_rate <- function(
     ),
     predictor
   )
+  
   formula <- as.formula(
     paste("~", predictor)
   )
@@ -252,3 +253,4 @@ with(pred_age_rate$linear, cov(age, estimate) / var(age))
 with(pred_age_rate$quadratic_derivative, cov(age, derivative) / var(age))
 coef(lm(derivative ~ age, data = pred_age_rate$derivative_smooth))[["age"]]
 ```
+

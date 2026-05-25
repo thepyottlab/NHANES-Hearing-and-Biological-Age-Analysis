@@ -29,7 +29,7 @@ select_audiometry_sample <- function(data_map) {
     reduce(union)
 
   # Filter non-audiometry files to audiometry subject IDs only
-  data_map <- data_map %>%
+  data_map %>%
     mutate(
       data = map2(data, file, \(df, f) {
         if (str_detect(f, "Audiometry")) {
@@ -139,7 +139,7 @@ following ages were assessed in each cycle:
 - 2017-2020 (up to March): 6-19, 70+ (above 79 is set to 80)
 
 To calculate weights, we divide the number of years in the weights by the total number of years in
-the age group.
+the age group, but note that .
 
 Ages are binned into age groups. Mexican Americans (`race == 1`) and other hispanics (`race == 2`)
 are merged into a single hispanics variable. Creatinine in 1999 and 2005 and CRP in 2015 and 2017
@@ -257,13 +257,13 @@ calculate_hearing <- function(data) {
       pta_hf = mean(c(pta_hf_r, pta_hf_l)),
       pta_r = mean(c(
         audio_right_500,
-        audio_right_1000,
+        audio_right_1000_mean,
         audio_right_2000,
         audio_right_4000
       )),
       pta_l = mean(c(
         audio_left_500,
-        audio_left_1000,
+        audio_right_1000_mean,
         audio_left_2000,
         audio_left_4000
       )),
@@ -542,9 +542,6 @@ changes, sampling differences, and large variances. No other issues.
 ```{r calc_bioage, warning=FALSE}
 insert_bioage <- function(design) {
   bioage_calc <- function(data, training_data_path, HD_training_data_path) {
-    v1_biomarkers <- c(
-      "fev", "sbp", "totchol", "hba1c", "albumin", "lncreat", "lncrp", "alp", "bun"
-    )
     v2_biomarkers <- c(
       "albumin", "alp", "lncrp", "totchol", "lncreat", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc"
     )
@@ -999,10 +996,7 @@ sameplot(
 )
 ```
 
-**Hearing is slightly worse without filtering, which suggests we disproportionally exclude people
-with bad hearing. This is partly caused by excluding people with asymmetric hearing loss and
-inconsistent measurements, but not entirely. We should acknowledge in the limitations that estimates
-are slightly conservative up to 3 dB at the**
+**Barely any selection bias after excluding asymmetric hearing loss.**
 
 ### Assessment of selection bias
 
