@@ -285,7 +285,7 @@ observations are taken twice and others are omitted (set by `replace = TRUE`). I
 code once and don't filter per age group). Compile into a dataframe (tidytable) at the end and
 insert values into the summary dataframes.
 
-We flip the sign and order of upper and lower CIs of confounders. Survey weights are applied to
+We flip the sign and order of upper and lower CIs of covariates. Survey weights are applied to
 calculate weighted column means.
 
 ```{r calc_RMSE_CI}
@@ -555,7 +555,7 @@ nb_corrected_repeated_t_test <- function(summary,
 
   summary <- summary %>%
     mutate(
-      t = delta_mse_w / se_mse_w_nb,
+      t = delta_mse_w / se_delta_mse_w_nb,
       df = n - 1,
       p = pt(t, df = df, lower.tail = FALSE),
       p_adj = p.adjust(p, method = adjust_method),
@@ -677,15 +677,15 @@ if (isFALSE(params$telolength)) {
     construct_table(
       title = "Overall Biomarker Pairwise Comparisons"
     )
-  summary_confounders %>%
+  summary_covariates %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
-      title = "Overall Confounder Pairwise Comparisons"
+      title = "Overall Covariate Pairwise Comparisons"
     )
-  summary_confounders_overall %>%
+  summary_covariates_overall %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
-      title = "Overall Confounder Pairwise Comparisons"
+      title = "Overall Covariate Pairwise Comparisons"
     )
 }
 ```
@@ -734,12 +734,12 @@ if (isFALSE(params$telolength)) {
       data = df
     )
 
-  summary_confounders <- summary_confounders %>%
+  summary_covariates <- summary_covariates %>%
     add_n_age_groups(
       data = df,
       per_age_group = TRUE
     )
-  summary_confounders_overall <- summary_confounders_overall %>%
+  summary_covariates_overall <- summary_covariates_overall %>%
     add_n_age_groups(
       data = df
     )

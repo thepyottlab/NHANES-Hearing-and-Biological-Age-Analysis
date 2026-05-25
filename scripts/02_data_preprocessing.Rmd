@@ -500,6 +500,17 @@ subset_data <- function(design) {
 design <- design_no_missing %>% subset_data()
 ```
 
+### Optionally only include telolength
+
+```{r filt_telolength}
+if (isTRUE(params$telolength)) {
+  design <- design %>%
+    subset(
+      !is.na(telolength)
+    )
+}
+```
+
 ### Check data issues (unweighted)
 
 ```{r check_df_balance}
@@ -532,7 +543,7 @@ changes, sampling differences, and large variances. No other issues.
 
 ## Calculate biological age
 
-```{r}
+```{r warning=FALSE}
 insert_bioage <- function(design) {
   bioage_calc <- function(data, training_data_path, HD_training_data_path) {
     v1_biomarkers <- c(
@@ -687,7 +698,7 @@ calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
   )
 
   groups <- c(Gender = "gender", Race = "race", Smoking = "smoking", Education = "education")
-  age_groups <- factor(c("Overall", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80"))
+  age_groups <- factor(c("Overall", "20-30", "30-40", "40-50", "50-60", "60-70", if (isFALSE(params$telolength)) "70-80" else NULL))
   hearing_var <- as.formula(paste0("~", params$hearing_var))
   results <- list()
 
@@ -728,9 +739,11 @@ calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
               mean_w_kdm = coef(svymean(~kdm, design_subset)),
               mean_w_phenoage = coef(svymean(~phenoage, design_subset)),
               mean_w_hd_log = coef(svymean(~hd_log, design_subset)),
+              mean_w_telolength = coef(svymean(~telolength, design_subset, na.rm = TRUE)),
               sd_w_kdm = sqrt(coef(svyvar(~kdm, design_subset))),
               sd_w_phenoage = sqrt(coef(svyvar(~phenoage, design_subset))),
-              sd_w_hd_log = sqrt(coef(svyvar(~hd_log, design_subset)))
+              sd_w_hd_log = sqrt(coef(svyvar(~hd_log, design_subset))),
+              sd_w_telolength = sqrt(coef(svyvar(~telolength, design_subset, na.rm = TRUE))),
             )
           } else {
             .
@@ -757,9 +770,11 @@ calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
                 mean_w_kdm = svyby(~kdm, grouping_variable, design_subset, svymean)$kdm,
                 mean_w_phenoage = svyby(~phenoage, grouping_variable, design_subset, svymean)$phenoage,
                 mean_w_hd_log = svyby(~hd_log, grouping_variable, design_subset, svymean)$hd_log,
+                mean_w_telolength = svyby(~telolength, grouping_variable, design_subset, svymean, na.rm = TRUE)$telolength,
                 sd_w_kdm = sqrt(svyby(~kdm, grouping_variable, design_subset, svyvar)$kdm),
                 sd_w_phenoage = sqrt(svyby(~phenoage, grouping_variable, design_subset, svyvar)$phenoage),
-                sd_w_hd_log = sqrt(svyby(~hd_log, grouping_variable, design_subset, svyvar)$hd_log)
+                sd_w_hd_log = sqrt(svyby(~hd_log, grouping_variable, design_subset, svyvar)$hd_log),
+                sd_w_telolength = sqrt(svyby(~telolength, grouping_variable, design_subset, svyvar, na.rm = TRUE)$telolength)
               )
             } else {
               .
@@ -774,7 +789,7 @@ calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
   bind_rows(results) %>%
     mutate(
       group = factor(group, levels = c("Overall", "Gender", "Race", "Smoking", "Education")),
-      age_group = factor(age_group, levels = c("Overall", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80"))
+      age_group = factor(age_group, levels = c("Overall", "20-30", "30-40", "40-50", "50-60", "60-70", if (isFALSE(params$telolength)) "70-80" else NULL))
     )
 }
 
@@ -1033,10 +1048,5 @@ df <- df %>%
 ## Optionally only include telolength rows
 
 ```{r telolength_only}
-if (isTRUE(params$telolength)) {
-  df <- df %>%
-    filter(
-      !is.na(telolength)
-    )
-}
+
 ```
