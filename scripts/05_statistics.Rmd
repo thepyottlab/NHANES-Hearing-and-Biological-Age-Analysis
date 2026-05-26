@@ -406,7 +406,7 @@ compute_rmse_ci <- function(
 
 ### Run descriptive statistics calculation pipeline
 
-```{r discr_stat_pipeline}
+```{r descr_stat_pipeline}
 summary_bioage_overall <- results_bioage_overall %>%
   calculate_pooled_mse() %>%
   calculate_statistics_across_folds(
@@ -651,50 +651,95 @@ if (isFALSE(params$telolength)) {
 
 ### Display summary tables
 
-```{r show_summary_tables}
-summary_bioage %>%
-  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
-  construct_table(
-    title = "Per-Age Group Bioage Pairwise Comparisons"
-  )
+#### Bioage overall
 
+```{r pwc_bioage_overall}
 summary_bioage_overall %>%
   mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
   construct_table(
     title = "Overall Bioage Pairwise Comparisons"
   )
+```
 
+#### Bioage
+
+```{r pwc_bioage}
+summary_bioage %>%
+  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+  construct_table(
+    title = "Per-Age Group Bioage Pairwise Comparisons"
+  )
+```
+
+#### Bioage reverse overall
+
+```{r pwc_bioage_reverse_overall}
 if (isFALSE(params$telolength)) {
-  print(summary_bioage_reverse %>%
-    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
-    construct_table(
-      title = "Per-Age Group Bioage Reverse Analysis Pairwise Comparisons"
-    ))
-  print(summary_bioage_reverse_overall %>%
+  summary_bioage_reverse_overall %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
       title = "Overall Bioage Reverse Analysis Pairwise Comparisons"
-    ))
-  print(summary_biomarkers %>%
+    )
+}
+```
+
+#### Bioage reverse
+
+```{r pwc_bioage_reverse}
+if (isFALSE(params$telolength)) {
+  summary_bioage_reverse %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
-      title = "Per-Age Group Biomarker Pairwise Comparisons"
-    ))
-  print(summary_biomarkers_overall %>%
+      title = "Per-Age Group Bioage Reverse Analysis Pairwise Comparisons"
+    )
+}
+```
+
+#### Biomarkers overall
+
+```{r pwc_biomarkers_overall}
+if (isFALSE(params$telolength)) {
+  summary_biomarkers_overall %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
       title = "Overall Biomarker Pairwise Comparisons"
-    ))
-  print(summary_covariates %>%
+    )
+}
+```
+
+#### Biomarkers
+
+```{r pwc_biomarkers}
+if (isFALSE(params$telolength)) {
+  summary_biomarkers %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
-      title = "Per-Age Group Covariate Pairwise Comparisons"
-    ))
-  print(summary_covariates_overall %>%
+      title = "Per-Age Group Biomarker Pairwise Comparisons"
+    )
+}
+```
+
+#### Covariates overall
+
+```{r pwc_covariates_overall}
+if (isFALSE(params$telolength)) {
+  summary_covariates_overall %>%
     mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
     construct_table(
       title = "Overall Covariate Pairwise Comparisons"
-    ))
+    )
+}
+```
+
+#### Covariates
+
+```{r pwc_covariates}
+if (isFALSE(params$telolength)) {
+  summary_covariates %>%
+    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    construct_table(
+      title = "Per-Age Group Covariate Pairwise Comparisons"
+    )
 }
 ```
 
@@ -822,10 +867,7 @@ calculate_f_test_statistics <- function(anova) {
     signif(anova_table$`Partial Omega2`[2], 1)
   )
 
-  list(anova_table %>%
-    construct_table(
-      title = "RMSE (In-Sample)"
-    ), htmltools::HTML(report))
+  htmltools::HTML(report)
 }
 
 calculate_f_test_statistics(aov_quadratic)

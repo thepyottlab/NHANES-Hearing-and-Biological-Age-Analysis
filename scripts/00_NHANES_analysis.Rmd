@@ -29,7 +29,7 @@ output:
     toc: true
     toc_float: true
     number_sections: true
-    df_ppi_print: paged
+    df_print: paged
     highlight: tango
     self_contained: true
     fig_width: 7
@@ -46,7 +46,7 @@ params:
     label: "Hearing predictor variable"
     value: "pta_hf"
     input: select
-    choices: ["pta_hf", "pta_sf"]
+    choices: ["pta_hf", "pta_lf"]
     help: "Set predictor variable"
   telolength:
     label: "Analyze telomere length"
@@ -54,13 +54,18 @@ params:
     value: FALSE
     help: "Check to use telolength dataset with smaller N"
   global_k:
-    label: "K (n BAM base functions)"
+    label: "K (n BAM base functions) biological age analysis"
     value: 50
+    input: numeric
+    help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
+  age_rate_k:
+    label: "K (n BAM base functions) age rate analysis"
+    value: 13
     input: numeric
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   global_discrete: 
     label: "Discretize BAM"
-    value: FALSE
+    value: TRUE
     input: checkbox
     help: "Check to speed up fitting but create larger models that perform a little worse"
   global_folds: 
@@ -110,7 +115,7 @@ params:
     help: "Set to run tests and validations, which can take a long time to compute"
   save_figures:
     label: "Save figures"
-    value: TRUE
+    value: FALSE
     input: checkbox
     help: "Set to store figures and overwrite old figures"
   single_column_width:

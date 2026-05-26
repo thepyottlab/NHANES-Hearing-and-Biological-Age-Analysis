@@ -820,7 +820,7 @@ models_age_rate <- append(
   list(
     linear = model_age_rate("age"),
     quadratic = model_age_rate(c("age", "I(age^2)")),
-    smooth = model_age_rate(c("age", "I(age^2)", "s(age, k = 10)"))
+    smooth = model_age_rate(c("age", "I(age^2)", paste0("s(age, k = ", params$age_rate_k, ")")))
   )
 )
 
@@ -878,84 +878,84 @@ models_covariates <- append(
 ```{r}
 # library(segmented)
 # mod_seg_m <- segmented(
-#   lm(reformulate("age", params$hearing_var), data = filter(df, gender == 1),
-#      weights = weights / mean(weights)),
-#   seg.Z = ~age, psi = c(50, 70)
+# lm(reformulate("age", params$hearing_var), data = filter(df, gender == 1),
+# weights = weights / mean(weights)),
+# seg.Z = ~age, psi = c(50, 70)
 # )
 # mod_seg_f <- segmented(
-#   lm(reformulate("age", params$hearing_var), data = filter(df, gender == 2),
-#      weights = weights / mean(weights)),
-#   seg.Z = ~age, psi = 50
+# lm(reformulate("age", params$hearing_var), data = filter(df, gender == 2),
+# weights = weights / mean(weights)),
+# seg.Z = ~age, psi = 50
 # )
-# 
+#
 # pred_m <- tibble(age =seq(
-#     min(df[["age"]]),
-#     max(df[["age"]]),
-#     by = 1
+# min(df[["age"]]),
+# max(df[["age"]]),
+# by = 1
 # )) %>%
-#   mutate(
-#     pred = predict(mod_seg_m, newdata = .),
-#     gender = 1
-#   )
-# 
+# mutate(
+# pred = predict(mod_seg_m, newdata = .),
+# gender = 1
+# )
+#
 # pred_f <- tibble(age = seq(
-#     min(df[["age"]]),
-#     max(df[["age"]]),
-#     by = 1
+# min(df[["age"]]),
+# max(df[["age"]]),
+# by = 1
 # )) %>%
-#   mutate(
-#     pred = predict(mod_seg_f, newdata = .),
-#     gender = 2
-#   )
-# 
+# mutate(
+# pred = predict(mod_seg_f, newdata = .),
+# gender = 2
+# )
+#
 # preds_seg <- bind_rows(pred_m, pred_f)
-# 
-#   p1 <- ggplot() +
-#     geom_line(
-#       data = preds_seg,
-#       aes(
-#         x = age,
-#         y = pred,
-#         color = as.factor(gender)
-#       ),
-#       alpha = 1,
-#       show.legend = TRUE
-#     ) +
-#     geom_line(
-#       data = pred_covariates_full$smooth_gender,
-#       aes(
-#         x = age,
-#         y = estimate
-#       ),
-#       alpha = 0.4,
-#       color = "black",
-#       show.legend = TRUE
-#     ) +
-#     geom_line(data = svyby(as.formula(paste0("~", params$hearing_var)), ~ gender*age, design, svymean),
-#       aes(
-#         x = as.numeric(age),
-#         y = .data[[params$hearing_var]],
-#         color = as.factor(gender)
-#       ),
-#       alpha = 0.2
-#     ) +
-#     axes(
-#       x = "age",
-#       y = "hl"
-#     ) +
-#     color_scales("gender") +
-#     plot_theme() +
-#     theme(
-#       axis.title.x = element_blank()
-#     )
-# 
-#     sameplot(
-#     p1,
-#     file = here(plot_config("figure_dir"), "Extras", "covariate_strata_panel.png"),
-#     width = params$single_column_width,
-#     height = 3,
-#     res = 600
-#   )
+#
+# p1 <- ggplot() +
+# geom_line(
+# data = preds_seg,
+# aes(
+# x = age,
+# y = pred,
+# color = as.factor(gender)
+# ),
+# alpha = 1,
+# show.legend = TRUE
+# ) +
+# geom_line(
+# data = pred_covariates_full$smooth_gender,
+# aes(
+# x = age,
+# y = estimate
+# ),
+# alpha = 0.4,
+# color = "black",
+# show.legend = TRUE
+# ) +
+# geom_line(data = svyby(as.formula(paste0("~", params$hearing_var)), ~ gender*age, design, svymean),
+# aes(
+# x = as.numeric(age),
+# y = .data[[params$hearing_var]],
+# color = as.factor(gender)
+# ),
+# alpha = 0.2
+# ) +
+# axes(
+# x = "age",
+# y = "hl"
+# ) +
+# color_scales("gender") +
+# plot_theme() +
+# theme(
+# axis.title.x = element_blank()
+# )
+#
+# sameplot(
+# p1,
+# file = here(plot_config("figure_dir"), "Extras", "covariate_strata_panel.png"),
+# width = params$single_column_width,
+# height = 3,
+# res = 600
+# )
 ```
 
 ## Optional tests
