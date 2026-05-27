@@ -55,7 +55,7 @@ params:
     help: "Check to use telolength dataset with smaller N"
   global_k:
     label: "K (n BAM base functions) biological age analysis"
-    value: 50
+    value: 30
     input: numeric
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   age_rate_k:
@@ -65,7 +65,7 @@ params:
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   global_discrete: 
     label: "Discretize BAM"
-    value: TRUE
+    value: FALSE
     input: checkbox
     help: "Check to speed up fitting but create larger models that perform a little worse"
   global_folds: 

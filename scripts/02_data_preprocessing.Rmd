@@ -981,7 +981,7 @@ sameplot(
   width = params$double_column_width,
   height = 8,
   res = 600,
-  save = TRUE,
+  save = params$save_figures,
   file = here(
     "output",
     "figures",

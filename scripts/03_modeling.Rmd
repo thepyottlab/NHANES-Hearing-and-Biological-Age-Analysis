@@ -873,91 +873,6 @@ models_covariates <- append(
 )
 ```
 
-## (Temp) segmented linear regression
-
-```{r}
-# library(segmented)
-# mod_seg_m <- segmented(
-# lm(reformulate("age", params$hearing_var), data = filter(df, gender == 1),
-# weights = weights / mean(weights)),
-# seg.Z = ~age, psi = c(50, 70)
-# )
-# mod_seg_f <- segmented(
-# lm(reformulate("age", params$hearing_var), data = filter(df, gender == 2),
-# weights = weights / mean(weights)),
-# seg.Z = ~age, psi = 50
-# )
-#
-# pred_m <- tibble(age =seq(
-# min(df[["age"]]),
-# max(df[["age"]]),
-# by = 1
-# )) %>%
-# mutate(
-# pred = predict(mod_seg_m, newdata = .),
-# gender = 1
-# )
-#
-# pred_f <- tibble(age = seq(
-# min(df[["age"]]),
-# max(df[["age"]]),
-# by = 1
-# )) %>%
-# mutate(
-# pred = predict(mod_seg_f, newdata = .),
-# gender = 2
-# )
-#
-# preds_seg <- bind_rows(pred_m, pred_f)
-#
-# p1 <- ggplot() +
-# geom_line(
-# data = preds_seg,
-# aes(
-# x = age,
-# y = pred,
-# color = as.factor(gender)
-# ),
-# alpha = 1,
-# show.legend = TRUE
-# ) +
-# geom_line(
-# data = pred_covariates_full$smooth_gender,
-# aes(
-# x = age,
-# y = estimate
-# ),
-# alpha = 0.4,
-# color = "black",
-# show.legend = TRUE
-# ) +
-# geom_line(data = svyby(as.formula(paste0("~", params$hearing_var)), ~ gender*age, design, svymean),
-# aes(
-# x = as.numeric(age),
-# y = .data[[params$hearing_var]],
-# color = as.factor(gender)
-# ),
-# alpha = 0.2
-# ) +
-# axes(
-# x = "age",
-# y = "hl"
-# ) +
-# color_scales("gender") +
-# plot_theme() +
-# theme(
-# axis.title.x = element_blank()
-# )
-#
-# sameplot(
-# p1,
-# file = here(plot_config("figure_dir"), "Extras", "covariate_strata_panel.png"),
-# width = params$single_column_width,
-# height = 3,
-# res = 600
-# )
-```
-
 ## Optional tests
 
 ### (Optional) Inspect folds
@@ -1447,6 +1362,76 @@ if (isTRUE(params$run_optional_chunks)) {
     reps = 400
   ) %>%
     construct_table(title = "Inspect K Biomarkers")
+}
+```
+
+### (Optional) K stability analysis
+
+```{r}
+if (isTRUE(params$run_optional_chunks)) {
+  assess_stability_k <- function(data) {
+    k_df <- map_dfr(seq(3, 30, 1), function(k) {
+      set.seed(1)
+      m <- model_age_rate(c("age", "I(age^2)", paste0("s(age, k = ", k, ")")))
+      k.check(m) %>%
+        as_tibble() %>%
+        mutate(k = k)
+    })
+
+    ggplot(k_df, aes(x = k, y = edf)) +
+      geom_line() +
+      geom_point(size = 1.5) +
+      scale_x_continuous(breaks = c(3, 5, 10, 15, 20, 25, 30)) +
+      coord_cartesian(ylim = c(0, NA)) +
+      labs(x = "K (smooth base dimensions)", y = "Effective degrees of freedom") +
+      theme_few() +
+      theme(
+        panel.grid.major.x = element_line(linewidth = 0.1, color = "grey50"),
+        panel.border = element_part_rect(
+          colour = "grey30",
+          side = "lb",
+          linewidth = 0.5
+        ),
+        plot.margin = margin(1, 1, 0, 1, unit = "pt"),
+        axis.text.x = element_markdown(
+          "sans",
+          size = 8
+        ),
+        axis.text.y = element_markdown(
+          "sans",
+          size = 8
+        ),
+        axis.title.x = element_markdown(
+          "sans",
+          size = 9,
+          lineheight = 1.1
+        ),
+        axis.title.y = element_markdown(
+          "sans",
+          size = 9,
+          lineheight = 1.1
+        )
+      )
+  }
+
+  sameplot(
+    assess_stability_k(df),
+    width = params$single_column_width,
+    height = 3,
+    res = 600,
+    save = params$save_figures,
+    file = here(
+      "output",
+      "figures",
+      if (isTRUE(params$telolength)) {
+        paste0(params$hearing_var, "_telolength_log")
+      } else {
+        params$hearing_var
+      },
+      "Extras",
+      paste0("Weighted filtered strata ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", ".png")
+    )
+  )
 }
 ```
 
