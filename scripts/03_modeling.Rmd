@@ -1200,7 +1200,7 @@ if (isTRUE(params$run_optional_chunks)) {
 ```
 
 **The free wiggliness model takes about 15 times longer to compute and barely has a drop in residual
-deviance. The improvement in fit is not significant, so enforce shared smoothing parameters.**
+deviance. The improvement in fit is barely significant, so enforce shared smoothing parameters.**
 
 ### (Optional) Check factor three-way interactions
 
@@ -1278,8 +1278,9 @@ if (isTRUE(params$run_optional_chunks)) {
 }
 ```
 
-We see that `age*gender*race` is a significant three-way interaction but it takes 3 times longer to
-compute. Bam() speeds things up enough over gam() that this processing cost is acceptable.
+We see that `age*gender*race` and `age*education*gender` are a significant three-way interaction but
+it takes 3 times longer to compute. Bam() speeds things up enough over gam() that this processing
+cost is acceptable.
 
 ### (Optional) Inspect k-values
 
@@ -1302,12 +1303,9 @@ Models are fit on whole dataset.
 
 ```{r inspect_k}
 if (isTRUE(params$run_optional_chunks)) {
-  inspect_k_values <- function(data, formulas, discrete = FALSE, subsample = 5000, reps = 400) {
-    set.seed(2)
-
-    models <- list()
-
-    for (formula in formulas) {
+  inspect_k_values <- function(data, formulas, discrete = FALSE, threads = 1) {
+    run_formula <- function(formula) {
+      set.seed(2)
       mod <- bam(
         as.formula(formula),
         data = data,
@@ -1316,52 +1314,59 @@ if (isTRUE(params$run_optional_chunks)) {
         method = if (isTRUE(discrete)) "fREML" else "REML",
         discrete = if (isTRUE(discrete)) TRUE else FALSE
       )
-
+      k_result <- k.check(mod)
       predictors <- paste(
         extract_predictors(formula),
         collapse = ", "
       )
-
-      models[[predictors]] <- mod
+      as.data.frame(k_result) %>%
+        rownames_to_column(var = "Predictors") %>%
+        mutate(model = predictors) %>%
+        filter(!is.na(`k-index`))
     }
 
-    inspect_k <- function(model) {
-      k.check(
-        model,
-        subsample = subsample,
-        n.rep = reps
+    plan(multisession, workers = threads)
+    k_list <- future_lapply(
+      formulas,
+      FUN = run_formula,
+      future.seed = TRUE,
+      future.globals = list(
+        data = data,
+        discrete = discrete,
+        extract_predictors = extract_predictors,
+        covariate_vars = covariate_vars
+      ),
+      future.packages = c(
+        "mgcv",
+        "tidyverse",
+        "tidytable"
       )
-    }
-
-    k_output <- lapply(models, inspect_k)
-    k_output <- imap_dfr(
-      k_output,
-      ~ {
-        as.data.frame(.x) %>%
-          rownames_to_column(var = "Predictors") %>%
-          mutate(model = .y) %>%
-          filter(!is.na(`k-index`))
-      }
     )
+    plan(sequential)
 
-    k_output
+    bind_rows(k_list)
   }
 
   inspect_k_values(df,
     formulas_bioage,
     discrete = params$global_discrete,
-    subsample = 5000,
-    reps = 400
+    threads = min(
+      params$n_threads,
+      as.numeric(future::availableCores()) - 1
+    )
   ) %>%
     construct_table(title = "Inspect K Bioage")
-
-  inspect_k_values(df,
-    formulas_biomarkers,
-    discrete = params$global_discrete,
-    subsample = 5000,
-    reps = 400
-  ) %>%
-    construct_table(title = "Inspect K Biomarkers")
+  if (isFALSE(params$telolength)) {
+    inspect_k_values(df,
+      formulas_biomarkers,
+      discrete = params$global_discrete,
+      threads = min(
+        params$n_threads,
+        as.numeric(future::availableCores()) - 1
+      )
+    ) %>%
+      construct_table(title = "Inspect K Biomarkers")
+  }
 }
 ```
 
@@ -1369,14 +1374,30 @@ if (isTRUE(params$run_optional_chunks)) {
 
 ```{r}
 if (isTRUE(params$run_optional_chunks)) {
-  assess_stability_k <- function(data) {
-    k_df <- map_dfr(seq(3, 30, 1), function(k) {
-      set.seed(1)
-      m <- model_age_rate(c("age", "I(age^2)", paste0("s(age, k = ", k, ")")))
-      k.check(m) %>%
-        as_tibble() %>%
-        mutate(k = k)
-    })
+  assess_stability_k <- function(data, threads = 1) {
+  run_k <- function(k) {
+    set.seed(1)
+    m <- model_age_rate(c("age", "I(age^2)", paste0("s(age, k = ", k, ")")))
+    k.check(m) %>%
+      as_tibble() %>%
+      mutate(k = k)
+  }
+
+  plan(multisession, workers = threads)
+  k_list <- future_lapply(
+    seq(3, 30, 1),
+    FUN = run_k,
+    future.seed = TRUE,
+    future.globals = TRUE,
+    future.packages = c(
+      "mgcv",
+      "tidyverse",
+      "tidytable"
+    )
+  )
+  plan(sequential)
+
+  k_df <- bind_rows(k_list)
 
     ggplot(k_df, aes(x = k, y = edf)) +
       geom_line() +
@@ -1415,7 +1436,13 @@ if (isTRUE(params$run_optional_chunks)) {
   }
 
   sameplot(
-    assess_stability_k(df),
+    assess_stability_k(
+      data = df,
+      threads = min(
+        params$n_threads,
+        as.numeric(future::availableCores()) - 1
+      )
+    ),
     width = params$single_column_width,
     height = 3,
     res = 600,
@@ -1467,6 +1494,6 @@ if (isTRUE(params$run_optional_chunks)) {
     }
   }
 
-  test_cv(run = FALSE, k = 50, discrete = TRUE)
+  test_cv(run = FALSE, k = params$global_k, discrete = params$global_discrete)
 }
 ```

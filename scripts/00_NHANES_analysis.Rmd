@@ -90,7 +90,7 @@ params:
     help: "Set to skip refitting of k-fold validation if model results are present"
   covariates:
     label: "Included covariates"
-    value: "gender_smoking_race_education_gender, race"
+    value: "gender_smoking_race_education_gender, race_education, gender"
     input: text
     help: "Set covariate factor variables and interaction to be included in analysis separated by underscore"
   n_threads:
@@ -110,7 +110,7 @@ params:
     help: "Set to fit an additional biomarker model to see how much variance within phenoage is explained by the biomarker"
   run_optional_chunks:
     label: "Run tests and validations"
-    value: FALSE
+    value: TRUE
     input: checkbox
     help: "Set to run tests and validations, which can take a long time to compute"
   save_figures:
