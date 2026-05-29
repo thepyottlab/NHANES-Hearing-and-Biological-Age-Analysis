@@ -819,22 +819,16 @@ aov_gam <- anova(
 
 c(
   linear = sqrt(
-    weighted.mean(
-      residuals(models_age_rate$linear, type = "response")^2,
-      w = df$weights / mean(df$weights)
-    )
+    sum(residuals(models_age_rate$linear, type = "response")^2 * df$weights) /
+      sum(df$weights)
   ),
   quadratic = sqrt(
-    weighted.mean(
-      residuals(models_age_rate$quadratic, type = "response")^2,
-      w = df$weights / mean(df$weights)
-    )
+    sum(residuals(models_age_rate$quadratic, type = "response")^2 * df$weights) /
+      sum(df$weights)
   ),
   smooth = sqrt(
-    weighted.mean(
-      residuals(models_age_rate$smooth, type = "response")^2,
-      w = df$weights / mean(df$weights)
-    )
+    sum(residuals(models_age_rate$smooth, type = "response")^2 * df$weights) /
+      sum(df$weights)
   )
 ) %>%
   construct_table(

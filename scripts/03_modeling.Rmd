@@ -1372,7 +1372,7 @@ if (isTRUE(params$run_optional_chunks)) {
 
 ### (Optional) K stability analysis
 
-```{r}
+```{r assess_k_stability}
 if (isTRUE(params$run_optional_chunks)) {
   assess_stability_k <- function(data, threads = 1) {
   run_k <- function(k) {
@@ -1456,7 +1456,7 @@ if (isTRUE(params$run_optional_chunks)) {
         params$hearing_var
       },
       "Extras",
-      paste0("Weighted filtered strata ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", ".png")
+      paste0("k stability analysis", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", ".png")
     )
   )
 }
