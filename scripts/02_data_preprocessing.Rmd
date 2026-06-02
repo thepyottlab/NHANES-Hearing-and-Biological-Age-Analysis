@@ -160,7 +160,7 @@ standardize_values <- function(data) {
         TRUE ~ 2
       ),
       total_years_for_group = case_when(
-        age_eligibility_group == "6-11" ~ 2,
+        age_eligibility_group == "6-11" ~ 3.2,
         age_eligibility_group == "12-19, 70+" ~ 7.2,
         age_eligibility_group == "20-69" ~ 8
       ),
@@ -263,7 +263,7 @@ calculate_hearing <- function(data) {
       )),
       pta_l = mean(c(
         audio_left_500,
-        audio_right_1000_mean,
+        audio_left_1000_mean,
         audio_left_2000,
         audio_left_4000
       )),
@@ -392,13 +392,10 @@ to subset `design` on.
 4.  Subjects with missing audiometry data are excluded.
 5.  Subjects with large test-retest differences are excluded, as this suggests unreliable
     measurement.
-6.  Subjects with large PTA differences between left and right ears are excluded, as this suggests
-    HL is non-ARHL and we cannot reduce this into a single threshold that represents the subject's
-    hearing.
-7.  Subjects with missing or unknown covariate data are excluded.
-8.  Subjects with missing biomarker data are excluded (as these are required for calculating
+6.  Subjects with missing or unknown covariate data are excluded.
+7.  Subjects with missing biomarker data are excluded (as these are required for calculating
     biological ages).
-9.  Subjects with any biomarker values \> 5 SDs above the gender-specific mean are excluded to avoid
+8.  Subjects with any biomarker values \> 5 SDs above the gender-specific mean are excluded to avoid
     extreme values dominating the models.
 
 ### Filter data

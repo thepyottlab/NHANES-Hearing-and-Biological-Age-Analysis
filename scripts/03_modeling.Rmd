@@ -110,7 +110,8 @@ formula_generator <- function(
   max_k = FALSE,
   auto_limit_k = FALSE,
   equal_wiggliness = TRUE,
-  stepdown = FALSE
+  stepdown = FALSE,
+  reverse = FALSE
 ) {
   # Initialize the repeat columns with folds and unique fold numbers in folds
   fold_columns <- grep("^fold_r", names(data), value = TRUE)
@@ -170,12 +171,12 @@ formula_generator <- function(
       # Overwrite k with max allowed k if desired
       k_formula <- if (max_k) deg_free else if (auto_limit_k && k > deg_free) deg_free else k
 
-      if (predictor == "age") {
+      if ((predictor == "age" && isFALSE(reverse)) || (predictor != "age" && isTRUE(reverse))) {
         # Construct age term
         sm_terms <- append(
           sm_terms,
           paste0(
-            "s(age, k = ",
+            "s(", predictor, ", k = ",
             k_formula,
             ")"
           )
@@ -190,7 +191,7 @@ formula_generator <- function(
               sm_terms <- append(
                 sm_terms,
                 paste0(
-                  "s(age, ",
+                  "s(", predictor, ", ",
                   covariate,
                   ", bs = 'sz', k = ",
                   k,
@@ -204,7 +205,7 @@ formula_generator <- function(
               sm_terms <- append(
                 sm_terms,
                 paste0(
-                  "s(age, ",
+                  "s(", predictor, ", ",
                   covariate,
                   ", bs = 'sz', k = ",
                   k,
@@ -347,9 +348,6 @@ formulas_bioage <- formula_generator(
   equal_wiggliness = TRUE,
   formulas = c(
     "age",
-    if (isFALSE(params$telolength)) "phenoage" else NULL,
-    if (isFALSE(params$telolength)) "kdm" else NULL,
-    if (isFALSE(params$telolength)) "hd_log" else NULL,
     "age, phenoage",
     "age, kdm",
     "age, hd_log",
@@ -365,6 +363,37 @@ tibble(
 ) %>% construct_table(
   title = "Bioage Formulas"
 )
+```
+
+### Generate formulas reverse bioage
+
+```{r}
+if (isFALSE(params$telolength)) {
+  formulas_bioage_reverse <- formula_generator(
+    data = df,
+    k = params$global_k,
+    auto_limit_k = TRUE,
+    equal_wiggliness = TRUE,
+    formulas = c(
+      "phenoage",
+      "kdm",
+      "hd_log",
+      "phenoage, age",
+      "kdm, age",
+      "hd_log, age"
+    ),
+    covariates = covariate_interactions,
+    reverse = TRUE
+  )
+
+  tibble(
+    Formulas = unlist(
+      formulas_bioage_reverse
+    )
+  ) %>% construct_table(
+    title = "Bioage Formulas"
+  )
+}
 ```
 
 ### Generate formulas biomarkers
@@ -658,7 +687,7 @@ load_model_results is FALSE. Results are stored if store_model_results is TRUE.
 
 ```{r bioage_cv, warning=FALSE}
 system.time({
-  pred_bioage_bidirectional <- if (
+  pred_bioage <- if (
     isTRUE(params$load_model_results) &&
       file.exists(generate_model_path("bioage_predictions"))
   ) {
@@ -684,8 +713,47 @@ system.time({
 ```{r store_bioage_res}
 if (isTRUE(params$store_model_results)) {
   saveRDS(
-    object = pred_bioage_bidirectional,
+    object = pred_bioage,
     file = generate_model_path("bioage_predictions"),
+    compress = "xz"
+  )
+}
+```
+
+#### Reverse bioage K-fold CV
+
+```{r bioage_cv, warning=FALSE}
+if (isFALSE(params$telolength)) {
+  system.time({
+    pred_bioage_reverse <- if (
+      isTRUE(params$load_model_results) &&
+        file.exists(generate_model_path("bioage_reverse_predictions"))
+    ) {
+      readRDS(generate_model_path("bioage_reverse_predictions"))
+    } else {
+      cross_validation(
+        df,
+        formulas_bioage_reverse,
+        folds = params$global_folds,
+        repeats = params$global_repeats,
+        discrete = params$global_discrete,
+        threads = min(
+          params$n_threads,
+          as.numeric(future::availableCores()) - 1
+        )
+      )
+    }
+  })
+}
+```
+
+#### Store bioage modeling results
+
+```{r store_bioage_res}
+if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
+  saveRDS(
+    object = pred_bioage_reverse,
+    file = generate_model_path("bioage_reverse_predictions"),
     compress = "xz"
   )
 }

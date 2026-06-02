@@ -6,31 +6,6 @@ editor_options:
 
 # Data Processing
 
-## Split up bioage predictions into two
-
-The reverse dataframe compares models with age and biological age to only biological age, to assess
-the effect of age beyond biological age.
-
-```{r split_bioage_preds}
-split_bioage <- function(predictions) {
-  predictions %>%
-    filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
-    mutate(predictors = fct_drop(predictors))
-}
-
-split_bioage_reverse <- function(predictions) {
-  predictions %>%
-    filter(predictors != "age") %>%
-    mutate(predictors = fct_drop(predictors))
-}
-
-pred_bioage <- split_bioage(pred_bioage_bidirectional)
-
-if (isFALSE(params$telolength)) {
-  pred_bioage_reverse <- split_bioage_reverse(pred_bioage_bidirectional)
-}
-```
-
 ## Build predictions dataframe age rate
 
 We sample 1 point for each age and predict the FI using the smooth-only model and generate
