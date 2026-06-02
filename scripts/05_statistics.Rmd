@@ -166,8 +166,8 @@ calculate_pooled_mse <- function(results) {
       sum_n_test = sum(n_test),
       mse_w = sum(sum_weights * mse_w) / sum(sum_weights),
       delta_mse_w = sum(sum_weights * delta_mse_w) / sum(sum_weights),
-      s2_mse_w = sum(sum_weights * (mse_w - mse_w_mean)^2) / (sum(sum_weights)),
-      delta_s2_mse_w = sum(sum_weights * (delta_mse_w - delta_mse_w_mean)^2) / (sum(sum_weights)),
+      s2_mse_w = (sum(sum_weights) / (sum(sum_weights)^2 - sum(sum_weights^2))) * sum(sum_weights * (mse_w - mse_w_mean)^2),
+      delta_s2_mse_w = (sum(sum_weights) / (sum(sum_weights)^2 - sum(sum_weights^2))) * sum(sum_weights * (delta_mse_w - delta_mse_w_mean)^2),
       .groups = "drop"
     ) %>%
     mutate(
