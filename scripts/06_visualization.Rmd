@@ -287,7 +287,7 @@ if (isFALSE(params$telolength)) {
       group != "Overall"
     ) %>%
     mutate(
-      stat = sprintf("%.2f (%.2f)", mean_w, sd_w),
+      stat = sprintf("%.2f (%.2f)", mean_w_pta, sd_w_pta),
       category = factor(category, levels = c(
         "Male",
         "Female",
@@ -455,7 +455,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         axis = "x",
         type = "continuous",
         breaks = seq(20, 80, 10),
-        limits = c(20, 82),
+        limits = c(20, 80),
         name = "Age",
         unit = "Years"
       ),
@@ -463,7 +463,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         config = config,
         axis = "x",
         type = "discrete",
-        limits = c(1.4, 5.6),
+        limits = c(1.4, 5.7),
         name = "Age",
         unit = "Years"
       ),
@@ -511,8 +511,8 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         config = config,
         axis = "y",
         type = "continuous",
-        breaks = seq(0, 2, 1),
-        limits = c(-0.7, 2.8),
+        breaks = seq(-1, 2, 1),
+        limits = c(-1.1, 2.6),
         name = "Rate of HL",
         unit = "dB HL/Year"
       ),
@@ -520,8 +520,8 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         config = config,
         axis = "y",
         type = "continuous",
-        breaks = seq(0, 2, 1),
-        limits = c(-0.7, 2.8),
+        breaks = seq(-1, 2, 1),
+        limits = c(-1.1, 2.8),
         name = "Deviation Rate of HL",
         unit = "dB HL/Year"
       ),
@@ -628,7 +628,7 @@ color_scales <- function(color_list_name) {
         "age, gender, race, education" = color("bright")(4)[4]
       ),
       labels = c(
-        "age, smoking, race, education" = "Gender",
+        "age, smoking, race, education" = "Sex",
         "age, gender, smoking, education" = "Race",
         "age, gender, smoking, race" = "Education",
         "age, gender, race, education" = "Smoking"
@@ -636,7 +636,7 @@ color_scales <- function(color_list_name) {
     ),
     covariates_overall = build_color_scale(
       colors = c(
-        "Gender" = color("bright")(4)[1],
+        "Sex" = color("bright")(4)[1],
         "Smoking" = color("bright")(4)[4],
         "Race" = color("bright")(4)[2],
         "Education" = color("bright")(4)[3]
@@ -647,6 +647,10 @@ color_scales <- function(color_list_name) {
         "1" = color("sunset")(2)[1],
         "2" = color("sunset")(2)[2]
       ),
+      fill = c(
+        "1" = color("sunset")(2)[1],
+        "2" = color("sunset")(2)[2]
+      ),
       labels = c(
         "1" = "Male",
         "2" = "Female"
@@ -654,6 +658,10 @@ color_scales <- function(color_list_name) {
     ),
     smoking = build_color_scale(
       colors = c(
+        "1" = color("PRGn")(2)[1],
+        "2" = color("PRGn")(2)[2]
+      ),
+      fill = c(
         "1" = color("PRGn")(2)[1],
         "2" = color("PRGn")(2)[2]
       ),
@@ -669,6 +677,12 @@ color_scales <- function(color_list_name) {
         "4" = color("vibrant")(4)[3],
         "5" = color("vibrant")(4)[4]
       ),
+      fill = c(
+        "1" = color("vibrant")(4)[1],
+        "3" = color("vibrant")(4)[2],
+        "4" = color("vibrant")(4)[3],
+        "5" = color("vibrant")(4)[4]
+      ),
       labels = c(
         "1" = "Hispanic",
         "3" = "White",
@@ -678,6 +692,13 @@ color_scales <- function(color_list_name) {
     ),
     education = build_color_scale(
       colors = c(
+        "1" = color("nightfall")(5)[1],
+        "2" = color("nightfall")(5)[2],
+        "3" = color("nightfall")(5)[3],
+        "4" = color("nightfall")(5)[4],
+        "5" = color("nightfall")(5)[5]
+      ),
+      fill = c(
         "1" = color("nightfall")(5)[1],
         "2" = color("nightfall")(5)[2],
         "3" = color("nightfall")(5)[3],
@@ -813,6 +834,14 @@ p0 <- ggplot() +
     show.legend = FALSE
   ) +
   geom_line(
+    data = svyby(as.formula(paste0("~", params$hearing_var)), ~age, design, svymean),
+    aes(
+      x = age,
+      y = .data[[params$hearing_var]]
+    ),
+    alpha = 0.4
+  ) +
+  geom_line(
     data = pred_age_rate$linear,
     aes(
       x = age,
@@ -847,6 +876,14 @@ p1 <- ggplot() +
       alpha = 0.05 * weights / mean(weights)
     ),
     show.legend = FALSE
+  ) +
+  geom_line(
+    data = svyby(as.formula(paste0("~", params$hearing_var)), ~age, design, svymean),
+    aes(
+      x = age,
+      y = .data[[params$hearing_var]]
+    ),
+    alpha = 0.4
   ) +
   geom_line(
     data = pred_age_rate$quadratic,
@@ -884,6 +921,14 @@ p2 <- ggplot() +
       ymin = -Inf,
       ymax = Inf
     )
+  ) +
+  geom_line(
+    data = svyby(as.formula(paste0("~", params$hearing_var)), ~age, design, svymean),
+    aes(
+      x = age,
+      y = .data[[params$hearing_var]]
+    ),
+    alpha = 0.4
   ) +
   geom_point(
     data = df,
@@ -1101,9 +1146,9 @@ if (isFALSE(params$telolength)) {
       aes(
         x = age,
         y = .data[[params$hearing_var]],
-      alpha = 0.05 * weights / mean(weights)
-    ),
-    show.legend = FALSE
+        alpha = 0.05 * weights / mean(weights)
+      ),
+      show.legend = FALSE
     ) +
     geom_line(
       data = pred_age_rate$smooth,
@@ -1113,18 +1158,26 @@ if (isFALSE(params$telolength)) {
       )
     ) +
     geom_line(
-      data = svyby(as.formula(paste0("~", params$hearing_var)), ~ age, design, svymean),
+      data = svyby(as.formula(paste0("~", params$hearing_var)), ~age, design, svymean),
       aes(
         x = age,
         y = .data[[params$hearing_var]]
       ),
       alpha = 0.4
     ) +
+    geom_ribbon(
+      data = pred_age_rate$smooth,
+      aes(
+        x = age,
+        ymin = ci_lower,
+        ymax = ci_upper
+      )
+    ) +
     axes(
       x = "age",
       y = "hl"
     ) +
-  scale_alpha_identity() +
+    scale_alpha_identity() +
     plot_theme()
 
   sameplot(
@@ -1149,9 +1202,9 @@ if (isFALSE(params$telolength)) {
         x = age,
         y = .data[[params$hearing_var]],
         color = gender,
-      alpha = 0.05 * weights / mean(weights)
-    ),
-    show.legend = FALSE
+        alpha = 0.05 * weights / mean(weights)
+      ),
+      show.legend = FALSE
     ) +
     geom_line(
       data = pred_covariates_full$smooth_gender,
@@ -1162,7 +1215,8 @@ if (isFALSE(params$telolength)) {
       ),
       show.legend = TRUE
     ) +
-    geom_line(data = svyby(as.formula(paste0("~", params$hearing_var)), ~ gender*age, design, svymean),
+    geom_line(
+      data = svyby(as.formula(paste0("~", params$hearing_var)), ~ gender * age, design, svymean),
       aes(
         x = as.numeric(age),
         y = .data[[params$hearing_var]],
@@ -1170,11 +1224,21 @@ if (isFALSE(params$telolength)) {
       ),
       alpha = 0.4
     ) +
+    geom_ribbon(
+      data = pred_covariates_full$smooth_gender,
+      aes(
+        x = age,
+        ymin = ci_lower,
+        ymax = ci_upper,
+        fill = gender
+      ),
+      show.legend = FALSE
+    ) +
     axes(
       x = "age",
       y = "hl"
     ) +
-  scale_alpha_identity() +
+    scale_alpha_identity() +
     color_scales("gender") +
     plot_theme() +
     theme(
@@ -1188,9 +1252,9 @@ if (isFALSE(params$telolength)) {
         x = age,
         y = .data[[params$hearing_var]],
         color = smoking,
-      alpha = 0.05 * weights / mean(weights)
-    ),
-    show.legend = FALSE
+        alpha = 0.05 * weights / mean(weights)
+      ),
+      show.legend = FALSE
     ) +
     geom_line(
       data = pred_covariates_full$smooth_smoking,
@@ -1201,7 +1265,8 @@ if (isFALSE(params$telolength)) {
       ),
       show.legend = TRUE
     ) +
-    geom_line(data = svyby(as.formula(paste0("~", params$hearing_var)), ~ smoking*age, design, svymean),
+    geom_line(
+      data = svyby(as.formula(paste0("~", params$hearing_var)), ~ smoking * age, design, svymean),
       aes(
         x = age,
         y = .data[[params$hearing_var]],
@@ -1209,11 +1274,21 @@ if (isFALSE(params$telolength)) {
       ),
       alpha = 0.4
     ) +
+    geom_ribbon(
+      data = pred_covariates_full$smooth_smoking,
+      aes(
+        x = age,
+        ymin = ci_lower,
+        ymax = ci_upper,
+        fill = smoking
+      ),
+      show.legend = FALSE
+    ) +
     axes(
       x = "age",
       y = "hl"
     ) +
-  scale_alpha_identity() +
+    scale_alpha_identity() +
     color_scales("smoking") +
     plot_theme() +
     theme(
@@ -1228,9 +1303,9 @@ if (isFALSE(params$telolength)) {
         x = age,
         y = .data[[params$hearing_var]],
         color = race,
-      alpha = 0.05 * weights / mean(weights)
-    ),
-    show.legend = FALSE
+        alpha = 0.05 * weights / mean(weights)
+      ),
+      show.legend = FALSE
     ) +
     geom_line(
       data = pred_covariates_full$smooth_race,
@@ -1241,19 +1316,30 @@ if (isFALSE(params$telolength)) {
       ),
       show.legend = TRUE
     ) +
-    geom_line(data = svyby(as.formula(paste0("~", params$hearing_var)), ~ race*age, design, svymean),
+    geom_line(
+      data = svyby(as.formula(paste0("~", params$hearing_var)), ~ race * age, design, svymean),
       aes(
         x = age,
         y = .data[[params$hearing_var]],
         color = as.factor(race)
       ),
       alpha = 0.4
-    ) +    
+    ) +
+    geom_ribbon(
+      data = pred_covariates_full$smooth_race,
+      aes(
+        x = age,
+        ymin = ci_lower,
+        ymax = ci_upper,
+        fill = race
+      ),
+      show.legend = FALSE
+    ) +
     axes(
       x = "age",
       y = "hl"
     ) +
-  scale_alpha_identity() +
+    scale_alpha_identity() +
     color_scales("race") +
     plot_theme()
 
@@ -1264,9 +1350,9 @@ if (isFALSE(params$telolength)) {
         x = age,
         y = .data[[params$hearing_var]],
         color = education,
-      alpha = 0.05 * weights / mean(weights)
-    ),
-    show.legend = FALSE
+        alpha = 0.05 * weights / mean(weights)
+      ),
+      show.legend = FALSE
     ) +
     geom_line(
       data = pred_covariates_full$smooth_education,
@@ -1277,7 +1363,8 @@ if (isFALSE(params$telolength)) {
       ),
       show.legend = TRUE
     ) +
-    geom_line(data = svyby(as.formula(paste0("~", params$hearing_var)), ~ education*age, design, svymean),
+    geom_line(
+      data = svyby(as.formula(paste0("~", params$hearing_var)), ~ education * age, design, svymean),
       aes(
         x = age,
         y = .data[[params$hearing_var]],
@@ -1285,11 +1372,21 @@ if (isFALSE(params$telolength)) {
       ),
       alpha = 0.4
     ) +
+    geom_ribbon(
+      data = pred_covariates_full$smooth_education,
+      aes(
+        x = age,
+        ymin = ci_lower,
+        ymax = ci_upper,
+        fill = education
+      ),
+      show.legend = FALSE
+    ) +
     axes(
       x = "age",
       y = "hl"
     ) +
-  scale_alpha_identity() +
+    scale_alpha_identity() +
     color_scales("education") +
     plot_theme() +
     theme(
@@ -1344,6 +1441,7 @@ p <- summary_bioage %>%
   {
     if (isTRUE(params$telolength)) filter(., !predictors %in% c("age, phenoage", "age, kdm", "age, hd_log")) else .
   } %>%
+  mutate(predictors = factor(predictors, levels = c("age, phenoage", "age, kdm", "age, hd_log", "age, telolength_log", "age"))) %>%
   ggplot(
     aes(
       x = age_group, y = delta_rmse_w
@@ -1574,7 +1672,7 @@ if (isFALSE(params$telolength)) {
         "age, gender, race, education"
       ),
       labels = c(
-        "Gender",
+        "Sex",
         "Race",
         "Education",
         "Smoking"
@@ -1866,35 +1964,35 @@ if (isFALSE(params$telolength)) {
     mutate(predictors = factor(
       predictors,
       levels = c(
-        "age, sbp",
-        "age, bun",
         "age, mcv",
-        "age, lymph",
-        "age, rdw",
-        "age, totchol",
-        "age, lncreat",
+        "age, bun",
         "age, uap",
         "age, glucose",
+        "age, lymph",
+        "age, totchol",
+        "age, sbp",
         "age, wbc",
-        "age, alp",
-        "age, albumin_gL",
+        "age, rdw",
+        "age, lncreat",
         "age, hba1c",
+        "age, albumin_gL",
+        "age, alp",
         "age, lncrp"
       ),
       labels = c(
-        "SBP",
-        "BUN",
         "MCV",
-        "Lymphs",
-        "RDW",
-        "TC",
-        "Creat",
+        "BUN",
         "UA",
         "Glc",
+        "Lymphs",
+        "TC",
+        "SBP",
         "WBC",
-        "ALP",
-        "ALB",
+        "RDW",
+        "Creat",
         "HbA1c",
+        "ALB",
+        "ALP",
         "CRP"
       )
     )) %>%

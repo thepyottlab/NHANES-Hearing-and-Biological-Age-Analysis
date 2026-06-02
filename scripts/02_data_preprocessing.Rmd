@@ -723,8 +723,10 @@ calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
         n = nrow(design_subset),
         proportion = nrow(design_subset) / nrow(design),
         proportion_w = proportion_w,
-        mean_w = coef(svymean(hearing_var, design_subset)),
-        sd_w = sqrt(coef(svyvar(hearing_var, design_subset)))
+        mean_w_pta = coef(svymean(hearing_var, design_subset)),
+        sd_w_pta = sqrt(coef(svyvar(hearing_var, design_subset))),
+        mean_w_age = coef(svymean(~age, design_subset)),
+        sd_w_age = sqrt(coef(svyvar(~age, design_subset)))
       ) %>%
         {
           if (isTRUE(incl_bioage)) {
@@ -754,8 +756,10 @@ calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
           n = as.vector(counts),
           proportion = as.vector(counts) / nrow(design_subset),
           proportion_w = as.vector(proportions_w),
-          mean_w = svyby(hearing_var, grouping_variable, design_subset, svymean)[[params$hearing_var]],
-          sd_w = sqrt(svyby(hearing_var, grouping_variable, design_subset, svyvar)[[params$hearing_var]])
+          mean_w_pta = svyby(hearing_var, grouping_variable, design_subset, svymean)[[params$hearing_var]],
+          sd_w_pta = sqrt(svyby(hearing_var, grouping_variable, design_subset, svyvar)[[params$hearing_var]]),
+          mean_w_age = svyby(~age, grouping_variable, design_subset, svymean)[["age"]],
+          sd_w_age = sqrt(svyby(~age, grouping_variable, design_subset, svyvar)[["age"]])
         ) %>%
           {
             if (isTRUE(incl_bioage)) {
@@ -933,10 +937,10 @@ descriptives %>%
 plot_descriptives <- function(data, title) {
   ggplot(
     data,
-    aes(x = category, y = mean_w, group = group)
+    aes(x = category, y = mean_w_pta, group = group)
   ) +
     geom_col(aes(fill = category, color = category)) +
-    geom_errorbar(aes(ymin = mean_w - sd_w, ymax = mean_w + sd_w), width = 0.2) +
+    geom_errorbar(aes(ymin = mean_w_pta - sd_w_pta, ymax = mean_w_pta + sd_w_pta), width = 0.2) +
     facet_grid(age_group ~ group, scales = "free_x", space = "free_x") +
     labs(
       title = title,
@@ -1005,7 +1009,7 @@ plot_selection_bias <- function(ref, test) {
   ref <- ref %>% filter(group == "Overall")
   test <- test %>% filter(group == "Overall")
 
-  diff <- ref$mean_w - test$mean_w
+  diff <- ref$mean_w_pta - test$mean_w_pta
 
   ref %>%
     mutate(

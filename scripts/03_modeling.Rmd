@@ -1375,29 +1375,29 @@ if (isTRUE(params$run_optional_chunks)) {
 ```{r assess_k_stability}
 if (isTRUE(params$run_optional_chunks)) {
   assess_stability_k <- function(data, threads = 1) {
-  run_k <- function(k) {
-    set.seed(1)
-    m <- model_age_rate(c("age", "I(age^2)", paste0("s(age, k = ", k, ")")))
-    k.check(m) %>%
-      as_tibble() %>%
-      mutate(k = k)
-  }
+    run_k <- function(k) {
+      set.seed(1)
+      m <- model_age_rate(c("age", "I(age^2)", paste0("s(age, k = ", k, ")")))
+      k.check(m) %>%
+        as_tibble() %>%
+        mutate(k = k)
+    }
 
-  plan(multisession, workers = threads)
-  k_list <- future_lapply(
-    seq(3, 30, 1),
-    FUN = run_k,
-    future.seed = TRUE,
-    future.globals = TRUE,
-    future.packages = c(
-      "mgcv",
-      "tidyverse",
-      "tidytable"
+    plan(multisession, workers = threads)
+    k_list <- future_lapply(
+      seq(3, 30, 1),
+      FUN = run_k,
+      future.seed = TRUE,
+      future.globals = TRUE,
+      future.packages = c(
+        "mgcv",
+        "tidyverse",
+        "tidytable"
+      )
     )
-  )
-  plan(sequential)
+    plan(sequential)
 
-  k_df <- bind_rows(k_list)
+    k_df <- bind_rows(k_list)
 
     ggplot(k_df, aes(x = k, y = edf)) +
       geom_line() +

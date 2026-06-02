@@ -60,7 +60,7 @@ params:
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   age_rate_k:
     label: "K (n BAM base functions) age rate analysis"
-    value: 13
+    value: 14
     input: numeric
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   global_discrete: 
@@ -110,7 +110,7 @@ params:
     help: "Set to fit an additional biomarker model to see how much variance within phenoage is explained by the biomarker"
   run_optional_chunks:
     label: "Run tests and validations"
-    value: TRUE
+    value: FALSE
     input: checkbox
     help: "Set to run tests and validations, which can take a long time to compute"
   save_figures:
@@ -165,7 +165,7 @@ knitr::opts_knit$set(
 options(
   contrasts = c("contr.sum", "contr.poly"),
   knitr.duplicate.label = "allow",
-  future.globals.maxSize = 650 * 1024^2
+  future.globals.maxSize = 2048 * 1024^2
 )
 
 run_module <- function(path) {

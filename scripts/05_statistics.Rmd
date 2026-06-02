@@ -973,3 +973,16 @@ pwc_age_rate_boundaries %>%
     title = "Boundaries"
   )
 ```
+
+## Calculate coefficients
+
+We estimate the rate of change in dB/year and acceleration in dB/year² for the quadratic model and
+GAM. For the GAM, we estimate the acceleration by fitting a linear model to the derivative and
+calculating its coefficient.
+
+```{r calc_coeffs}
+with(pred_age_rate$linear, cov(age, estimate) / var(age))
+with(pred_age_rate$quadratic_derivative, cov(age, derivative) / var(age))
+coef(lm(derivative ~ age, data = pred_age_rate$derivative_smooth))[["age"]]
+```
+
