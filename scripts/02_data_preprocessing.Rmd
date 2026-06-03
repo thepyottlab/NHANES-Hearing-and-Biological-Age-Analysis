@@ -254,21 +254,7 @@ calculate_hearing <- function(data) {
       pta_lf = mean(c(pta_lf_r, pta_lf_l)),
       pta_hf_r = mean(c(audio_right_4000, audio_right_6000, audio_right_8000)),
       pta_hf_l = mean(c(audio_left_4000, audio_left_6000, audio_left_8000)),
-      pta_hf = mean(c(pta_hf_r, pta_hf_l)),
-      pta_r = mean(c(
-        audio_right_500,
-        audio_right_1000_mean,
-        audio_right_2000,
-        audio_right_4000
-      )),
-      pta_l = mean(c(
-        audio_left_500,
-        audio_left_1000_mean,
-        audio_left_2000,
-        audio_left_4000
-      )),
-      pta = mean(c(pta_r, pta_l)),
-      pta_diff = abs(pta_r - pta_l)
+      pta_hf = mean(c(pta_hf_r, pta_hf_l))
     ) %>%
     ungroup()
 }
@@ -429,6 +415,10 @@ subset_data <- function(design) {
     "mcv",
     "wbc"
   )
+  
+      v1_biomarkers <- c(
+      "albumin", "alp", "lncrp", "lncreat", "lymph", "mcv", "wbc", "rdw", "glucose"
+      )
 
   design <- design %>%
     verbose_subset(
@@ -467,7 +457,7 @@ subset_data <- function(design) {
   design <- design %>%
     verbose_subset(
       design$variables %>%
-        mutate(keep = !if_any(all_of(biomarkers), ~ is.na(.))) %>%
+        mutate(keep = !if_any(all_of(v1_biomarkers), ~ is.na(.))) %>%
         pull(keep),
       label = "missing biomarkers."
     )
@@ -477,7 +467,7 @@ subset_data <- function(design) {
       design$variables %>%
         group_by(gender) %>%
         mutate(keep = !if_any(
-          all_of(biomarkers),
+          all_of(v1_biomarkers),
           ~ {
             m <- mean(.x, na.rm = TRUE)
             s <- sd(.x, na.rm = TRUE)
@@ -545,6 +535,12 @@ insert_bioage <- function(design) {
     v2_biomarkers_phenoage <- c(
       "albumin_gL", "alp", "lncrp", "totchol", "lncreat_umol", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc"
     )
+    v1_biomarkers <- c(
+      "albumin", "alp", "lncrp", "lncreat", "lymph", "mcv", "wbc", "rdw", "glucose"
+      )
+    v1_biomarkers_phenoage <- c(
+      "albumin_gL", "alp", "lncrp", "lncreat_umol", "lymph", "mcv", "wbc", "rdw", "glucose"
+    )
 
     load(training_data_path)
     load(HD_training_data_path)
@@ -553,7 +549,7 @@ insert_bioage <- function(design) {
     train_fem_kdm_v2 <- kdm_calc(
       data = NHANES3 %>%
         filter(gender == 2 & age >= 30 & age <= 75 & pregnant == 0),
-      biomarkers = v2_biomarkers,
+      biomarkers = v1_biomarkers,
       fit = NULL,
       s_ba2 = NULL,
       n_allowed_missing_biomarkers = 0
@@ -561,7 +557,7 @@ insert_bioage <- function(design) {
     train_male_kdm_v2 <- kdm_calc(
       data = NHANES3 %>%
         filter(gender == 1 & age >= 30 & age <= 75),
-      biomarkers = v2_biomarkers,
+      biomarkers = v1_biomarkers,
       fit = NULL,
       s_ba2 = NULL,
       n_allowed_missing_biomarkers = 0
@@ -569,7 +565,7 @@ insert_bioage <- function(design) {
     test_fem_kdm_v2 <- kdm_calc(
       data = data %>%
         filter(gender == 2),
-      biomarkers = v2_biomarkers,
+      biomarkers = v1_biomarkers,
       fit = train_fem_kdm_v2$fit,
       s_ba2 = train_fem_kdm_v2$fit$s_ba2,
       n_allowed_missing_biomarkers = 0
@@ -577,7 +573,7 @@ insert_bioage <- function(design) {
     test_male_kdm_v2 <- kdm_calc(
       data = data %>%
         filter(gender == 1),
-      biomarkers = v2_biomarkers,
+      biomarkers = v1_biomarkers,
       fit = train_male_kdm_v2$fit,
       s_ba2 = train_male_kdm_v2$fit$s_ba2,
       n_allowed_missing_biomarkers = 0
@@ -591,13 +587,13 @@ insert_bioage <- function(design) {
     train_phenoage_v2 <- phenoage_calc(
       data = NHANES3 %>%
         filter(age >= 20 & age <= 84),
-      biomarkers = v2_biomarkers_phenoage,
+      biomarkers = v1_biomarkers_phenoage,
       fit = NULL
     )
 
     test_phenoage_v2 <- phenoage_calc(
       data = data,
-      biomarkers = v2_biomarkers_phenoage,
+      biomarkers = v1_biomarkers_phenoage,
       fit = train_phenoage_v2$fit
     )
 
@@ -609,14 +605,14 @@ insert_bioage <- function(design) {
         filter(gender == 2),
       reference = NHANES3_HDTrain %>%
         filter(gender == 2),
-      biomarkers = v2_biomarkers
+      biomarkers = v1_biomarkers
     )
     male_hd <- hd_calc(
       data = data %>%
         filter(gender == 1),
       reference = NHANES3_HDTrain %>%
         filter(gender == 1),
-      biomarkers = v2_biomarkers
+      biomarkers = v1_biomarkers
     )
 
     hd <- rbind(fem_hd$data, male_hd$data)

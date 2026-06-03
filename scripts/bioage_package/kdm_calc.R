@@ -74,9 +74,7 @@ kdm_calc <- function(data, biomarkers, fit = NULL, s_ba2 = NULL, n_allowed_missi
   )
 
   n_dat_filtered <- nrow(dat)
-  n_dat_missing_allowed <- nrow(
-    sum()
-  )
+
 
   if (isTRUE(verbose)) {
     if (is.null(getOption("kdm_calc_tip_printed"))) {

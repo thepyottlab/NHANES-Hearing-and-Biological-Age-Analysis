@@ -631,7 +631,7 @@ if (isFALSE(params$telolength)) {
   summary_covariates_overall <- nb_corrected_repeated_t_test(
     summary_covariates_overall,
     exceptions = c(
-      "full"
+      "age, gender, smoking, race, education"
     ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
@@ -639,7 +639,7 @@ if (isFALSE(params$telolength)) {
 
   summary_covariates <- nb_corrected_repeated_t_test(
     summary_covariates,
-    exceptions = c("full", "full_with_phenoage"),
+    exceptions = c("age, gender, smoking, race, education"),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
   )
