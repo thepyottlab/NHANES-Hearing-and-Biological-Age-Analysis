@@ -1,0 +1,18 @@
+﻿label,variable,description,unit,dataset_id,dataset_description,cycles,type,vartype,used_for,Include,notes
+SEQN,SEQN,ID,NA,NA,,,character,id,all,TRUE,
+age,HSAGEIR,Age,Years,adult,,,numeric,"predictor, biomarker",all,TRUE,
+alb,AMPSI,Albumin,g/L,lab,,,numeric,biomarker,"kdm, phenoage, hd",TRUE,
+creat,CEPSI,Creatinine,umol/L,lab,,,numeric,biomarker,"kdm, phenoage",TRUE,
+crp,CRP,C-reactive protein,mg/dL,lab,,,numeric,biomarker,"kdm, phenoage",TRUE,
+lymph,LMPPCNT,Percentage serum lymphocytes,%,lab,,,numeric,biomarker,"phenoage, hd",TRUE,
+mcv,MVPSI,Mean blood cell volume,fL,lab,,,numeric,biomarker,phenoage,TRUE,
+rdw,RWP,Red blood cell distribution width,%,lab,,,numeric,biomarker,"phenoage, hd",TRUE,
+alp,APPSI,Alkaline phosphatase,U/L,lab,,,numeric,biomarker,"kdm, phenoage, hd",TRUE,
+wbc,WCP,White blood cell count,"1,000 cells/uL (equivalent to billion/L)",lab,,,numeric,biomarker,"phenoage, hd",TRUE,
+hba1c,GHP,Glycated hemoglobin,%,lab,,,numeric,biomarker,kdm,TRUE,
+totchol,TCP,Total cholesterol,mg/dL,lab,,,numeric,biomarker,"kdm, hd",TRUE,
+cmv,CMPODgT,Cytomegalovirus optical density from ELISA (triturus),Absorbance units,spscmvod,,,numeric,biomarker,kdm,FALSE,Not present in all NHANES4 cycles
+bun,BUP,Blood urea nitrogen,mg/dL,lab,,,numeric,biomarker,kdm,TRUE,
+sbp,PEPMNK1R,Systolic blood pressure (3-session average),mmHg,exam,,,numeric,biomarker,kdm,TRUE,
+rbc,RCP,Red blood cell count,"1,000,000 cells/uL",lab,,,numeric,biomarker,"kdm, hd",TRUE,
+fev1,,Forced expiratory volume in 1s,,,,,,,,FALSE,Not present in NHANES4
