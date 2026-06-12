@@ -90,7 +90,7 @@ params:
     help: "Set to skip refitting of k-fold validation if model results are present"
   covariates:
     label: "Included covariates"
-    value: "gender_smoking_race_education_gender, race_education, gender"
+    value: "sex_smoking_race_education_sex, race_education, sex"
     input: text
     help: "Set covariate factor variables and interaction to be included in analysis separated by underscore"
   n_threads:

@@ -76,6 +76,8 @@ covariate_vars <- covariate_interactions[!grepl(",", covariate_interactions)]
 
 ## Import data
 
+### NHANES4
+
 ```{r import_data}
 import_nhanes_data <- function(data_path) {
   files <- list.files(
@@ -85,18 +87,125 @@ import_nhanes_data <- function(data_path) {
     ignore.case = TRUE
   )
   tibble(
-    file = files,
-    year = str_extract(
-      tools::file_path_sans_ext(
-        basename(files)
-      ),
-      "\\d{4}-\\d{4}$"
-    ),
-    cohort = substr(year, 1, 4),
+    dataset_id = tools::file_path_sans_ext(basename(files)),
+    cycle = dplyr::case_when(
+    str_detect(dataset_id, regex("^P_")) ~ "2017_2020",
+    str_detect(dataset_id, regex("_B$")) ~ "2001_2002",
+    str_detect(dataset_id, regex("_C$")) ~ "2003_2004",
+    str_detect(dataset_id, regex("_D$")) ~ "2005_2006",
+    str_detect(dataset_id, regex("_F$")) ~ "2009_2010",
+    str_detect(dataset_id, regex("_I$")) ~ "2015_2016",
+    TRUE ~ "1999_2000"
+  ),
     data = map(
-      file, ~ read_xpt(.x)
+      files, ~ read_xpt(.x)
     )
   )
 }
-df_raw <- import_nhanes_data(here("data"))
+
+df_raw <- import_nhanes_data(here("data", "nhanes4"))
+```
+
+### Import NHANES4 Mortality data
+
+```{r}
+import_nhanes4_mortality <- function(data_path) {
+
+  files <- list.files(
+    data_path,
+    pattern = "\\.dat$",
+    full.names = TRUE,
+    ignore.case = TRUE
+  )
+
+  tibble(
+    dataset_id = tools::file_path_sans_ext(basename(files)),
+    cycle = str_extract(files, "\\d{4}_\\d{4}"),
+    data = map2(files, dataset_id, function(dat, id) {
+        read_fwf(
+          file = dat,
+          col_types = "iiiiiiii",
+          fwf_cols(
+            SEQN = c(1, 6),
+            ELIGSTAT = c(15, 15),
+            MORTSTAT = c(16, 16),
+            UCOD_LEADING = c(17, 19),
+            DIABETES = c(20, 20),
+            HYPERTEN = c(21, 21),
+            PERMTH_INT = c(43, 45),
+            PERMTH_EXM = c(46, 48)
+          ),
+          na = c("", ".")
+        ) 
+      })
+  )
+}
+
+df_raw <- rbind(df_raw, import_nhanes4_mortality(here("data", "nhanes4")))[80:90,]
+```
+
+### NHANES3
+
+#### Initial import
+
+Below is the function to import NHANES 3 data from the .dat and .SAS files. Because the files are
+large and importing is slow, it's run only once and raw data files are not stored in the repository
+but can be downloaded from <https://wwwn.cdc.gov/nchs/nhanes/nhanes3/datafiles.aspx#core>.
+
+The mortality data (<https://stacks.cdc.gov/view/cdc/117141>) also has a .SAS file in the
+documentation, but this is intended for NHIS identifiers, not NHANES variables. Sample code by the
+CDC in "R_ReadInProgramAllSurveys.R" is used to parse the mortality dataset.
+
+```{r import_train_data_orig}
+# import_nhanes3_data <- function(data_path) {
+#   library(SAScii)
+# 
+#   files <- list.files(
+#     data_path,
+#     pattern = "\\.dat$",
+#     full.names = TRUE,
+#     ignore.case = TRUE
+#   )
+# 
+#   tibble(
+#     dataset_id = tools::file_path_sans_ext(basename(files)),
+#     cycle = "1988_1994",
+#     data = map2(files, dataset_id, function(dat, id) {
+#       if (grepl("NHANES_III_MORT_2019_PUBLIC", id)) {
+#         read_fwf(
+#           file = dat,
+#           col_types = "iiiiiiii",
+#           fwf_cols(
+#             SEQN = c(1, 6),
+#             ELIGSTAT = c(15, 15),
+#             MORTSTAT = c(16, 16),
+#             UCOD_LEADING = c(17, 19),
+#             DIABETES = c(20, 20),
+#             HYPERTEN = c(21, 21),
+#             PERMTH_INT = c(43, 45),
+#             PERMTH_EXM = c(46, 48)
+#           ),
+#           na = c("", ".")
+#         )
+#       } else {
+#       sas <- here(data_path, paste0(id, ".sas"))
+#       read.SAScii(dat, sas)
+#       }
+#     })
+#   )
+# }
+# 
+# df_train_raw <- import_nhanes3_data(here("data", "nhanes3"))
+# 
+# saveRDS(
+#      object = df_train_raw,
+#      file = here("data", "nhanes3", "nhanes3.RDS"),
+#      compress = "xz"
+#    )
+```
+
+#### Import
+
+```{r import_train_data}
+df_train_raw <- readRDS(here("data", "nhanes3", "nhanes3.RDS"))
 ```

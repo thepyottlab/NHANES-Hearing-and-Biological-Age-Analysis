@@ -123,12 +123,12 @@ if (isFALSE(params$telolength)) {
 
   results_covariates_overall <- pred_covariates %>%
     calculate_mse_per_fold(
-      reference = "age, gender, smoking, race, education",
+      reference = "age, sex, smoking, race, education",
       covariate_analysis = TRUE
     )
   results_covariates <- pred_covariates %>%
     calculate_mse_per_fold(
-      reference = "age, gender, smoking, race, education",
+      reference = "age, sex, smoking, race, education",
       per_age_group = TRUE,
       covariate_analysis = TRUE
     )
@@ -631,7 +631,7 @@ if (isFALSE(params$telolength)) {
   summary_covariates_overall <- nb_corrected_repeated_t_test(
     summary_covariates_overall,
     exceptions = c(
-      "age, gender, smoking, race, education"
+      "age, sex, smoking, race, education"
     ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
@@ -639,7 +639,7 @@ if (isFALSE(params$telolength)) {
 
   summary_covariates <- nb_corrected_repeated_t_test(
     summary_covariates,
-    exceptions = c("age, gender, smoking, race, education"),
+    exceptions = c("age, sex, smoking, race, education"),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
   )

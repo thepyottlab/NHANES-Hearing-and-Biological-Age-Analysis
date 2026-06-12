@@ -78,7 +78,7 @@ kdm_calc <- function(data, biomarkers, fit = NULL, s_ba2 = NULL, n_allowed_missi
 
   if (isTRUE(verbose)) {
     if (is.null(getOption("kdm_calc_tip_printed"))) {
-      message("Note that a separate message may be printed per gender subset. Set verbose = FALSE to silence these messages.")
+      message("Note that a separate message may be printed per sex subset. Set verbose = FALSE to silence these messages.")
       options(kdm_calc_tip_printed = TRUE)
     }
 

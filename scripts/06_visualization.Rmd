@@ -149,15 +149,15 @@ rename_biomarker_table <- function(biomarker_table) {
 rename_covariate_table <- function(covariates_table) {
   covariates_table <- covariates_table %>%
     filter(
-      Predictors != "age, gender, smoking, race, education"
+      Predictors != "age, sex, smoking, race, education"
     ) %>%
     mutate(
       Predictors = case_when(
-        Predictors == "age, gender, smoking, race, education, phenoage" ~ "Phenoage",
+        Predictors == "age, sex, smoking, race, education, phenoage" ~ "Phenoage",
         Predictors == "age, smoking, race, education" ~ "Gender",
-        Predictors == "age, gender, race, education" ~ "Smoking",
-        Predictors == "age, gender, smoking, education" ~ "Race",
-        Predictors == "age, gender, smoking, race" ~ "Education"
+        Predictors == "age, sex, race, education" ~ "Smoking",
+        Predictors == "age, sex, smoking, education" ~ "Race",
+        Predictors == "age, sex, smoking, race" ~ "Education"
       ),
       Predictors = factor(Predictors, levels = c(
         "Phenoage",
@@ -617,21 +617,21 @@ color_scales <- function(color_list_name) {
     covariates = build_color_scale(
       colors = c(
         "age, smoking, race, education" = color("bright")(4)[1],
-        "age, gender, smoking, education" = color("bright")(4)[2],
-        "age, gender, smoking, race" = color("bright")(4)[3],
-        "age, gender, race, education" = color("bright")(4)[4]
+        "age, sex, smoking, education" = color("bright")(4)[2],
+        "age, sex, smoking, race" = color("bright")(4)[3],
+        "age, sex, race, education" = color("bright")(4)[4]
       ),
       fill_colors = c(
         "age, smoking, race, education" = color("bright")(4)[1],
-        "age, gender, smoking, education" = color("bright")(4)[2],
-        "age, gender, smoking, race" = color("bright")(4)[3],
-        "age, gender, race, education" = color("bright")(4)[4]
+        "age, sex, smoking, education" = color("bright")(4)[2],
+        "age, sex, smoking, race" = color("bright")(4)[3],
+        "age, sex, race, education" = color("bright")(4)[4]
       ),
       labels = c(
         "age, smoking, race, education" = "Sex",
-        "age, gender, smoking, education" = "Race",
-        "age, gender, smoking, race" = "Education",
-        "age, gender, race, education" = "Smoking"
+        "age, sex, smoking, education" = "Race",
+        "age, sex, smoking, race" = "Education",
+        "age, sex, race, education" = "Smoking"
       )
     ),
     covariates_overall = build_color_scale(
@@ -642,7 +642,7 @@ color_scales <- function(color_list_name) {
         "Education" = color("bright")(4)[3]
       )
     ),
-    gender = build_color_scale(
+    sex = build_color_scale(
       colors = c(
         "1" = color("sunset")(2)[1],
         "2" = color("sunset")(2)[2]
@@ -1201,36 +1201,36 @@ if (isFALSE(params$telolength)) {
       aes(
         x = age,
         y = .data[[params$hearing_var]],
-        color = gender,
+        color = sex,
         alpha = 0.05 * weights / mean(weights)
       ),
       show.legend = FALSE
     ) +
     geom_line(
-      data = pred_covariates_full$smooth_gender,
+      data = pred_covariates_full$smooth_sex,
       aes(
         x = age,
         y = estimate,
-        color = gender
+        color = sex
       ),
       show.legend = TRUE
     ) +
     geom_line(
-      data = svyby(as.formula(paste0("~", params$hearing_var)), ~ gender * age, design, svymean),
+      data = svyby(as.formula(paste0("~", params$hearing_var)), ~ sex * age, design, svymean),
       aes(
         x = as.numeric(age),
         y = .data[[params$hearing_var]],
-        color = as.factor(gender)
+        color = as.factor(sex)
       ),
       alpha = 0.4
     ) +
     geom_ribbon(
-      data = pred_covariates_full$smooth_gender,
+      data = pred_covariates_full$smooth_sex,
       aes(
         x = age,
         ymin = ci_lower,
         ymax = ci_upper,
-        fill = gender
+        fill = sex
       ),
       show.legend = FALSE
     ) +
@@ -1239,7 +1239,7 @@ if (isFALSE(params$telolength)) {
       y = "hl"
     ) +
     scale_alpha_identity() +
-    color_scales("gender") +
+    color_scales("sex") +
     plot_theme() +
     theme(
       axis.title.x = element_blank()
@@ -1596,7 +1596,7 @@ sameplot(
 ```{r plot_covariates, warning=FALSE}
 if (isFALSE(params$telolength)) {
   p <- summary_covariates %>%
-    filter(!predictors %in% c("age, gender, smoking, race, education", "age, gender, smoking, race, education, phenoage")) %>%
+    filter(!predictors %in% c("age, sex, smoking, race, education", "age, sex, smoking, race, education, phenoage")) %>%
     ggplot(
       aes(
         x = age_group,
@@ -1662,14 +1662,14 @@ if (isFALSE(params$telolength)) {
 ```{r plot_covariates_overall, warning=FALSE}
 if (isFALSE(params$telolength)) {
   p <- summary_covariates_overall %>%
-    filter(!predictors %in% c("age, gender, smoking, race, education", "age, gender, smoking, race, education, phenoage")) %>%
+    filter(!predictors %in% c("age, sex, smoking, race, education", "age, sex, smoking, race, education, phenoage")) %>%
     mutate(predictors = factor(
       predictors,
       levels = c(
         "age, smoking, race, education",
-        "age, gender, smoking, education",
-        "age, gender, smoking, race",
-        "age, gender, race, education"
+        "age, sex, smoking, education",
+        "age, sex, smoking, race",
+        "age, sex, race, education"
       ),
       labels = c(
         "Sex",

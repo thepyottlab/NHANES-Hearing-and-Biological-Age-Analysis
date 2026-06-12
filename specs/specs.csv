@@ -3,7 +3,7 @@ year,dataset,cols,new_name
 1999,demographics,SDMVPSU,psu
 1999,demographics,SDMVSTRA,stratum
 1999,demographics,RIDAGEYR,age
-1999,demographics,RIAGENDR,gender
+1999,demographics,RIAGENDR,sex
 1999,demographics,RIDEXPRG,pregnant
 1999,demographics,RIDRETH1,race
 1999,demographics,DMDEDUC2,education
@@ -57,7 +57,7 @@ year,dataset,cols,new_name
 2001,demographics,SDMVPSU,psu
 2001,demographics,SDMVSTRA,stratum
 2001,demographics,RIDAGEYR,age
-2001,demographics,RIAGENDR,gender
+2001,demographics,RIAGENDR,sex
 2001,demographics,RIDEXPRG,pregnant
 2001,demographics,RIDRETH1,race
 2001,demographics,DMDEDUC2,education
@@ -113,7 +113,7 @@ year,dataset,cols,new_name
 2003,demographics,RIDAGEYR,age
 2003,demographics,SDMVPSU,psu
 2003,demographics,SDMVSTRA,stratum
-2003,demographics,RIAGENDR,gender
+2003,demographics,RIAGENDR,sex
 2003,demographics,RIDEXPRG,pregnant
 2003,demographics,RIDRETH1,race
 2003,demographics,DMDEDUC2,education
@@ -167,7 +167,7 @@ year,dataset,cols,new_name
 2005,demographics,SDMVSTRA,stratum
 2005,demographics,WTMEC2YR,weights
 2005,demographics,RIDAGEYR,age
-2005,demographics,RIAGENDR,gender
+2005,demographics,RIAGENDR,sex
 2005,demographics,RIDEXPRG,pregnant
 2005,demographics,RIDRETH1,race
 2005,demographics,DMDEDUC2,education
@@ -219,7 +219,7 @@ year,dataset,cols,new_name
 2009,demographics,SDMVPSU,psu
 2009,demographics,SDMVSTRA,stratum
 2009,demographics,RIDAGEYR,age
-2009,demographics,RIAGENDR,gender
+2009,demographics,RIAGENDR,sex
 2009,demographics,RIDEXPRG,pregnant
 2009,demographics,RIDRETH1,race
 2009,demographics,DMDEDUC2,education
@@ -272,7 +272,7 @@ year,dataset,cols,new_name
 2015,demographics,SDMVPSU,psu
 2015,demographics,SDMVSTRA,stratum
 2015,demographics,RIDAGEYR,age
-2015,demographics,RIAGENDR,gender
+2015,demographics,RIAGENDR,sex
 2015,demographics,RIDEXPRG,pregnant
 2015,demographics,RIDRETH1,race
 2015,demographics,DMDEDUC2,education
@@ -325,7 +325,7 @@ year,dataset,cols,new_name
 2017,demographics,SDMVPSU,psu
 2017,demographics,SDMVSTRA,stratum
 2017,demographics,RIDAGEYR,age
-2017,demographics,RIAGENDR,gender
+2017,demographics,RIAGENDR,sex
 2017,demographics,RIDEXPRG,pregnant
 2017,demographics,RIDRETH1,race
 2017,demographics,DMDEDUC2,education

@@ -193,10 +193,10 @@ pred_covariates_full <- list()
 pred_covariates_full <- append(
   pred_covariates_full,
   list(
-    smooth_gender = predict_age_rate_covariate(
+    smooth_sex = predict_age_rate_covariate(
       df,
-      models_covariates$smooth_gender,
-      covariate = "gender"
+      models_covariates$smooth_sex,
+      covariate = "sex"
     ),
     smooth_smoking = predict_age_rate_covariate(
       df,

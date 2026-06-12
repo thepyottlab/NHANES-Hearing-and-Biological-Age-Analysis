@@ -23,7 +23,7 @@ file contains "Audiometry" otherwise, filter the IDs to the list of audiometry I
 select_audiometry_sample <- function(data_map) {
   # Extract all subject IDs from audiometry files
   audiometry_sample_ids <- data_map %>%
-    filter(str_detect(file, "Audiometry")) %>%
+    filter(str_detect(dataset_id, "AUX")) %>%
     pull(data) %>%
     map(~ pull(.x, SEQN)) %>%
     reduce(union)
@@ -31,8 +31,8 @@ select_audiometry_sample <- function(data_map) {
   # Filter non-audiometry files to audiometry subject IDs only
   data_map %>%
     mutate(
-      data = map2(data, file, \(df, f) {
-        if (str_detect(f, "Audiometry")) {
+      data = map2(data, dataset_id, \(df, f) {
+        if (str_detect(f, "AUX")) {
           df
         } else {
           filter(df, SEQN %in% audiometry_sample_ids)
@@ -42,7 +42,7 @@ select_audiometry_sample <- function(data_map) {
 }
 ```
 
-### Select columns
+### Select and rename columns
 
 We intentionally do not select creat_umol columns if we have to restandardize them later (1999 and
 2005)
@@ -52,57 +52,46 @@ select_columns <- function(data_map, column_path) {
   col_spec <- read.csv(column_path)
 
   col_spec <- col_spec %>%
-    group_by(year) %>%
-    summarize(
-      select_cols = list(unique(cols)),
-      .groups = "drop"
-    )
+    filter(include == TRUE) %>%
+    select(label, variable, cycles) %>%
+    separate_longer_delim(cycles, delim = ", ")
 
   # Merge data from the same year into one dataframe
   data_map <- data_map %>%
-    group_by(cohort) %>%
+    group_by(cycle) %>%
     summarise(
       data = list(reduce(data, full_join, by = "SEQN")),
       .groups = "drop"
     )
+  
+    # Spec variables that aren't present in their cycle's merged data
+  available <- data_map %>%
+    transmute(cycle, cols = map(data, names)) %>%
+    unnest_longer(cols)
 
-  # Select columns to keep per year
-  data_map %>%
-    mutate(
-      data = map2(data, cohort, \(df, yr) {
-        cols_to_keep <- unlist(
-          col_spec %>%
-            filter(year == yr) %>%
-            pull(select_cols)
-        )
+  missing <- col_spec %>%
+    anti_join(available, by = c("cycles" = "cycle", "variable" = "cols"))
 
-        df %>%
-          select(all_of(cols_to_keep)) %>%
-          mutate(year = factor(yr))
-      })
+  if (nrow(missing) > 0) {
+    stop(
+      "Spec variables missing from their cycle:\n",
+      paste0("  ", missing$cycles, " : ", missing$variable, collapse = "\n"),
+      call. = FALSE
     )
-}
-```
-
-### Rename columns
-
-```{r rename_cols}
-rename_columns <- function(data_map, column_name_path) {
-  col_name_spec <- read.csv(column_name_path)
-
+  }
+  
+  # Match variables with spec and rename to label. Per-cycle columns are obtained and named.
   data_map %>%
-    mutate(
-      data = map2(data, cohort, \(df, yr) {
-        rename_spec <- col_name_spec %>%
-          filter(year == yr, !is.na(new_name))
+    mutate(data = map2(data, cycle, function(dat, cy) {
+      keep <- col_spec %>% filter(cycles == cy)
+      keep <- setNames(keep$variable, keep$label)
+      keep <- c(SEQN = "SEQN", keep[keep != "SEQN"])
 
-        df %>%
-          rename_with(
-            ~ rename_spec$new_name[which(rename_spec$cols == .x)],
-            .cols = rename_spec$cols
-          )
-      })
-    )
+      dat %>%
+      select(any_of(keep)) %>%
+      mutate(cycle = cy)
+    }))
+  
 }
 ```
 
@@ -113,8 +102,7 @@ merge_data <- function(data_map) {
   data_map %>%
     pull(data) %>%
     bind_rows() %>%
-    mutate(sampleID = paste(year, SEQN, sep = "_")) %>%
-    relocate(SEQN, sampleID, year)
+    relocate(SEQN, cycle)
 }
 ```
 
@@ -142,8 +130,28 @@ To calculate weights, we divide the number of years in the weights by the total 
 the age group, but note that .
 
 Ages are binned into age groups. Mexican Americans (`race == 1`) and other hispanics (`race == 2`)
-are merged into a single hispanics variable. Creatinine in 1999 and 2005 and CRP in 2015 and 2017
-are standardized. SBP is averaged over multiple measurements.
+are merged into a single hispanics variable. BP is averaged over multiple measurements.
+
+- CRP was measured in mg/L instead of mg/dL in 2015_2016 and 2017_2020 and was converted to mg/dL.
+- Creatinine is in mg/dL (and must be used in mg/dL for correction/standardization) and is converted
+  to umol/L after standardization to align with original PhenoAge paper. Standardized in 1999_2000,
+  2005_2006, and 2017_2020.
+- Albumin was converted from g/dL to g/L to align with PhenoAge paper and was backwards standardized
+  in 2017_2020.
+- The following others were standardized in 2017_2020 (due to new chemistry analyzer):
+  - Alkaline phosphatase
+  - Aspartate aminotransferase (additionally log-transformed, and no values are below 1 so no
+    constant of one needed)
+  - Alanine transaminase (additionally log-transformed, and no values are below 1 so no constant of
+    one needed)
+  - Blood urea nitrogen
+  - Gamma glutamyl transpeptidase (additionally log-transformed, and no values are below 1 so no
+    constant of one needed)
+  - Iron
+  - Lactate dehydrogenase
+  - Uric acid
+
+Creatinine in 1999 and 2005 and CRP in 2015 and 2017 are standardized. S
 
 ```{r standardize_vals}
 standardize_values <- function(data) {
@@ -155,8 +163,8 @@ standardize_values <- function(data) {
         age >= 20 & age < 70 ~ "20-69"
       ),
       cycle_years = case_when(
-        year %in% c("1999", "2001") ~ 4,
-        year == "2017" ~ 3.2,
+        cycle %in% c("1999_2000", "2001_2002") ~ 4,
+        cycle == "2017_2020" ~ 3.2,
         TRUE ~ 2
       ),
       total_years_for_group = case_when(
@@ -188,42 +196,73 @@ standardize_values <- function(data) {
         race == 2 ~ 1,
         TRUE ~ race
       ),
+      alb = case_when(
+        cycle == "2017_2020" ~ 1.044 * alb + 0.01128,
+        TRUE ~ alb
+      ),
+      alb = alb * 10,
+      alp = case_when(
+        cycle == "2017_2020" ~ 1.001 * alp + 0.04294,
+        TRUE ~ alp
+      ),
+      ast = case_when(
+        cycle == "2017_2020" ~ 1.018 * ast + 3.762,
+        TRUE ~ ast
+      ),      
+      ast_log = log(ast),
+      alt = case_when(
+        cycle == "2017_2020" ~ 1.013 * alt + 2.688,
+        TRUE ~ alt
+      ),    
+      alt_log = log(alt),
+      bun = case_when(
+        cycle == "2017_2020" ~ 1.001 * bun + 0.4488,
+        TRUE ~ bun
+      ),    
+      ggt = case_when(
+        cycle == "2017_2020" ~ 0.8042 * ggt + 2.363,
+        TRUE ~ ggt
+      ),    
+      ggt_log = log(ggt),
+      iron = case_when(
+        cycle == "2017_2020" ~ 0.9776 * iron - 4.494,
+        TRUE ~ iron
+      ),  
+      ld = case_when(
+        cycle == "2017_2020" ~ 0.8568 * ld + 2.062,
+        TRUE ~ ld
+      ),  
+      ua = case_when(
+        cycle == "2017_2020" ~ 0.9323 * ua + 0.2326,
+        TRUE ~ ua
+      ),  
       creat = case_when(
-        year == 1999 ~ LBXSCR * 1.013 + 0.147,
-        year == 2005 ~ LBXSCR * 0.978 - 0.016,
+        cycle == "1999_2000" ~ 1.013 * creat + 0.147,
+        cycle == "2005_2006" ~ -0.016 + 0.978 * creat,
+        cycle == "2017_2020" ~ 1.051 * creat - 0.06945,
         TRUE ~ creat
       ),
-      creat_umol = case_when(
-        year %in% c(1999, 2005) ~ creat * 88.4,
-        TRUE ~ creat_umol
-      ),
+      creat = creat * 88.4,
       crp = case_when(
-        year %in% c(2015, 2017) ~ LBXHSCRP / 10,
+        cycle %in% c("2015_2016", "2017_2020") ~ crp / 10,
         TRUE ~ crp
       ),
-      lncrp = log(crp + 1),
-      lncreat = log(creat + 1),
-      lncreat_umol = log(creat_umol + 1),
+      crp_log = log(crp),
       telolength_log = log(telolength)
     ) %>%
     rowwise() %>%
     mutate(
       sbp = case_when(
-        year == 2017 ~ mean(c(BPXOSY1, BPXOSY2, BPXOSY3), na.rm = TRUE),
-        TRUE ~ mean(c(BPXSY1, BPXSY2, BPXSY3, BPXSY4), na.rm = TRUE)
+        cycle == "2017_2020" ~ mean(c(sbp1, sbp2, sbp3), na.rm = TRUE),
+        TRUE ~ mean(c(sbp1, sbp2, sbp3, sbp4), na.rm = TRUE)
       )
     ) %>%
     ungroup() %>%
     select(
-      -LBXSCR,
-      -LBXHSCRP,
-      -BPXSY1,
-      -BPXSY2,
-      -BPXSY3,
-      -BPXSY4,
-      -BPXOSY1,
-      -BPXOSY2,
-      -BPXOSY3
+      -sbp1,
+      -sbp2,
+      -sbp3,
+      -sbp4
     )
 }
 ```
@@ -262,6 +301,8 @@ calculate_hearing <- function(data) {
 
 ### Data preprocessing pipeline
 
+#### NHANES 4
+
 1.  Only IDs in the audiometry sample of NHANES are retained.
 2.  Only columns that are present in the specs.csv sheet are retained and data files from the same
     year are combined.
@@ -275,14 +316,51 @@ calculate_hearing <- function(data) {
 df_unfiltered <- df_raw %>%
   select_audiometry_sample() %>%
   select_columns(
-    column_path = here("specs", "specs.csv")
-  ) %>%
-  rename_columns(
-    column_name_path = here("specs", "specs.csv")
+    column_path = here("specs", "col_spec_nhanes4.csv")
   ) %>%
   merge_data() %>%
   standardize_values() %>%
   calculate_hearing()
+```
+
+#### NHANES 3
+
+Training is only used for biological age algorithms and there's only a single cycle so no
+standardization or audiometry subsampling required. Filtering will be performed in the biological
+age calculation chunk.
+
+```{r preprocess_pipe_train}
+df_train <- df_train_raw %>%
+  select_columns(
+    column_path = here("specs", "col_spec_nhanes3.csv")
+  ) %>%
+  merge_data() %>%
+  mutate(
+    status = case_when(
+      time > 240 ~ 0,
+      TRUE ~ status
+    ),
+    time = case_when(
+      time > 240 ~ 240,
+      TRUE ~ time
+    ),
+    across(where(is.numeric),
+                \(x) if_else(x %in% c(888L, 8888L, 88888L, 888888L), NA_real_, x)),
+         crp_log = log(crp),
+         creat = 0.96 * creat - 0.184,
+    
+    )
+```
+
+#### NHANES 4 HD Train
+
+```{r}
+df_train_hd <- df_raw %>%
+  select_columns(
+    column_path = here("specs", "col_spec_nhanes4.csv")
+  ) %>%
+  merge_data() %>%
+  standardize_values() 
 ```
 
 ## Survey design
@@ -310,9 +388,9 @@ construct_table <- function(input, title) {
 }
 
 df_unfiltered %>%
-  group_by(year) %>%
+  group_by(cycle) %>%
   summarise(across(everything(), ~ sum(!is.na(.)), .names = "n_{.col}")) %>%
-  select(year, n_SEQN, n_weights, where(~ any(. == 0))) %>%
+  select(cycle, n_SEQN, n_weights, where(~ any(. == 0))) %>%
   construct_table(title = "Check present values")
 ```
 
@@ -381,13 +459,13 @@ to subset `design` on.
 6.  Subjects with missing or unknown covariate data are excluded.
 7.  Subjects with missing biomarker data are excluded (as these are required for calculating
     biological ages).
-8.  Subjects with any biomarker values \> 5 SDs above the gender-specific mean are excluded to avoid
+8.  Subjects with any biomarker values \> 5 SDs above the sex-specific mean are excluded to avoid
     extreme values dominating the models.
 
 ### Filter data
 
 ```{r filter_df}
-subset_data <- function(design) {
+subset_data <- function(design, spec_path) {
   verbose_subset <- function(design, ..., label) {
     start_n <- nrow(design)
     design_subset <- design %>% subset(...)
@@ -400,25 +478,17 @@ subset_data <- function(design) {
     select(contains("audio")) %>%
     colnames()
 
-  biomarkers <- c(
-    "albumin",
-    "alp",
-    "lncrp",
-    "totchol",
-    "lncreat",
-    "lncreat_umol",
-    "hba1c",
-    "sbp",
-    "bun",
-    "uap",
-    "lymph",
-    "mcv",
-    "wbc"
-  )
+  col_spec <- read.csv(spec_path)
+
+  biomarkers <- col_spec %>%
+    filter(
+      vartype == "biomarker", 
+      include == TRUE, 
+      !(label %in% c("sbp1", "sbp2", "sbp3", "sbp4", "crp", "ast", "alt", "ggt"))
+      ) %>%
+    pull(label)
   
-      v1_biomarkers <- c(
-      "albumin", "alp", "lncrp", "lncreat", "lymph", "mcv", "wbc", "rdw", "glucose"
-      )
+  biomarkers <- unique(c(biomarkers, "sbp", "crp_log", "ast_log", "alt_log","ggt_log"))
 
   design <- design %>%
     verbose_subset(
@@ -457,7 +527,7 @@ subset_data <- function(design) {
   design <- design %>%
     verbose_subset(
       design$variables %>%
-        mutate(keep = !if_any(all_of(v1_biomarkers), ~ is.na(.))) %>%
+        mutate(keep = !if_any(all_of(biomarkers), ~ is.na(.))) %>%
         pull(keep),
       label = "missing biomarkers."
     )
@@ -465,9 +535,9 @@ subset_data <- function(design) {
   design %>%
     verbose_subset(
       design$variables %>%
-        group_by(gender) %>%
+        group_by(sex) %>%
         mutate(keep = !if_any(
-          all_of(v1_biomarkers),
+          all_of(biomarkers),
           ~ {
             m <- mean(.x, na.rm = TRUE)
             s <- sd(.x, na.rm = TRUE)
@@ -480,7 +550,9 @@ subset_data <- function(design) {
     )
 }
 
-design <- design_no_missing %>% subset_data()
+design <- design_no_missing %>% subset_data(
+  spec_path = here("specs", "col_spec_nhanes4.csv")
+)
 ```
 
 ### Optionally only include telolength
@@ -494,137 +566,285 @@ if (isTRUE(params$telolength)) {
 }
 ```
 
-### Check data issues (unweighted)
+### Check data issues (NHANES3 is unweighted)
 
 ```{r check_df_balance}
-design$variables %>%
-  group_by(year) %>%
-  summarize(
-    age = paste0(round(mean(age), 1), "(", round(sd(age), 1), ")"),
-    pta_hf = paste0(round(mean(pta_hf), 1), "(", round(sd(pta_hf), 1), ")"),
-    pta_lf = paste0(round(mean(pta_lf), 1), "(", round(sd(pta_lf), 1), ")"),
-    albumin = paste0(round(mean(albumin), 1), "(", round(sd(albumin), 1), ")"),
-    alp = paste0(round(mean(alp), 1), "(", round(sd(alp), 1), ")"),
-    lncrp = paste0(round(mean(lncrp), 1), "(", round(sd(lncrp), 1), ")"),
-    totchol = paste0(round(mean(totchol), 1), "(", round(sd(totchol), 1), ")"),
-    creat = paste0(round(mean(creat), 1), "(", round(sd(creat), 1), ")"),
-    hba1c = paste0(round(mean(hba1c), 1), "(", round(sd(hba1c), 1), ")"),
-    sbp = paste0(round(mean(sbp), 1), "(", round(sd(sbp), 1), ")"),
-    bun = paste0(round(mean(bun), 1), "(", round(sd(bun), 1), ")"),
-    uap = paste0(round(mean(uap), 1), "(", round(sd(uap), 1), ")"),
-    lymph = paste0(round(mean(lymph), 1), "(", round(sd(lymph), 1), ")"),
-    mcv = paste0(round(mean(mcv), 1), "(", round(sd(mcv), 1), ")"),
-    wbc = paste0(round(mean(wbc), 1), "(", round(sd(wbc), 1), ")"),
-    .groups = "drop"
-  ) %>%
+check_biomarker_standardization <- function(design, training_set, testing_spec_path, training_spec_path) {
+  col_spec <- read.csv(testing_spec_path)
+
+  biomarkers <- col_spec %>%
+    filter(
+      vartype == "biomarker", 
+      include == TRUE, 
+      !(label %in% c("sbp1", "sbp2", "sbp3", "sbp4", "crp", "ast", "alt", "ggt"))
+      ) %>%
+    pull(label)
+  
+  biomarkers <- unique(c(biomarkers, "crp_log", "ast_log", "alt_log","ggt_log"))
+
+  all_vars <- c("age", "pta_hf", "pta_lf","sbp", biomarkers)
+cycles <- unique(design$variables$cycle)
+
+nhanes4 <- map_dfr(cycles, function(cyc) {
+  des_cyc <- subset(design, cycle == cyc)
+
+  stats <- map(all_vars, function(v) {
+    fmla_v <- as.formula(paste("~", v))
+    m <- as.numeric(svymean(fmla_v, des_cyc, na.rm = TRUE))
+    s <- sqrt(as.numeric(svyvar(fmla_v, des_cyc, na.rm = TRUE)))
+    paste0(round(m, 2), "(", round(s, 2), ")")
+  }) %>%
+    set_names(all_vars) %>%
+    as_tibble()
+
+  bind_cols(tibble(cycle = cyc), stats)
+})
+
+training_set[training_set == 88888] <- NA
+training_set[training_set == 8888] <- NA
+training_set[training_set == 888] <- NA
+
+col_spec_train <- read.csv(training_spec_path)
+
+biomarkers_train <- col_spec_train %>%
+  filter(vartype == "biomarker",
+         include == TRUE,
+         label != "crp") %>%
+  pull(label)
+  all_vars_train <- c("age", "crp_log", biomarkers_train)
+
+
+  nhanes3 <- map(all_vars_train, function(v) {
+    m <- as.numeric(mean(training_set[[v]], na.rm = TRUE))
+    s <- as.numeric(sd(training_set[[v]], na.rm = TRUE))
+    paste0(round(m, 2), "(", round(s, 2), ")")
+  }) %>%
+    set_names(all_vars_train) %>%
+    as_tibble() %>%
+    mutate(cycle = "1988_1994")
+
+  bind_rows(nhanes4, nhanes3) %>%
+  arrange(cycle) %>%
   construct_table(title = "Check cohort age and biomarker balance")
+}
+
+design %>% check_biomarker_standardization(
+  training_set = df_train,
+  testing_spec_path = here("specs", "col_spec_nhanes4.csv"),
+  training_spec_path = here("specs", "col_spec_nhanes3.csv")
+)
 ```
 
-ALP was higher in 1999 despite age being normal, but is probably noise or survey changes. Totchol is
-lower in newer cohorts (even when included population is older), but could be explained by lifestyle
-changes, sampling differences, and large variances. No other issues.
+ALP was higher in NHANES3, but could be in prat due to survey design (old people weigh too heavily)
+and large SD. Creatinine is also a bit higher in NHANES3 but could be due to the same reason.
+
+#### Verify normal distribution
+
+```{r}
+check_distribution <- function(data, spec_path, dataset) {
+  col_spec <- read.csv(spec_path)
+  biomarkers <- col_spec %>%
+    filter(
+      vartype == "biomarker", 
+      include == TRUE, 
+      !(label %in% c("sbp1", "sbp2", "sbp3", "sbp4", "crp", "ast", "alt", "ggt"))
+      ) %>%
+    pull(label)
+  
+  if (dataset == "NHANES4") {
+      biomarkers <- unique(c(biomarkers, "crp_log", "ast_log", "alt_log","ggt_log"))
+  } else {
+      biomarkers <- unique(c(biomarkers, "crp_log"))
+  }
+  
+  data %>%
+    select(all_of(biomarkers)) %>%
+    pivot_longer(names_to = "biomarker", values_to = "value") %>%
+    ggplot(aes(x = value)) +
+  geom_histogram(
+    aes(y = ..density..),
+    fill = "tomato",
+    color = "white",
+    alpha = 0.7
+  ) +
+  geom_density(
+    color = "darkred",
+    size = 1,
+    adjust = 3
+  ) +
+  facet_wrap(~ biomarker, scales = "free") +
+  theme_few() +
+  theme(
+    axis.text = element_blank()
+  )
+  
+}
+
+sameplot(
+design$variables %>% check_distribution(
+     spec_path = here("specs", "col_spec_nhanes4.csv"),
+     dataset = "NHANES4"
+   ),
+  width = params$double_column_width,
+  height = 6,
+  res = 600,
+  save = params$save_figures,
+  file = here(
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Extras",
+    "biomarker_distributions_NHANES4.png"
+  )
+)
+
+sameplot(
+df_train %>% check_distribution(
+     spec_path = here("specs", "col_spec_nhanes3.csv"),
+     dataset = "NHANES3"
+   ),
+  width = params$double_column_width,
+  height = 6,
+  res = 600,
+  save = params$save_figures,
+  file = here(
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Extras",
+    "biomarker_distributions_NHANES3.png"
+  )
+)
+```
+
+There is some kurtosis for several variables in NHANES3, but that should not be an issue.
 
 ## Calculate biological age
 
 ```{r calc_bioage, warning=FALSE}
-insert_bioage <- function(design) {
-  bioage_calc <- function(data, training_data_path, HD_training_data_path) {
-    v2_biomarkers <- c(
-      "albumin", "alp", "lncrp", "totchol", "lncreat", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc"
+insert_bioage <- function(design, train_data, train_data_hd, orig_phenoage = TRUE) {
+  bioage_calc <- function(data, train_data, train_data_hd, orig_phenoage = TRUE) {
+    biomarkers_phenoage <- c(
+      "alb", "alp", "crp_log", "creat", "lymph", "mcv", "wbc", "rdw", "glu"
     )
-    v2_biomarkers_phenoage <- c(
-      "albumin_gL", "alp", "lncrp", "totchol", "lncreat_umol", "hba1c", "sbp", "bun", "uap", "lymph", "mcv", "wbc"
+    biomarkers_kdm <- c(
+      "alb", "creat", "crp_log", "mono", "alp", "hba1c", "totchol", "bun", "sbp", "rbc"
     )
-    v1_biomarkers <- c(
-      "albumin", "alp", "lncrp", "lncreat", "lymph", "mcv", "wbc", "rdw", "glucose"
-      )
-    v1_biomarkers_phenoage <- c(
-      "albumin_gL", "alp", "lncrp", "lncreat_umol", "lymph", "mcv", "wbc", "rdw", "glucose"
+    biomarkers_hd <- c(
+      "alb", "alp", "alt_log", "ast_log", "baso", "cal", "chlor", "ggt_log", "hdl", "hg", "htc", "iron", "ld", "lymph", "mch", "mchc", "mono", "neut", "phos", "pot", "rbc", "rdw", "sod", "totchol", "tp", "ua", "wbc"
     )
 
-    load(training_data_path)
-    load(HD_training_data_path)
-
-    # Calculate KDM V2
-    train_fem_kdm_v2 <- kdm_calc(
-      data = NHANES3 %>%
-        filter(gender == 2 & age >= 30 & age <= 75 & pregnant == 0),
-      biomarkers = v1_biomarkers,
+    # Calculate KDM
+    train_fem_kdm <- kdm_calc(
+      data = train_data %>%
+        filter(
+          sex == 2 & 
+            age >= 20 & 
+            age <= 70 & 
+            (pregnant != 1 | is.na(pregnant))
+          ),
+      biomarkers = biomarkers_kdm,
       fit = NULL,
       s_ba2 = NULL,
       n_allowed_missing_biomarkers = 0
     )
-    train_male_kdm_v2 <- kdm_calc(
-      data = NHANES3 %>%
-        filter(gender == 1 & age >= 30 & age <= 75),
-      biomarkers = v1_biomarkers,
+
+    train_male_kdm <- kdm_calc(
+      data = train_data %>%
+        filter(
+          sex == 1 & 
+            age >= 20 & 
+            age <= 70
+          ),
+      biomarkers = biomarkers_kdm,
       fit = NULL,
       s_ba2 = NULL,
       n_allowed_missing_biomarkers = 0
     )
-    test_fem_kdm_v2 <- kdm_calc(
+    test_fem_kdm <- kdm_calc(
       data = data %>%
-        filter(gender == 2),
-      biomarkers = v1_biomarkers,
-      fit = train_fem_kdm_v2$fit,
-      s_ba2 = train_fem_kdm_v2$fit$s_ba2,
+        filter(sex == 2),
+      biomarkers = biomarkers_kdm,
+      fit = train_fem_kdm$fit,
+      s_ba2 = train_fem_kdm$fit$s_ba2,
       n_allowed_missing_biomarkers = 0
     )
-    test_male_kdm_v2 <- kdm_calc(
+    test_male_kdm <- kdm_calc(
       data = data %>%
-        filter(gender == 1),
-      biomarkers = v1_biomarkers,
-      fit = train_male_kdm_v2$fit,
-      s_ba2 = train_male_kdm_v2$fit$s_ba2,
+        filter(sex == 1),
+      biomarkers = biomarkers_kdm,
+      fit = train_male_kdm$fit,
+      s_ba2 = train_male_kdm$fit$s_ba2,
       n_allowed_missing_biomarkers = 0
     )
 
-    test_kdm_v2 <- rbind(test_fem_kdm_v2$data, test_male_kdm_v2$data)
+    test_kdm <- rbind(test_fem_kdm$data, test_male_kdm$data)
 
-    data <- left_join(data, test_kdm_v2[, c("sampleID", "kdm", "kdm_advance")], by = "sampleID")
+    data <- left_join(data, test_kdm[, c("SEQN", "kdm", "kdm_advance")], by = "SEQN")
 
-    # Calculate PhenoAge V2
-    train_phenoage_v2 <- phenoage_calc(
-      data = NHANES3 %>%
-        filter(age >= 20 & age <= 84),
-      biomarkers = v1_biomarkers_phenoage,
+    # Calculate PhenoAge
+    train_phenoage <- phenoage_calc(
+      data = train_data %>%
+        filter(
+            age >= 20 & 
+            age <= 79 & 
+            (pregnant != 1 | is.na(pregnant)) &
+              !is.na(status) &
+              !is.na(time) &
+  !(rowSums(is.na(across(all_of(biomarkers_phenoage)))) > 0)
+),
+      biomarkers = biomarkers_phenoage,
       fit = NULL
     )
 
-    test_phenoage_v2 <- phenoage_calc(
+    test_phenoage <- phenoage_calc(
       data = data,
-      biomarkers = v1_biomarkers_phenoage,
-      fit = train_phenoage_v2$fit
+      biomarkers = biomarkers_phenoage,
+      fit = train_phenoage$fit
     )
 
-    data <- left_join(data, test_phenoage_v2$data[, c("sampleID", "phenoage", "phenoage_advance")], by = "sampleID")
+    data <- left_join(data, test_phenoage$data[, c("SEQN", "phenoage", "phenoage_advance")], by = "SEQN")
 
     # Calculate HD
+    train_data_hd <- train_data_hd %>%
+        filter(
+            age <= 30 & 
+            (pregnant != 1 | is.na(pregnant)) &
+  !(rowSums(is.na(across(all_of(biomarkers_hd)))) > 0)
+)
     fem_hd <- hd_calc(
       data = data %>%
-        filter(gender == 2),
-      reference = NHANES3_HDTrain %>%
-        filter(gender == 2),
-      biomarkers = v1_biomarkers
+        filter(sex == 2),
+      reference = train_data_hd %>%
+        filter(sex == 2),
+      biomarkers = biomarkers_hd
     )
     male_hd <- hd_calc(
       data = data %>%
-        filter(gender == 1),
-      reference = NHANES3_HDTrain %>%
-        filter(gender == 1),
-      biomarkers = v1_biomarkers
+        filter(sex == 1),
+      reference = train_data_hd %>%
+        filter(sex == 1),
+      biomarkers = biomarkers_hd
     )
 
     hd <- rbind(fem_hd$data, male_hd$data)
 
-    data <- left_join(data, hd[, c("sampleID", "hd", "hd_log")], by = "sampleID")
+    data <- left_join(data, hd[, c("SEQN", "hd", "hd_log")], by = "SEQN")
 
     data
   }
 
   df <- design$variables %>% bioage_calc(
-    training_data_path = here("data", "training_data", "NHANES3.rda"),
-    HD_training_data_path = here("data", "training_data", "NHANES3_HDTrain.rda")
+    train_data = train_data,
+    train_data_hd = train_data_hd
   )
 
   update(design,
@@ -637,7 +857,41 @@ insert_bioage <- function(design) {
   )
 }
 
-design <- insert_bioage(design)
+design <- insert_bioage(design, train_data = df_train, train_data_hd = df_train_hd)
+```
+
+### Validate biological age calculations
+
+```{r plot_aging_measures}
+plot_bioage_correlations <- function(design) {
+  data <- design$variables
+  
+    metrics <- c("kdm", "phenoage", "hd_log")
+  wcor <- function(m) {
+    v <- svyvar(reformulate(c("age", m)), design, na.rm = TRUE)
+    v <- as.matrix(v)
+    v[1, 2] / sqrt(v[1, 1] * v[2, 2])
+  }
+  cors   <- vapply(metrics, wcor, numeric(1))
+  labs   <- setNames(sprintf("%s (r = %.2f)", metrics, cors), metrics)
+  data %>%
+      pivot_longer(all_of(metrics), names_to = "metric", values_to = "value") %>%
+    mutate(sex = factor(sex)) %>% 
+    ggplot(aes(x = age, y = value)) +
+    geom_point(aes(color = sex), alpha = 0.1, shape = 1) +
+    geom_smooth(method = "lm", se = TRUE, color = "black") +
+    facet_wrap(~ metric, scales = "free_y",
+               labeller = as_labeller(labs)) +
+    scale_color_manual(values = c(
+        "1" = color("sunset")(2)[1],
+        "2" = color("sunset")(2)[2]
+      ), labels = c(
+        "1" = "Male",
+        "2" = "Female"
+      )) +
+    theme_few()
+}
+plot_bioage_correlations(design)
 ```
 
 ## Descriptive statistics
@@ -653,8 +907,8 @@ dataset and remove NA values. Bioage descriptive statistics are also optionally 
 calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
   design <- update(
     design,
-    gender = dplyr::recode(
-      gender,
+    sex = dplyr::recode(
+      sex,
       "1" = "Male",
       "2" = "Female",
       .default = NA_character_
@@ -683,7 +937,7 @@ calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
     )
   )
 
-  groups <- c(Gender = "gender", Race = "race", Smoking = "smoking", Education = "education")
+  groups <- c(Gender = "sex", Race = "race", Smoking = "smoking", Education = "education")
   age_groups <- factor(c("Overall", "20-30", "30-40", "40-50", "50-60", "60-70", if (isFALSE(params$telolength)) "70-80" else NULL))
   hearing_var <- as.formula(paste0("~", params$hearing_var))
   results <- list()
@@ -691,7 +945,7 @@ calculate_descriptive_statistics <- function(design, incl_bioage = FALSE) {
   design <- design %>% subset(
     !is.na(design$variables[[params$hearing_var]]) &
       age_group %in% age_groups &
-      !is.na(gender) &
+      !is.na(sex) &
       !is.na(smoking) &
       !is.na(race) &
       !is.na(education)
@@ -1052,7 +1306,7 @@ df <- df %>%
     SEQN = as.character(SEQN),
     sampleID = as.character(sampleID),
     age_group = factor(age_group),
-    gender = factor(gender),
+    sex = factor(sex),
     pregnant = factor(pregnant),
     race = factor(race),
     education = factor(education),
