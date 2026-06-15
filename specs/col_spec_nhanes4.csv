@@ -1,7 +1,7 @@
 ﻿label,variable,description,unit,dataset_id,dataset_description,cycles,type,vartype,used_for,include,notes
 SEQN,SEQN,ID,NA,NA,,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",character,id,all,TRUE,Same SEQN is used for NHANES3 and NHANES4
-time,PERMTH_EXM,Time from exam until death,Months,NHANES_CYCLE_MORT_2019_PUBLIC,Mortality,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,mortality,all,TRUE,Only used to validate mortality risk of biological age measures
-status,MORTSTAT,Death status,NA,NHANES_CYCLE_MORT_2019_PUBLIC,Mortality,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",factor,mortality,all,TRUE,Only used to validate mortality risk of biological age measures
+time,PERMTH_EXM,Time from exam until death,Months,NHANES_CYCLE_MORT_2019_PUBLIC,Mortality,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016",numeric,mortality,all,TRUE,Only used to validate mortality risk of biological age measures
+status,MORTSTAT,Death status,NA,NHANES_CYCLE_MORT_2019_PUBLIC,Mortality,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016",factor,mortality,all,TRUE,Only used to validate mortality risk of biological age measures
 weights,WTSAU2YR,2-year audiometry probability weights,Dimensionless,AUX,Audiometry,2003_2004,numeric,design,all,TRUE,2-yr audiometry weights are recommended in 2003-2004
 weights,WTSAU4YR,4-year audiometry probability weights,Dimensionless,AUX,Audiometry,"1999_2000, 2001_2002",numeric,design,all,TRUE,4-yr audiometry weights are recommended in first two cylces
 psu,SDMVPSU,Primary sampling units,NA,DEMO,Demographic Variables & Sample Weights,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",factor,design,all,TRUE,

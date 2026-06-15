@@ -127,7 +127,10 @@ following ages were assessed in each cycle:
 - 2017-2020 (up to March): 6-19, 70+ (above 79 is set to 80)
 
 To calculate weights, we divide the number of years in the weights by the total number of years in
-the age group, but note that .
+the age group.
+
+We censor mortality data above 10 years, so the follow-up period is effectively capped at 10 years
+(in line with the Levine paper).
 
 Ages are binned into age groups. Mexican Americans (`race == 1`) and other hispanics (`race == 2`)
 are merged into a single hispanics variable. BP is averaged over multiple measurements.
@@ -192,6 +195,14 @@ standardize_values <- function(data) {
         isFALSE(params$telolength) & age >= 70 & age < 80 ~ "70-80",
         isFALSE(params$telolength) & age >= 80 ~ "80+"
       ),
+        status = case_when(
+      time > 120 ~ 0,
+      TRUE ~ status
+    ),
+    time = case_when(
+      time > 120 ~ 120,
+      TRUE ~ time
+    ),
       race = case_when(
         race == 2 ~ 1,
         TRUE ~ race
@@ -337,11 +348,11 @@ df_train <- df_train_raw %>%
   merge_data() %>%
   mutate(
     status = case_when(
-      time > 240 ~ 0,
+      time > 120 ~ 0,
       TRUE ~ status
     ),
     time = case_when(
-      time > 240 ~ 240,
+      time > 120 ~ 120,
       TRUE ~ time
     ),
     across(where(is.numeric),
@@ -652,9 +663,9 @@ check_distribution <- function(data, spec_path, dataset) {
     pull(label)
   
   if (dataset == "NHANES4") {
-      biomarkers <- unique(c(biomarkers, "crp_log", "ast_log", "alt_log","ggt_log"))
+      biomarkers <- unique(c(biomarkers, "sbp", "crp_log", "ast_log", "alt_log","ggt_log"))
   } else {
-      biomarkers <- unique(c(biomarkers, "crp_log"))
+      biomarkers <- unique(c(biomarkers, "sbp", "crp_log"))
   }
   
   data %>%
@@ -669,7 +680,7 @@ check_distribution <- function(data, spec_path, dataset) {
   ) +
   geom_density(
     color = "darkred",
-    size = 1,
+    linewidth = 1,
     adjust = 3
   ) +
   facet_wrap(~ biomarker, scales = "free") +
@@ -748,7 +759,7 @@ insert_bioage <- function(design, train_data, train_data_hd, orig_phenoage = TRU
         filter(
           sex == 2 & 
             age >= 20 & 
-            age <= 70 & 
+            age <= 79 & 
             (pregnant != 1 | is.na(pregnant))
           ),
       biomarkers = biomarkers_kdm,
@@ -762,7 +773,7 @@ insert_bioage <- function(design, train_data, train_data_hd, orig_phenoage = TRU
         filter(
           sex == 1 & 
             age >= 20 & 
-            age <= 70
+            age <= 79
           ),
       biomarkers = biomarkers_kdm,
       fit = NULL,
@@ -817,6 +828,7 @@ insert_bioage <- function(design, train_data, train_data_hd, orig_phenoage = TRU
     train_data_hd <- train_data_hd %>%
         filter(
             age <= 30 & 
+              age >= 20 &
             (pregnant != 1 | is.na(pregnant)) &
   !(rowSums(is.na(across(all_of(biomarkers_hd)))) > 0)
 )
@@ -862,36 +874,58 @@ design <- insert_bioage(design, train_data = df_train, train_data_hd = df_train_
 
 ### Validate biological age calculations
 
+We check the correlations between chronological and biological age and calculate odds ratios on the
+differences/advances (corrected for age, sex, race, education, and smoking) and normalize to the
+standard deviation and center the mean at 0. The hazard ratios are expressed as hazard per standard
+deviation away.
+
 ```{r plot_aging_measures}
-plot_bioage_correlations <- function(design) {
+plot_bioage_correlations <- function(design, predictors, predictors_advance, covariates = c("age", "sex", "race", "education", "smoking")) {
   data <- design$variables
-  
-    metrics <- c("kdm", "phenoage", "hd_log")
-  wcor <- function(m) {
-    v <- svyvar(reformulate(c("age", m)), design, na.rm = TRUE)
-    v <- as.matrix(v)
-    v[1, 2] / sqrt(v[1, 1] * v[2, 2])
+
+  # scale each predictor to whole-sample z-scores (overall)
+  data <- data %>%
+    mutate(across(all_of(predictors_advance), ~ as.numeric(scale(.))))
+
+  # age-correlation per predictor (invariant to scaling)
+  correlate   <- function(p) cor(data$age, data[[p]], use = "complete.obs")
+  correlations <- vapply(predictors, correlate, numeric(1))
+
+  # overall Cox HR per 1 SD of each scaled predictor, adjusted for covariates
+  cox_hr <- function(p) {
+    form <- as.formula(
+      paste0("survival::Surv(time, status) ~ ", p, " + ",
+             paste(covariates, collapse = " + "))
+    )
+    fit <- survival::coxph(form, data = dplyr::filter(data, !is.na(time), !is.na(status)))
+    setNames(exp(c(coef(fit)[p], confint(fit)[p, ])), c("HR", "lo", "hi"))
   }
-  cors   <- vapply(metrics, wcor, numeric(1))
-  labs   <- setNames(sprintf("%s (r = %.2f)", metrics, cors), metrics)
+  hrs <- vapply(predictors_advance, cox_hr, numeric(3))   # 3 x n: rows HR/lo/hi, cols = predictors
+
+  # facet labels: correlation + per-SD HR (95% CI)
+  labs <- setNames(
+    sprintf("%s\nr = %.2f\nHR = %.2f (%.2f, %.2f)",
+            predictors, correlations,
+            hrs["HR", ], hrs["lo", ], hrs["hi", ]),
+    predictors
+  )
+
   data %>%
-      pivot_longer(all_of(metrics), names_to = "metric", values_to = "value") %>%
-    mutate(sex = factor(sex)) %>% 
+    pivot_longer(all_of(predictors), names_to = "metric", values_to = "value") %>%
+    mutate(sex = factor(sex)) %>%
     ggplot(aes(x = age, y = value)) +
     geom_point(aes(color = sex), alpha = 0.1, shape = 1) +
-    geom_smooth(method = "lm", se = TRUE, color = "black") +
-    facet_wrap(~ metric, scales = "free_y",
-               labeller = as_labeller(labs)) +
-    scale_color_manual(values = c(
-        "1" = color("sunset")(2)[1],
-        "2" = color("sunset")(2)[2]
-      ), labels = c(
-        "1" = "Male",
-        "2" = "Female"
-      )) +
+    geom_smooth(method = "lm", se = TRUE, color = "black", formula = y ~ x) +
+    facet_wrap(~metric, scales = "free_y", labeller = as_labeller(labs)) +
+    scale_color_manual(
+      values = c("1" = color("sunset")(2)[1], "2" = color("sunset")(2)[2]),
+      labels = c("1" = "Male", "2" = "Female")
+    ) +
+    labs(y = "Biological age advance (SD units)") +
     theme_few()
 }
-plot_bioage_correlations(design)
+
+plot_bioage_correlations(design, predictors = c("kdm", "phenoage", "hd_log"), predictors_advance = c("kdm_advance", "phenoage_advance", "hd_log"))
 ```
 
 ## Descriptive statistics
@@ -1304,7 +1338,6 @@ df <- design$variables
 df <- df %>%
   mutate(
     SEQN = as.character(SEQN),
-    sampleID = as.character(sampleID),
     age_group = factor(age_group),
     sex = factor(sex),
     pregnant = factor(pregnant),
@@ -1324,36 +1357,9 @@ labels the RAM as free to be allocated, thus it's not needed to run garbage coll
 rm(df_raw)
 rm(df_unfiltered)
 rm(df_no_missing)
+rm(df_train)
+rm(df_train_hd)
+rm(df_train_raw)
 rm(design_no_missing)
 rm(descriptives_unfiltered)
-
-df <- df %>%
-  select(
-    SEQN,
-    weights,
-    age,
-    age_group,
-    all_of(covariate_vars),
-    kdm,
-    kdm_advance,
-    phenoage,
-    phenoage_advance,
-    hd_log,
-    telolength_log,
-    all_of(params$hearing_var),
-    albumin_gL,
-    alp,
-    bun,
-    lncreat,
-    lncrp,
-    glucose,
-    hba1c,
-    lymph,
-    mcv,
-    rdw,
-    sbp,
-    totchol,
-    wbc,
-    uap
-  )
 ```

@@ -19,6 +19,7 @@ library(matrixStats) # used for weighted variance calculation
 library(emmeans) # for pairwise comparisons
 library(mgcv) # used to train model
 library(survey) # to account for survey design
+library(survival) # for Cox regressions
 
 # Visualization
 library(kableExtra) # for pretty tables
@@ -86,6 +87,7 @@ import_nhanes_data <- function(data_path) {
     full.names = TRUE,
     ignore.case = TRUE
   )
+
   tibble(
     dataset_id = tools::file_path_sans_ext(basename(files)),
     cycle = dplyr::case_when(
@@ -117,12 +119,13 @@ import_nhanes4_mortality <- function(data_path) {
     full.names = TRUE,
     ignore.case = TRUE
   )
-
-  tibble(
+  
+tibble(
     dataset_id = tools::file_path_sans_ext(basename(files)),
     cycle = str_extract(files, "\\d{4}_\\d{4}"),
     data = map2(files, dataset_id, function(dat, id) {
-        read_fwf(
+
+              read_fwf(
           file = dat,
           col_types = "iiiiiiii",
           fwf_cols(
@@ -136,12 +139,12 @@ import_nhanes4_mortality <- function(data_path) {
             PERMTH_EXM = c(46, 48)
           ),
           na = c("", ".")
-        ) 
+        ) %>% tibble() 
       })
   )
 }
 
-df_raw <- rbind(df_raw, import_nhanes4_mortality(here("data", "nhanes4")))[80:90,]
+df_raw <- rbind(df_raw, import_nhanes4_mortality(here("data", "nhanes4")))
 ```
 
 ### NHANES3
