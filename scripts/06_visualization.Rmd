@@ -70,6 +70,54 @@ format_table <- function(summary_data, per_age_group = FALSE) {
 }
 ```
 
+#### Store biomarker labels
+
+```{r}
+biomarker_labels <- summary_biomarkers_overall %>%
+  mutate(label = 
+          c(
+  "Age",
+  "GLU",
+  "ALB",
+  "ALP",
+  "HbA1c",
+  "CREA",
+  "BASO",
+  "Ca",
+  "Cl",
+  "HDL-C",
+  "BUN",
+  "Hb",
+  "HCT",
+  "Fe",
+  "LDH",
+  "LYMPH",
+  "MCH",
+  "MCHC",
+  "Mono",
+  "NEUT",
+  "P",
+  "K",
+  "RBC",
+  "RDW",
+  "MCV",
+  "Na",
+  "TC",
+  "TP",
+  "UA",
+  "WBC",
+  "SBP",
+  "ALT",
+  "AST",
+  "GGT",
+  "CRP",
+  if (isTRUE(params$run_biomarker_add_analysis)) "PhenoAge" else NULL,
+  if (isTRUE(params$run_biomarker_add_analysis)) "CRP + PhenoAge" else NULL
+)) %>%
+  arrange(desc(delta_rmse_w)) %>%
+  select(predictors, label)
+```
+
 #### Order, filter, and rename tables
 
 ```{r order_table}
@@ -108,38 +156,7 @@ rename_biomarker_table <- function(biomarker_table) {
       ))
     ) %>%
     mutate(
-      Predictors = case_when(
-        Predictors == "age, rdw" ~ "Age + RDW",
-        Predictors == "age, alp" ~ "Age + ALP",
-        Predictors == "age, lncrp" ~ "Age + CRP",
-        Predictors == "age, totchol" ~ "Age + TC",
-        Predictors == "age, albumin_gL" ~ "Age + ALB",
-        Predictors == "age, hba1c" ~ "Age + HbA1c",
-        Predictors == "age, glucose" ~ "Age + Glc",
-        Predictors == "age, sbp" ~ "Age + SBP",
-        Predictors == "age, bun" ~ "Age + BUN",
-        Predictors == "age, mcv" ~ "Age + MCV",
-        Predictors == "age, wbc" ~ "Age + WBC",
-        Predictors == "age, lymph" ~ "Age + Lymphs",
-        Predictors == "age, uap" ~ "Age + UA",
-        Predictors == "age, lncreat" ~ "Age + Creat"
-      ),
-      Predictors = factor(Predictors, levels = c(
-        "Age + SBP",
-        "Age + BUN",
-        "Age + MCV",
-        "Age + Lymphs",
-        "Age + RDW",
-        "Age + TC",
-        "Age + Creat",
-        "Age + UA",
-        "Age + Glc",
-        "Age + WBC",
-        "Age + ALP",
-        "Age + ALB",
-        "Age + HbA1c",
-        "Age + CRP"
-      ))
+      Predictors = factor(Predictors, levels = biomarker_labels$predictors, labels = paste0("Age + ", biomarker_labels$label))
     ) %>%
     arrange(Predictors)
 
@@ -1963,38 +1980,8 @@ if (isFALSE(params$telolength)) {
     )) %>%
     mutate(predictors = factor(
       predictors,
-      levels = c(
-        "age, mcv",
-        "age, bun",
-        "age, uap",
-        "age, glucose",
-        "age, lymph",
-        "age, totchol",
-        "age, sbp",
-        "age, wbc",
-        "age, rdw",
-        "age, lncreat",
-        "age, hba1c",
-        "age, albumin_gL",
-        "age, alp",
-        "age, lncrp"
-      ),
-      labels = c(
-        "MCV",
-        "BUN",
-        "UA",
-        "Glc",
-        "Lymphs",
-        "TC",
-        "SBP",
-        "WBC",
-        "RDW",
-        "Creat",
-        "HbA1c",
-        "ALB",
-        "ALP",
-        "CRP"
-      )
+      levels = rev(biomarker_labels$predictors),
+      labels = rev(biomarker_labels$label)
     )) %>%
     ggplot(
       aes(
@@ -2051,7 +2038,7 @@ if (isFALSE(params$telolength)) {
   sameplot(
     p,
     file = here(plot_config("figure_dir"), "biomarkers_panel.png"),
-    width = params$single_column_width,
+    width = params$double_column_width,
     height = 2.15,
     res = 600,
     save = params$save_figures

@@ -55,7 +55,7 @@ params:
     help: "Check to use telolength dataset with smaller N"
   global_k:
     label: "K (n BAM base functions) biological age analysis"
-    value: 30
+    value: 15
     input: numeric
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   age_rate_k:

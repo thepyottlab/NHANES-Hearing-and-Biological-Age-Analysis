@@ -449,6 +449,35 @@ design_no_missing <- svydesign(
 
 ## Data filtering
 
+### List biomarkers
+
+```{r list_bm}
+list_bm <- function(spec_path) {
+  specs <- read.csv(spec_path)
+  browser()
+  bm_labels <- unique(
+    specs %>% filter(
+    include == TRUE,
+    vartype == "biomarker",
+    !label %in% c(
+      "sbp1",
+      "sbp2",
+      "sbp3",
+      "sbp4",
+      "alt",
+      "ast",
+      "ggt",
+      "crp"
+    )
+  ) %>%
+    pull(label)
+  )
+  c(bm_labels, "sbp", "alt_log", "ast_log", "ggt_log", "crp_log")
+}
+
+biomarker_vars <- list_bm(here("specs", "col_spec_nhanes4.csv"))
+```
+
 We keep any columns we may need at this stage or have already used, such as the individual
 audiometry columns. The design is stored intermittently in the pipe before any `if_any` statements
 are used, because these don't work on the design object, only on the `design$variable` within the
@@ -476,7 +505,7 @@ to subset `design` on.
 ### Filter data
 
 ```{r filter_df}
-subset_data <- function(design, spec_path) {
+subset_data <- function(design, biomarker_vars) {
   verbose_subset <- function(design, ..., label) {
     start_n <- nrow(design)
     design_subset <- design %>% subset(...)
@@ -488,18 +517,6 @@ subset_data <- function(design, spec_path) {
   audiometry_cols <- design$variables %>%
     select(contains("audio")) %>%
     colnames()
-
-  col_spec <- read.csv(spec_path)
-
-  biomarkers <- col_spec %>%
-    filter(
-      vartype == "biomarker", 
-      include == TRUE, 
-      !(label %in% c("sbp1", "sbp2", "sbp3", "sbp4", "crp", "ast", "alt", "ggt"))
-      ) %>%
-    pull(label)
-  
-  biomarkers <- unique(c(biomarkers, "sbp", "crp_log", "ast_log", "alt_log","ggt_log"))
 
   design <- design %>%
     verbose_subset(
@@ -538,7 +555,7 @@ subset_data <- function(design, spec_path) {
   design <- design %>%
     verbose_subset(
       design$variables %>%
-        mutate(keep = !if_any(all_of(biomarkers), ~ is.na(.))) %>%
+        mutate(keep = !if_any(all_of(biomarker_vars), ~ is.na(.))) %>%
         pull(keep),
       label = "missing biomarkers."
     )
@@ -548,7 +565,7 @@ subset_data <- function(design, spec_path) {
       design$variables %>%
         group_by(sex) %>%
         mutate(keep = !if_any(
-          all_of(biomarkers),
+          all_of(biomarker_vars),
           ~ {
             m <- mean(.x, na.rm = TRUE)
             s <- sd(.x, na.rm = TRUE)
@@ -562,7 +579,7 @@ subset_data <- function(design, spec_path) {
 }
 
 design <- design_no_missing %>% subset_data(
-  spec_path = here("specs", "col_spec_nhanes4.csv")
+  biomarker_vars = biomarker_vars
 )
 ```
 
@@ -580,48 +597,34 @@ if (isTRUE(params$telolength)) {
 ### Check data issues (NHANES3 is unweighted)
 
 ```{r check_df_balance}
-check_biomarker_standardization <- function(design, training_set, testing_spec_path, training_spec_path) {
-  col_spec <- read.csv(testing_spec_path)
+check_biomarker_standardization <- function(design, training_set, biomarker_var, training_spec_path) {
+  all_vars <- c("age", "pta_hf", "pta_lf", biomarker_vars)
+  cycles <- unique(design$variables$cycle)
 
-  biomarkers <- col_spec %>%
+  nhanes4 <- map_dfr(cycles, function(cyc) {
+    des_cyc <- subset(design, cycle == cyc)
+
+    stats <- map(all_vars, function(v) {
+      fmla_v <- as.formula(paste("~", v))
+      m <- as.numeric(svymean(fmla_v, des_cyc, na.rm = TRUE))
+      s <- sqrt(as.numeric(svyvar(fmla_v, des_cyc, na.rm = TRUE)))
+      paste0(round(m, 2), "(", round(s, 2), ")")
+    }) %>%
+      set_names(all_vars) %>%
+      as_tibble()
+
+    bind_cols(tibble(cycle = cyc), stats)
+  })
+
+  col_spec_train <- read.csv(training_spec_path)
+
+  biomarkers_train <- col_spec_train %>%
     filter(
-      vartype == "biomarker", 
-      include == TRUE, 
-      !(label %in% c("sbp1", "sbp2", "sbp3", "sbp4", "crp", "ast", "alt", "ggt"))
-      ) %>%
+      vartype == "biomarker",
+      include == TRUE,
+      label != "crp"
+    ) %>%
     pull(label)
-  
-  biomarkers <- unique(c(biomarkers, "crp_log", "ast_log", "alt_log","ggt_log"))
-
-  all_vars <- c("age", "pta_hf", "pta_lf","sbp", biomarkers)
-cycles <- unique(design$variables$cycle)
-
-nhanes4 <- map_dfr(cycles, function(cyc) {
-  des_cyc <- subset(design, cycle == cyc)
-
-  stats <- map(all_vars, function(v) {
-    fmla_v <- as.formula(paste("~", v))
-    m <- as.numeric(svymean(fmla_v, des_cyc, na.rm = TRUE))
-    s <- sqrt(as.numeric(svyvar(fmla_v, des_cyc, na.rm = TRUE)))
-    paste0(round(m, 2), "(", round(s, 2), ")")
-  }) %>%
-    set_names(all_vars) %>%
-    as_tibble()
-
-  bind_cols(tibble(cycle = cyc), stats)
-})
-
-training_set[training_set == 88888] <- NA
-training_set[training_set == 8888] <- NA
-training_set[training_set == 888] <- NA
-
-col_spec_train <- read.csv(training_spec_path)
-
-biomarkers_train <- col_spec_train %>%
-  filter(vartype == "biomarker",
-         include == TRUE,
-         label != "crp") %>%
-  pull(label)
   all_vars_train <- c("age", "crp_log", biomarkers_train)
 
 
@@ -635,13 +638,12 @@ biomarkers_train <- col_spec_train %>%
     mutate(cycle = "1988_1994")
 
   bind_rows(nhanes4, nhanes3) %>%
-  arrange(cycle) %>%
-  construct_table(title = "Check cohort age and biomarker balance")
+    arrange(cycle) %>%
+    construct_table(title = "Check cohort age and biomarker balance")
 }
 
 design %>% check_biomarker_standardization(
   training_set = df_train,
-  testing_spec_path = here("specs", "col_spec_nhanes4.csv"),
   training_spec_path = here("specs", "col_spec_nhanes3.csv")
 )
 ```
@@ -880,18 +882,15 @@ standard deviation and center the mean at 0. The hazard ratios are expressed as 
 deviation away.
 
 ```{r plot_aging_measures}
-plot_bioage_correlations <- function(design, predictors, predictors_advance, covariates = c("age", "sex", "race", "education", "smoking")) {
+plot_bioage_correlations <- function(design, predictors, labels, predictors_advance, covariates = c("age", "sex", "race", "education", "smoking")) {
   data <- design$variables
 
-  # scale each predictor to whole-sample z-scores (overall)
   data <- data %>%
     mutate(across(all_of(predictors_advance), ~ as.numeric(scale(.))))
 
-  # age-correlation per predictor (invariant to scaling)
   correlate   <- function(p) cor(data$age, data[[p]], use = "complete.obs")
   correlations <- vapply(predictors, correlate, numeric(1))
 
-  # overall Cox HR per 1 SD of each scaled predictor, adjusted for covariates
   cox_hr <- function(p) {
     form <- as.formula(
       paste0("survival::Surv(time, status) ~ ", p, " + ",
@@ -900,12 +899,11 @@ plot_bioage_correlations <- function(design, predictors, predictors_advance, cov
     fit <- survival::coxph(form, data = dplyr::filter(data, !is.na(time), !is.na(status)))
     setNames(exp(c(coef(fit)[p], confint(fit)[p, ])), c("HR", "lo", "hi"))
   }
-  hrs <- vapply(predictors_advance, cox_hr, numeric(3))   # 3 x n: rows HR/lo/hi, cols = predictors
+  hrs <- vapply(predictors_advance, cox_hr, numeric(3))
 
-  # facet labels: correlation + per-SD HR (95% CI)
   labs <- setNames(
     sprintf("%s\nr = %.2f\nHR = %.2f (%.2f, %.2f)",
-            predictors, correlations,
+            labels, correlations,
             hrs["HR", ], hrs["lo", ], hrs["hi", ]),
     predictors
   )
@@ -921,11 +919,43 @@ plot_bioage_correlations <- function(design, predictors, predictors_advance, cov
       values = c("1" = color("sunset")(2)[1], "2" = color("sunset")(2)[2]),
       labels = c("1" = "Male", "2" = "Female")
     ) +
-    labs(y = "Biological age advance (SD units)") +
-    theme_few()
+    labs(y = "Biological Age", x = "Age (Years)") +
+    theme_few() +
+    theme(
+      legend.title = element_blank(),
+      legend.background = element_rect(fill = "transparent", color = NA),
+      legend.box.background = element_rect(fill = "transparent", color = NA),
+      legend.key = element_rect(fill = "transparent"),
+      legend.position = "inside",
+      legend.justification.inside = c(0, 1),
+      legend.key.spacing.y = unit(1, "pt"),
+      panel.border = element_part_rect(
+        colour = "grey30",
+        side = "lb",
+        linewidth = 0.5
+      )
+    )
 }
 
-plot_bioage_correlations(design, predictors = c("kdm", "phenoage", "hd_log"), predictors_advance = c("kdm_advance", "phenoage_advance", "hd_log"))
+
+sameplot(
+plot_bioage_correlations(design, predictors = c("kdm", "phenoage", "hd_log"), labels = c("KDM", "PhenoAge", "HD (Log)"), predictors_advance = c("kdm_advance", "phenoage_advance", "hd_log")),
+  width = params$double_column_width,
+  height = 4,
+  res = 600,
+  save = params$save_figures,
+  file = here(
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Extras",
+    "Correlations.png"
+  )
+)
 ```
 
 ## Descriptive statistics
@@ -1330,6 +1360,23 @@ adjustment.
 
 ```{r extract_df}
 df <- design$variables
+
+df <- df %>%
+  select(
+    SEQN,
+    weights,
+    age,
+    age_group,
+    all_of(covariate_vars),
+    kdm,
+    kdm_advance,
+    phenoage,
+    phenoage_advance,
+    hd_log,
+    telolength_log,
+    all_of(params$hearing_var),
+    all_of(biomarker_vars)
+  )
 ```
 
 ### Set data types
@@ -1340,11 +1387,11 @@ df <- df %>%
     SEQN = as.character(SEQN),
     age_group = factor(age_group),
     sex = factor(sex),
-    pregnant = factor(pregnant),
     race = factor(race),
     education = factor(education),
     smoking = factor(smoking)
   )
+  
 ```
 
 ## Clean up environment

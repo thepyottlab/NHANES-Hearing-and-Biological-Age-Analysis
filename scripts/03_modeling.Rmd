@@ -98,7 +98,7 @@ each function. Max degrees of freedom are only computed once per variable and ca
   ensures they have the same smoothing parameter. Setting to TRUE marginally improves fit but uses
   many degrees of freedom.
 - `stepdown`: additionally creates formulas with age as predictor that each miss one covariate for a
-  nested-CV comparison (i.e., compare, for example, the impact of adding 'gender' to a model that
+  nested-CV comparison (i.e., compare, for example, the impact of adding 'sex' to a model that
   already includes other covariates).
 
 ```{r fun_formula_gen}
@@ -407,22 +407,9 @@ if (isFALSE(params$telolength)) {
     equal_wiggliness = TRUE,
     formulas = c(
       "age",
+      paste0("age, ", biomarker_vars),
       if (isTRUE(params$run_biomarker_add_analysis)) "age, phenoage" else NULL,
-      "age, albumin_gL",
-      "age, alp",
-      "age, lncreat",
-      "age, glucose",
-      "age, lncrp",
-      "age, lymph",
-      "age, mcv",
-      "age, rdw",
-      "age, wbc",
-      "age, sbp",
-      "age, bun",
-      "age, totchol",
-      "age, hba1c",
-      "age, uap",
-      if (isTRUE(params$run_biomarker_add_analysis)) "age, lncrp, phenoage" else NULL
+      if (isTRUE(params$run_biomarker_add_analysis)) "age, crp_log, phenoage" else NULL
     ),
     covariates = covariate_interactions
   )
@@ -909,10 +896,10 @@ models_covariates <- list()
 models_covariates <- append(
   models_covariates,
   list(
-    smooth_gender = model_age_rate(
+    smooth_sex = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
-        paste0("s(age, gender, bs = 'sz', k = ", params$global_k, ", id = 1)")
+        paste0("s(age, sex, bs = 'sz', k = ", params$global_k, ", id = 1)")
       ),
       model_type = "bam"
     ),
@@ -1099,7 +1086,7 @@ so we should use interaction terms instead of intercepts for covariates.**
 ### (Optional) Investigate additional information
 
 First we see if the covariates are correlated (e.g., smoking is more prevalent in males than females
-so gender is partly coded in smoking), to see if all covariates actually contribute.
+so sex is partly coded in smoking), to see if all covariates actually contribute.
 
 ```{r compare_added_info}
 if (isTRUE(params$run_optional_chunks)) {
@@ -1117,7 +1104,7 @@ if (isTRUE(params$run_optional_chunks)) {
       reformulate(
         c(
           "s(age, k = k)",
-          "s(age, gender, bs = 'sz', k = k)"
+          "s(age, sex, bs = 'sz', k = k)"
         ),
         response = params$hearing_var
       ),
@@ -1129,7 +1116,7 @@ if (isTRUE(params$run_optional_chunks)) {
       reformulate(
         c(
           "s(age, k = k)",
-          "s(age, gender, bs = 'sz', k = k)",
+          "s(age, sex, bs = 'sz', k = k)",
           "s(age, race, bs = 'sz', k = k)"
         ),
         response = params$hearing_var
@@ -1142,7 +1129,7 @@ if (isTRUE(params$run_optional_chunks)) {
       reformulate(
         c(
           "s(age, k = k)",
-          "s(age, gender, bs = 'sz', k = k)",
+          "s(age, sex, bs = 'sz', k = k)",
           "s(age, race, bs = 'sz', k = k)",
           "s(age, smoking, bs = 'sz', k = k)"
         ),
@@ -1155,7 +1142,7 @@ if (isTRUE(params$run_optional_chunks)) {
     m4 <- bam(
       reformulate(c(
         "s(age, k = k)",
-        "s(age, gender, bs = 'sz', k = k)",
+        "s(age, sex, bs = 'sz', k = k)",
         "s(age, race, bs = 'sz', k = k)",
         "s(age, smoking, bs = 'sz', k = k)",
         "s(age, education, bs = 'sz', k = k)"
@@ -1213,7 +1200,7 @@ if (isTRUE(params$run_optional_chunks)) {
           params$hearing_var,
           ' ~
       s(age, k = k) +
-      s(age, gender, bs = "sz", k = k, id = 1) +
+      s(age, sex, bs = "sz", k = k, id = 1) +
       s(age, race, bs = "sz", k = k, id = 2) +
       s(age, smoking, bs = "sz", k = k, id = 3) +
       s(age, education, bs = "sz", k = k, id = 4)'
@@ -1232,7 +1219,7 @@ if (isTRUE(params$run_optional_chunks)) {
           ' ~
       s(age, k = k) +
 
-      s(age, gender, bs = "sz", k = k) +
+      s(age, sex, bs = "sz", k = k) +
       s(age, race, bs = "sz", k = k) +
       s(age, smoking, bs = "sz", k = k) +
       s(age, education, bs = "sz", k = k)'
@@ -1346,9 +1333,9 @@ if (isTRUE(params$run_optional_chunks)) {
 }
 ```
 
-We see that `age*gender*race` and `age*education*gender` are a significant three-way interaction but
-it takes 3 times longer to compute. Bam() speeds things up enough over gam() that this processing
-cost is acceptable.
+We see that `age*sex*race` and `age*education*sex` are a significant three-way interaction but it
+takes 3 times longer to compute. Bam() speeds things up enough over gam() that this processing cost
+is acceptable.
 
 ### (Optional) Inspect k-values
 
