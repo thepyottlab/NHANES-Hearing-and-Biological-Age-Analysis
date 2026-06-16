@@ -842,8 +842,71 @@ problem when assessing the rate of aging. Therefore, we need to have a penalty f
 useless base functions so that they shrink to 0. Default shrinkage solution still permits large
 complexity despite the RMSE improving little over a simpler model.
 
-We can use k.check with a small k to see if its enough. With a k of 10 we already get a k index of
-0.9998, so k = 10 should be sufficient.
+We have three options for constructing the smooth.
+
+1.  `pta ~ age + I(age^2) + s(age, m = 3)`: we can create a smooth model with a linear term for age,
+    a quadratic term for age, and a smooth term for age. The smooth term then also contains a
+    penalized quadratic and unpenalized linear component, so the structure is complex and the model
+    is highly concurve (multicolinear). With this model, we then need to compare the full quadratic
+    model with the full GAM model, (i.e., separate models) and estimate their covariance with the
+    delta method. Because local comparison at specific ages requires cross-model covariance, the
+    analysis is complex. By comparing between the quadratic model and GAM at specific ages, the null
+    hypothesis is: at age $a$, the estimated rate of hearing loss is the same under the GAM and
+    quadratic model. As a better alternative, we could also use `pta ~ s(age, m = 3)` and perform
+    the same analysis but without the double linear and quadratic terms.
+2.  `pta ~ age + I(age^2) + s(age, m = c(3,0))`: here we allow there to be a penalty null space in
+    the first and second order polynomials (smooth starts penalizing third or higher-order
+    polynomials) but we exclude the polynomials in the penalty null space from the smooth. This
+    means that the smooth does not contain constants, linear, or quadratic components. The smooth
+    term then represents deviation beyond quadratic. However, we then need to be able to estimate
+    the smooth term on its own. With this model, we can identify the entire age trajectory well, but
+    we cannot identify how much of the shape belongs to the quadratic coefficients and how much
+    belongs to the smooth terms (higher order polynomials) because many of the smooth polynomials
+    resemble the quadratic term (concurvity). So we can be certain that non-quadratic structure
+    improves the model globally, we can estimate the entire derivative of the model, but we cannot
+    estimate a smooth-only derivative for a particular age with any certainty. The uncertainty is
+    thus not about what the model looks like but about whether a shape should be attributed to the
+    quadratic or coefficients or to the smooth basis functions. The null hypothesis is: at age $a$,
+    the rate of hearing loss in the complete GAM does not differ from the rate implied by the
+    quadratic component within that same GAM.
+3.  `pta ~ s(age, m = 3)`: here we have unpenalized linear and quadratic terms (in the null space),
+    so the smooth contains a linear and a quadratic component. Here, if the data does not support a
+    complex shape, the model shrinks towards a quadratic shape without competing with explicit
+    terms. Because the smooth model still contains a quadratic and linear term, we can still use the
+    approximate F-test to compare against a quadratic model and assume it is nested. We can still do
+    pairwise comparisons. If a model is purely quadratic, then the 2nd order derivative is just a
+    constant/intercept and the 3rd derivative is 0. Let's say we want to know whether a change in
+    rate of HL during two years is quadratic. We can then calculate the 1st order derivative for a
+    quadratic function, $f'(a) = \beta_1 + 2\beta_2 a$, in which age is $a$. We can calculate the
+    difference between two years (interval size defined as $h$) as $f'(a) - f'(a - h)$. If the rate
+    of HL in year 1 $a - h$ is 6dB/year and in year 2 is 9dB/year, then the difference is 3dB/year
+    (the rate increased with 3 dB). Now, if the model is indeed quadratic, then the rate of HL
+    increases linearly, so if we'd take a difference for a higher year, e.g. $f'(a + h) - f'(a)$,
+    then the difference would also be 3 dB/year. If we'd take the 2nd difference (the difference
+    between the two differences), we'd get 3 - 3 = 0. So, if the model is indeed quadratic, then the
+    2nd difference of the derivative must equal zero, which we can write as
+    $f'(a-h) - 2f'(a) + f'(a+h) = 0$. The null hypothesis is: around age $a$, the rate of hearing
+    loss changes linearly with age, as required by a quadratic trajectory.
+
+In option 1, the analysis is highly complex and we must estimate covariance between full models with
+high multicolinearity. In option 2, we have a nice model structure, but we need to truly isolate the
+smooth component at specific ages, which is not identifiable. In option 3, we have an even simpler
+model structure and instead ask whether the total GAM (which is will-identifiable) behaves
+quadratically at a given age range. Because option 2 is not well-identifiable, it's not viable.
+Option 1 requires bootstrapping to estimate model covariances (complex). Option 3 does not require
+bootstrapping but does require the coefficient-covariance matrix (vcov), as well (which is no
+problem) to calculate a difference. However, option 1 and option 3 ask fundamentally different
+questions in pairwise comparisons. Option 1 asks whether there are any ages at which the GAM
+derivative is different from the best-fitting quadratic derivative. Option 3 asks whether for any
+age range $2h$, a local quadratic fit could explain the difference, as we're fitting a quadratic
+model just to a 6-year period and seeing if the rate of change for 2 3-year periods is constant. The
+downside of option 3 is that you don't get a true difference between the GAM and a single
+best-fitting quadratic model, and you also manually need to pick the $h$ value. If $h$ is too small,
+then changes in the rate of HL that perpetuate over a longer time may be missed, but if $h$ is too
+big, we may include a linear portion with a nonlinear portion and miss the effect, or the 'binwidth'
+falls just wrong. We can test different $h$ values but that would cause false positives. Moreover,
+pairwise comparisons between a single best-fitting quadratic model and a single GAM fits better with
+the (approximate) F-test.
 
 Survey weights are used.
 
@@ -875,7 +938,7 @@ models_age_rate <- append(
   list(
     linear = model_age_rate("age"),
     quadratic = model_age_rate(c("age", "I(age^2)")),
-    smooth = model_age_rate(c("age", "I(age^2)", paste0("s(age, k = ", params$age_rate_k, ")")))
+    smooth = model_age_rate(paste0("s(age, k = ", params$age_rate_k, ")"))
   )
 )
 
@@ -1432,7 +1495,11 @@ if (isTRUE(params$run_optional_chunks)) {
   assess_stability_k <- function(data, threads = 1) {
     run_k <- function(k) {
       set.seed(1)
-      m <- model_age_rate(c("age", "I(age^2)", paste0("s(age, k = ", k, ")")))
+      m <- model_age_rate(paste0(
+        "s(age, k = ",
+        k,
+        ", m = 3)"
+      ))
       k.check(m) %>%
         as_tibble() %>%
         mutate(k = k)
@@ -1440,7 +1507,7 @@ if (isTRUE(params$run_optional_chunks)) {
 
     plan(multisession, workers = threads)
     k_list <- future_lapply(
-      seq(3, 30, 1),
+      seq(4, 30, 1),
       FUN = run_k,
       future.seed = TRUE,
       future.globals = TRUE,

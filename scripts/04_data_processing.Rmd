@@ -132,15 +132,84 @@ pred_age_rate <- append(
     )
   )
 )
+```
 
-pred_age_rate$derivative_smooth <- pred_age_rate$derivative_smooth %>%
+```{r}
+nonparametric_difference_bootstrap <- function(df, n_boot = 2000) {
+  ages <- setNames(
+    list(
+      seq(
+        min(df[["age"]]),
+        max(df[["age"]]),
+        by = 1
+      )
+    ),
+    "age"
+  )
+
+  set.seed(1)
+
+  boot_diff <- replicate(n_boot, {
+
+    indices <- sample.int(nrow(df), replace = TRUE)
+    data_subset <- df[indices]
+    weights_subset <- df$weights[indices]
+
+    fit <- function(terms) {
+      gam(
+        reformulate(terms, response = params$hearing_var),
+        data = data_subset,
+        weights = weights_subset / mean(weights_subset),
+        method = "REML",
+        family = gaussian()
+      )
+    }
+
+    trend <- function(model) {
+      as.data.frame(
+        emtrends(
+          model, ~age,
+          var = "age",
+          at = list(age = ages),
+          data = data_subset
+        )
+      )$age.trend
+    }
+
+    smooth_coefs <- trend(fit(paste0("s(age, k = ", params$age_rate_k, ")")))
+    parametric_coefs <- trend(fit(c("age", "I(age^2)")))
+
+    smooth_coefs - parametric_coefs
+  })
+
+  SE_adj <- apply(boot_diff, 1, sd)
+  boot_z <- sweep(
+    boot_diff,
+    1,
+    rowMeans(boot_diff)
+  ) / SE_adj
+
+  t_crit_mvt <- quantile(
+    apply(abs(boot_z), 2, max),
+    0.95
+  )
+  
+  cbind(SE_adj, t_crit_mvt)
+}
+
+system.time(
+pred_age_rate$derivative_smooth <- cbind(
+  pred_age_rate$derivative_smooth,
+  df %>% nonparametric_difference_bootstrap(
+    n_boot = params$n_boot
+  )
+) %>%
   mutate(
-    SE_adj = sqrt(SE^2 + pred_age_rate$quadratic_derivative$SE^2),
     derivative_adj = derivative - pred_age_rate$quadratic_derivative$derivative,
-    t_crit_mvt = (ci_upper - ci_lower) / (2 * SE),
     ci_lower_adj = derivative_adj - t_crit_mvt * SE_adj,
     ci_upper_adj = derivative_adj + t_crit_mvt * SE_adj
   )
+)
 ```
 
 ### Covariates
@@ -216,3 +285,4 @@ pred_covariates_full <- append(
   )
 )
 ```
+

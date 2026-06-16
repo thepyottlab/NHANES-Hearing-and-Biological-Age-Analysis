@@ -74,46 +74,48 @@ format_table <- function(summary_data, per_age_group = FALSE) {
 
 ```{r}
 biomarker_labels <- summary_biomarkers_overall %>%
-  mutate(label = 
-          c(
-  "Age",
-  "GLU",
-  "ALB",
-  "ALP",
-  "HbA1c",
-  "CREA",
-  "BASO",
-  "Ca",
-  "Cl",
-  "HDL-C",
-  "BUN",
-  "Hb",
-  "HCT",
-  "Fe",
-  "LDH",
-  "LYMPH",
-  "MCH",
-  "MCHC",
-  "Mono",
-  "NEUT",
-  "P",
-  "K",
-  "RBC",
-  "RDW",
-  "MCV",
-  "Na",
-  "TC",
-  "TP",
-  "UA",
-  "WBC",
-  "SBP",
-  "ALT",
-  "AST",
-  "GGT",
-  "CRP",
-  if (isTRUE(params$run_biomarker_add_analysis)) "PhenoAge" else NULL,
-  if (isTRUE(params$run_biomarker_add_analysis)) "CRP + PhenoAge" else NULL
-)) %>%
+  mutate(
+    label =
+      c(
+        "Age",
+        "GLU",
+        "ALB",
+        "ALP",
+        "HbA1c",
+        "CREA",
+        "BASO",
+        "Ca",
+        "Cl",
+        "HDL-C",
+        "BUN",
+        "Hb",
+        "HCT",
+        "Fe",
+        "LDH",
+        "LYMPH",
+        "MCH",
+        "MCHC",
+        "Mono",
+        "NEUT",
+        "P",
+        "K",
+        "RBC",
+        "RDW",
+        "MCV",
+        "Na",
+        "TC",
+        "TP",
+        "UA",
+        "WBC",
+        "SBP",
+        "ALT",
+        "AST",
+        "GGT",
+        "CRP",
+        if (isTRUE(params$run_biomarker_add_analysis)) "PhenoAge" else NULL,
+        if (isTRUE(params$run_biomarker_add_analysis)) "CRP + PhenoAge" else NULL
+      )
+  ) %>%
   arrange(desc(delta_rmse_w)) %>%
   select(predictors, label)
 ```

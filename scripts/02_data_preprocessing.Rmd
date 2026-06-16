@@ -63,8 +63,8 @@ select_columns <- function(data_map, column_path) {
       data = list(reduce(data, full_join, by = "SEQN")),
       .groups = "drop"
     )
-  
-    # Spec variables that aren't present in their cycle's merged data
+
+  # Spec variables that aren't present in their cycle's merged data
   available <- data_map %>%
     transmute(cycle, cols = map(data, names)) %>%
     unnest_longer(cols)
@@ -79,7 +79,7 @@ select_columns <- function(data_map, column_path) {
       call. = FALSE
     )
   }
-  
+
   # Match variables with spec and rename to label. Per-cycle columns are obtained and named.
   data_map %>%
     mutate(data = map2(data, cycle, function(dat, cy) {
@@ -88,10 +88,9 @@ select_columns <- function(data_map, column_path) {
       keep <- c(SEQN = "SEQN", keep[keep != "SEQN"])
 
       dat %>%
-      select(any_of(keep)) %>%
-      mutate(cycle = cy)
+        select(any_of(keep)) %>%
+        mutate(cycle = cy)
     }))
-  
 }
 ```
 
@@ -195,14 +194,14 @@ standardize_values <- function(data) {
         isFALSE(params$telolength) & age >= 70 & age < 80 ~ "70-80",
         isFALSE(params$telolength) & age >= 80 ~ "80+"
       ),
-        status = case_when(
-      time > 120 ~ 0,
-      TRUE ~ status
-    ),
-    time = case_when(
-      time > 120 ~ 120,
-      TRUE ~ time
-    ),
+      status = case_when(
+        time > 120 ~ 0,
+        TRUE ~ status
+      ),
+      time = case_when(
+        time > 120 ~ 120,
+        TRUE ~ time
+      ),
       race = case_when(
         race == 2 ~ 1,
         TRUE ~ race
@@ -219,34 +218,34 @@ standardize_values <- function(data) {
       ast = case_when(
         cycle == "2017_2020" ~ 1.018 * ast + 3.762,
         TRUE ~ ast
-      ),      
+      ),
       ast_log = log(ast),
       alt = case_when(
         cycle == "2017_2020" ~ 1.013 * alt + 2.688,
         TRUE ~ alt
-      ),    
+      ),
       alt_log = log(alt),
       bun = case_when(
         cycle == "2017_2020" ~ 1.001 * bun + 0.4488,
         TRUE ~ bun
-      ),    
+      ),
       ggt = case_when(
         cycle == "2017_2020" ~ 0.8042 * ggt + 2.363,
         TRUE ~ ggt
-      ),    
+      ),
       ggt_log = log(ggt),
       iron = case_when(
         cycle == "2017_2020" ~ 0.9776 * iron - 4.494,
         TRUE ~ iron
-      ),  
+      ),
       ld = case_when(
         cycle == "2017_2020" ~ 0.8568 * ld + 2.062,
         TRUE ~ ld
-      ),  
+      ),
       ua = case_when(
         cycle == "2017_2020" ~ 0.9323 * ua + 0.2326,
         TRUE ~ ua
-      ),  
+      ),
       creat = case_when(
         cycle == "1999_2000" ~ 1.013 * creat + 0.147,
         cycle == "2005_2006" ~ -0.016 + 0.978 * creat,
@@ -355,12 +354,13 @@ df_train <- df_train_raw %>%
       time > 120 ~ 120,
       TRUE ~ time
     ),
-    across(where(is.numeric),
-                \(x) if_else(x %in% c(888L, 8888L, 88888L, 888888L), NA_real_, x)),
-         crp_log = log(crp),
-         creat = 0.96 * creat - 0.184,
-    
-    )
+    across(
+      where(is.numeric),
+      \(x) if_else(x %in% c(888L, 8888L, 88888L, 888888L), NA_real_, x)
+    ),
+    crp_log = log(crp),
+    creat = 0.96 * creat - 0.184,
+  )
 ```
 
 #### NHANES 4 HD Train
@@ -371,7 +371,7 @@ df_train_hd <- df_raw %>%
     column_path = here("specs", "col_spec_nhanes4.csv")
   ) %>%
   merge_data() %>%
-  standardize_values() 
+  standardize_values()
 ```
 
 ## Survey design
@@ -454,23 +454,23 @@ design_no_missing <- svydesign(
 ```{r list_bm}
 list_bm <- function(spec_path) {
   specs <- read.csv(spec_path)
-  browser()
+
   bm_labels <- unique(
     specs %>% filter(
-    include == TRUE,
-    vartype == "biomarker",
-    !label %in% c(
-      "sbp1",
-      "sbp2",
-      "sbp3",
-      "sbp4",
-      "alt",
-      "ast",
-      "ggt",
-      "crp"
-    )
-  ) %>%
-    pull(label)
+      include == TRUE,
+      vartype == "biomarker",
+      !label %in% c(
+        "sbp1",
+        "sbp2",
+        "sbp3",
+        "sbp4",
+        "alt",
+        "ast",
+        "ggt",
+        "crp"
+      )
+    ) %>%
+      pull(label)
   )
   c(bm_labels, "sbp", "alt_log", "ast_log", "ggt_log", "crp_log")
 }
@@ -658,46 +658,45 @@ check_distribution <- function(data, spec_path, dataset) {
   col_spec <- read.csv(spec_path)
   biomarkers <- col_spec %>%
     filter(
-      vartype == "biomarker", 
-      include == TRUE, 
+      vartype == "biomarker",
+      include == TRUE,
       !(label %in% c("sbp1", "sbp2", "sbp3", "sbp4", "crp", "ast", "alt", "ggt"))
-      ) %>%
+    ) %>%
     pull(label)
-  
+
   if (dataset == "NHANES4") {
-      biomarkers <- unique(c(biomarkers, "sbp", "crp_log", "ast_log", "alt_log","ggt_log"))
+    biomarkers <- unique(c(biomarkers, "sbp", "crp_log", "ast_log", "alt_log", "ggt_log"))
   } else {
-      biomarkers <- unique(c(biomarkers, "sbp", "crp_log"))
+    biomarkers <- unique(c(biomarkers, "sbp", "crp_log"))
   }
-  
+
   data %>%
     select(all_of(biomarkers)) %>%
     pivot_longer(names_to = "biomarker", values_to = "value") %>%
     ggplot(aes(x = value)) +
-  geom_histogram(
-    aes(y = ..density..),
-    fill = "tomato",
-    color = "white",
-    alpha = 0.7
-  ) +
-  geom_density(
-    color = "darkred",
-    linewidth = 1,
-    adjust = 3
-  ) +
-  facet_wrap(~ biomarker, scales = "free") +
-  theme_few() +
-  theme(
-    axis.text = element_blank()
-  )
-  
+    geom_histogram(
+      aes(y = ..density..),
+      fill = "tomato",
+      color = "white",
+      alpha = 0.7
+    ) +
+    geom_density(
+      color = "darkred",
+      linewidth = 1,
+      adjust = 3
+    ) +
+    facet_wrap(~biomarker, scales = "free") +
+    theme_few() +
+    theme(
+      axis.text = element_blank()
+    )
 }
 
 sameplot(
-design$variables %>% check_distribution(
-     spec_path = here("specs", "col_spec_nhanes4.csv"),
-     dataset = "NHANES4"
-   ),
+  design$variables %>% check_distribution(
+    spec_path = here("specs", "col_spec_nhanes4.csv"),
+    dataset = "NHANES4"
+  ),
   width = params$double_column_width,
   height = 6,
   res = 600,
@@ -716,10 +715,10 @@ design$variables %>% check_distribution(
 )
 
 sameplot(
-df_train %>% check_distribution(
-     spec_path = here("specs", "col_spec_nhanes3.csv"),
-     dataset = "NHANES3"
-   ),
+  df_train %>% check_distribution(
+    spec_path = here("specs", "col_spec_nhanes3.csv"),
+    dataset = "NHANES3"
+  ),
   width = params$double_column_width,
   height = 6,
   res = 600,
@@ -759,11 +758,11 @@ insert_bioage <- function(design, train_data, train_data_hd, orig_phenoage = TRU
     train_fem_kdm <- kdm_calc(
       data = train_data %>%
         filter(
-          sex == 2 & 
-            age >= 20 & 
-            age <= 79 & 
+          sex == 2 &
+            age >= 20 &
+            age <= 79 &
             (pregnant != 1 | is.na(pregnant))
-          ),
+        ),
       biomarkers = biomarkers_kdm,
       fit = NULL,
       s_ba2 = NULL,
@@ -773,10 +772,10 @@ insert_bioage <- function(design, train_data, train_data_hd, orig_phenoage = TRU
     train_male_kdm <- kdm_calc(
       data = train_data %>%
         filter(
-          sex == 1 & 
-            age >= 20 & 
+          sex == 1 &
+            age >= 20 &
             age <= 79
-          ),
+        ),
       biomarkers = biomarkers_kdm,
       fit = NULL,
       s_ba2 = NULL,
@@ -807,13 +806,13 @@ insert_bioage <- function(design, train_data, train_data_hd, orig_phenoage = TRU
     train_phenoage <- phenoage_calc(
       data = train_data %>%
         filter(
-            age >= 20 & 
-            age <= 79 & 
+          age >= 20 &
+            age <= 79 &
             (pregnant != 1 | is.na(pregnant)) &
-              !is.na(status) &
-              !is.na(time) &
-  !(rowSums(is.na(across(all_of(biomarkers_phenoage)))) > 0)
-),
+            !is.na(status) &
+            !is.na(time) &
+            !(rowSums(is.na(across(all_of(biomarkers_phenoage)))) > 0)
+        ),
       biomarkers = biomarkers_phenoage,
       fit = NULL
     )
@@ -828,12 +827,12 @@ insert_bioage <- function(design, train_data, train_data_hd, orig_phenoage = TRU
 
     # Calculate HD
     train_data_hd <- train_data_hd %>%
-        filter(
-            age <= 30 & 
-              age >= 20 &
-            (pregnant != 1 | is.na(pregnant)) &
-  !(rowSums(is.na(across(all_of(biomarkers_hd)))) > 0)
-)
+      filter(
+        age <= 30 &
+          age >= 20 &
+          (pregnant != 1 | is.na(pregnant)) &
+          !(rowSums(is.na(across(all_of(biomarkers_hd)))) > 0)
+      )
     fem_hd <- hd_calc(
       data = data %>%
         filter(sex == 2),
@@ -888,13 +887,15 @@ plot_bioage_correlations <- function(design, predictors, labels, predictors_adva
   data <- data %>%
     mutate(across(all_of(predictors_advance), ~ as.numeric(scale(.))))
 
-  correlate   <- function(p) cor(data$age, data[[p]], use = "complete.obs")
+  correlate <- function(p) cor(data$age, data[[p]], use = "complete.obs")
   correlations <- vapply(predictors, correlate, numeric(1))
 
   cox_hr <- function(p) {
     form <- as.formula(
-      paste0("survival::Surv(time, status) ~ ", p, " + ",
-             paste(covariates, collapse = " + "))
+      paste0(
+        "survival::Surv(time, status) ~ ", p, " + ",
+        paste(covariates, collapse = " + ")
+      )
     )
     fit <- survival::coxph(form, data = dplyr::filter(data, !is.na(time), !is.na(status)))
     setNames(exp(c(coef(fit)[p], confint(fit)[p, ])), c("HR", "lo", "hi"))
@@ -902,9 +903,11 @@ plot_bioage_correlations <- function(design, predictors, labels, predictors_adva
   hrs <- vapply(predictors_advance, cox_hr, numeric(3))
 
   labs <- setNames(
-    sprintf("%s\nr = %.2f\nHR = %.2f (%.2f, %.2f)",
-            labels, correlations,
-            hrs["HR", ], hrs["lo", ], hrs["hi", ]),
+    sprintf(
+      "%s\nr = %.2f\nHR = %.2f (%.2f, %.2f)",
+      labels, correlations,
+      hrs["HR", ], hrs["lo", ], hrs["hi", ]
+    ),
     predictors
   )
 
@@ -939,7 +942,7 @@ plot_bioage_correlations <- function(design, predictors, labels, predictors_adva
 
 
 sameplot(
-plot_bioage_correlations(design, predictors = c("kdm", "phenoage", "hd_log"), labels = c("KDM", "PhenoAge", "HD (Log)"), predictors_advance = c("kdm_advance", "phenoage_advance", "hd_log")),
+  plot_bioage_correlations(design, predictors = c("kdm", "phenoage", "hd_log"), labels = c("KDM", "PhenoAge", "HD (Log)"), predictors_advance = c("kdm_advance", "phenoage_advance", "hd_log")),
   width = params$double_column_width,
   height = 4,
   res = 600,
@@ -1391,7 +1394,6 @@ df <- df %>%
     education = factor(education),
     smoking = factor(smoking)
   )
-  
 ```
 
 ## Clean up environment

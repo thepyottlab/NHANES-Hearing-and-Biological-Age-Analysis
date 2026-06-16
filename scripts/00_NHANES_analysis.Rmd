@@ -55,12 +55,12 @@ params:
     help: "Check to use telolength dataset with smaller N"
   global_k:
     label: "K (n BAM base functions) biological age analysis"
-    value: 15
+    value: 30
     input: numeric
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   age_rate_k:
     label: "K (n BAM base functions) age rate analysis"
-    value: 14
+    value: 10
     input: numeric
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   global_discrete: 
@@ -85,7 +85,7 @@ params:
     help: "Set to save large model results locally for fast reloading"
   load_model_results:
     label: "Load model results"
-    value: FALSE
+    value: TRUE
     input: checkbox
     help: "Set to skip refitting of k-fold validation if model results are present"
   covariates:
