@@ -106,9 +106,7 @@ March, and 2-year weights for the others. Because different cycles collected aud
 different age populations, we cannot standardize the weights simply by total number of years (15.2)
 in the sample, but must standardize each age group by the number of years. Before 2005, audiometry
 was performed in only half a sample, but this is corrected for already by the audiometry-specific
-weights variable in those earlier years. In this study, people under 20 years old are excluded.
-Audiometry weights in 1999-2000 and 2001-2002 contain NAs for missing data, which is set to 0 in the
-corresponding MEC examination weight variable, so missing weights are set to 0 to match this. The
+weights variable in those earlier years. In this study, people under 20 years old are excluded. The
 following ages were assessed in each cycle:
 
 - 1999-2000: 20-69
@@ -182,12 +180,12 @@ standardize_values <- function(data) {
     mutate(
       age_group = case_when(
         age < 20 ~ "19-",
-        age >= 20 & age < 30 ~ "20-30",
-        age >= 30 & age < 40 ~ "30-40",
-        age >= 40 & age < 50 ~ "40-50",
-        age >= 50 & age < 60 ~ "50-60",
-        age >= 60 & age < 70 ~ "60-70",
-        isFALSE(params$telolength) & age >= 70 & age < 80 ~ "70-80",
+        age >= 20 & age < 30 ~ "20–29",
+        age >= 30 & age < 40 ~ "30–39",
+        age >= 40 & age < 50 ~ "40–49",
+        age >= 50 & age < 60 ~ "50–59",
+        age >= 60 & age < 70 ~ "60–69",
+        isFALSE(params$telolength) & age >= 70 & age < 80 ~ "70–79",
         isFALSE(params$telolength) & age >= 80 ~ "80+"
       ),
       status = case_when(
@@ -511,7 +509,7 @@ df_no_missing <- df_unfiltered %>% filter_data()
 
 We use the Survey package to account for the full survey design (weights, strata, PSUs)
 
-```{r calc_descriptives}
+```{r create_design}
 design_no_missing <- svydesign(
   ids     = ~psu,
   strata  = ~stratum,
@@ -576,8 +574,8 @@ to subset `design` on.
 6.  Subjects with missing or unknown covariate data are excluded.
 7.  Subjects with missing biomarker data are excluded (as these are required for calculating
     biological ages).
-8.  Subjects with any biomarker values \> 5 SDs above the sex-specific mean are excluded to avoid
-    extreme values dominating the models.
+8.  Subjects with any biomarker values \> 5 SDs away from the sex-specific mean are excluded to
+    avoid extreme values dominating the models.
 
 ### Filter data
 
@@ -723,8 +721,8 @@ design %>% check_biomarker_standardization(
 ```
 
 ALP was higher in NHANES3, but could be in part due to survey design (old people weigh too heavily)
-and large SD. Creatinine and crp are also higher in NHANES3 but could be due to the same reason. CRP
-being lower could be due to different detection limit.
+and large SD. Creatinine is also higher in NHANES3 but could be due to the same reason. CRP being
+lower could be due to different detection limit.
 
 #### Verify normal distribution
 
@@ -816,7 +814,7 @@ There is some kurtosis for several variables in NHANES3, but that should not be 
 
 ## Calculate biological age
 
-We train PhenoAge on ages 20-80 (full sample) in line with the Levine paper. We train KDM on ages
+We train PhenoAge on ages 20-79 (full sample) in line with the Levine paper. We train KDM on ages
 30-75 to ensure people were old enough to have detectable age-related biomarkers but not so old that
 the sample represents people with above-average health due to survivor bias. We train HD on people
 aged 20-45, because we want a younger sample with good health but not so young that they represent a
@@ -970,10 +968,10 @@ design <- insert_bioage(design, train_data = df_train, train_data_hd = df_train_
 
 ### Validate biological age calculations
 
-We check the correlations between chronological and biological age and calculate odds ratios on the
-differences/advances (corrected for age, sex, race, education, and smoking) and normalize to the
-standard deviation so that 1 unit away means 1 standard deviation. The hazard ratios are expressed
-as hazard per standard deviation away.
+We check the correlations between chronological and biological age and calculate Cox hazard ratios
+on the differences/advances (corrected for age, sex, race, education, and smoking) and normalize to
+the standard deviation so that 1 unit away means 1 standard deviation. The hazard ratios are
+expressed as hazard per standard deviation away.
 
 ```{r plot_aging_measures}
 plot_bioage_correlations <- function(design, predictors, labels, predictors_advance, covariates = c("age", "sex", "race", "education", "smoking")) {
@@ -1104,8 +1102,8 @@ calculate_descriptive_statistics <- function(design, audiometry_cols, incl_bioag
     )
   )
 
-  groups <- c(Gender = "sex", Race = "race", Smoking = "smoking", Education = "education")
-  age_groups <- factor(c("Overall", "20-30", "30-40", "40-50", "50-60", "60-70", if (isFALSE(params$telolength)) "70-80" else NULL))
+  groups <- c(Sex = "sex", Race = "race", Smoking = "smoking", Education = "education")
+  age_groups <- factor(c("Overall", "20–29", "30–39", "40–49", "50–59", "60–69", if (isFALSE(params$telolength)) "70–79" else NULL))
   hearing_var <- as.formula(paste0("~", params$hearing_var))
   results <- list()
 
@@ -1203,8 +1201,8 @@ calculate_descriptive_statistics <- function(design, audiometry_cols, incl_bioag
 
   bind_rows(results) %>%
     mutate(
-      group = factor(group, levels = c("Overall", "Gender", "Race", "Smoking", "Education")),
-      age_group = factor(age_group, levels = c("Overall", "20-30", "30-40", "40-50", "50-60", "60-70", if (isFALSE(params$telolength)) "70-80" else NULL))
+      group = factor(group, levels = c("Overall", "Sex", "Race", "Smoking", "Education")),
+      age_group = factor(age_group, levels = c("Overall", "20–29", "30–39", "40–49", "50–59", "60–69", if (isFALSE(params$telolength)) "70–79" else NULL))
     )
 }
 
@@ -1228,7 +1226,7 @@ plot_proportions <- function(data, y_variable, title) {
     facet_grid(age_group ~ group, scales = "free_x", space = "free_x") +
     labs(
       title = title,
-      y = paste0(if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", "\n (dB HL)")
+      y = "Proportion"
     ) +
     theme_few() +
     scale_y_continuous(breaks = seq(0, 1, 0.5), labels = c("0", "0.5", "1")) +
@@ -1418,8 +1416,6 @@ sameplot(
 )
 ```
 
-**Barely any selection bias after excluding asymmetric hearing loss.**
-
 ### Assessment of selection bias
 
 ```{r check_selection_bias}
@@ -1440,7 +1436,7 @@ plot_selection_bias <- function(ref, test) {
     geom_point(aes(color = age_group), size = 4, show.legend = FALSE) +
     geom_hline(yintercept = 0, linetype = "dashed") +
     theme_few() +
-    labs(x = "Age (Years)", y = paste0("Underestimation ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", "", "\n(dB SPL)"))
+    labs(x = "Age (Years)", y = paste0("Underestimation ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", "", "\n(dB HL)"))
 }
 
 sameplot(
@@ -1462,9 +1458,9 @@ Selection bias is minimal in both LF-PTA and HF-PTA.
 
 We can discard the survey design from this point onward. Further analyses are a nested F-test
 between models (in-sample) that share the same design, so inflation of variance due to PSU/strata is
-symmetrical and cancels out. Weights are still used for model fitting. For cross-validation, we
-estimate prediction error differences between models that share the same design, canceling out the
-variance estimate due to PSU/strata. Moreover, gam() doesn't support PSU and strata uncertainty
+symmetrical and mostly cancels out. Weights are still used for model fitting. For cross-validation,
+we estimate prediction error differences between models that share the same design, canceling out
+the variance estimate due to PSU/strata. Moreover, gam() doesn't support PSU and strata uncertainty
 adjustment. We will use PSUs within strata to select bootstrapping samples later on, but we don't
 need the survey object for this.
 

@@ -8,13 +8,12 @@ editor_options:
 
 ## Build predictions dataframe age rate
 
-We sample 1 point for each age and predict the FI using the smooth-only model and generate
+We sample 1 point for each age and predict the PTA using the smooth-only model and generate
 simultaneous confidence intervals with 'mvt'. We could ask for a single point and ask where the true
 mean would be with 95% certainty, but if we'd apply that to all 60 points, there's a large chance
 that somewhere we get a false positive. With the simultaneous interval or with multivariate t
 distribution error correction, we can say that we're 95% sure that the **entire** derivative in the
-true population that was sampled from (all people on earth if NHANES is representative) is within
-the band.
+true population that was sampled from (whole US population) is within the band.
 
 To calculate the quadratic derivative, we can either calculate the slope at each point manually with
 
@@ -32,16 +31,11 @@ predict_age_rate <- function(
   predictor = "age",
   type = c("predict", "predict_derivative")
 ) {
-  ages <- setNames(
-    list(
-      seq(
-        min(df[[predictor]]),
-        max(df[[predictor]]),
-        by = 1
-      )
-    ),
-    predictor
-  )
+  ages <- seq(
+  min(df[[predictor]], na.rm = TRUE),
+  max(df[[predictor]], na.rm = TRUE),
+  by = 1
+)
 
   formula <- as.formula(
     paste("~", predictor)
@@ -51,7 +45,7 @@ predict_age_rate <- function(
     em <- emmeans(
       model,
       formula,
-      at = ages,
+      at = list(age = ages),
       type = "response",
       data = df
     )
@@ -60,7 +54,7 @@ predict_age_rate <- function(
       model,
       formula,
       var = predictor,
-      at = ages,
+      at = list(age = ages),
       data = df
     )
   }
@@ -127,7 +121,7 @@ pred_age_rate <- append(
 
 ### Quadratic-smooth derivative difference
 
-To calculate the difference between the smooth and quadratic derives, we can't simply sum their
+To calculate the difference between the smooth and quadratic derivatives, we can't simply sum their
 uncertainties, because need to account for their covariance.
 
 We take a nonparametric bootstrap, meaning we sample from the actual data. Within each replicate, we
@@ -143,78 +137,90 @@ and we get a higher total variance for that age. This means that both within-mod
 across-model covariance is accounted for when we compute the standard error from the bootstrap.
 
 ```{r}
-nonparametric_difference_bootstrap <- function(df, n_boot = 2000) {
-  ages <- setNames(
-    list(
-      seq(
-        min(df[["age"]]),
-        max(df[["age"]]),
-        by = 1
-      )
-    ),
-    "age"
+nonparametric_difference_bootstrap <- function(df, n_boot = 2000, threads = 1) {
+  ages <- seq(
+    min(df[["age"]], na.rm = TRUE),
+    max(df[["age"]], na.rm = TRUE),
+    by = 1
   )
 
-  set.seed(1)
+  set.seed(2)
 
-  boot_diff <- replicate(n_boot, {
-    indices <- sample.int(nrow(df), replace = TRUE)
-    data_subset <- df[indices]
-    weights_subset <- df$weights[indices]
+  plan(multisession, workers = threads)
+  
+  bootstrap_derivative_diff <- simplify2array(future_lapply(
+    seq_len(n_boot),
+    function(i) {
+      indices <- sample.int(nrow(df), replace = TRUE)
+      data_subset <- df[indices, ]
+      weights_subset <- df$weights[indices]
 
-    fit <- function(terms) {
-      gam(
-        reformulate(terms, response = params$hearing_var),
-        data = data_subset,
-        weights = weights_subset / mean(weights_subset),
-        method = "REML",
-        family = gaussian()
-      )
-    }
-
-    trend <- function(model) {
-      as.data.frame(
-        emtrends(
-          model, ~age,
-          var = "age",
-          at = list(age = ages),
-          data = data_subset
+      fit <- function(terms) {
+        gam(
+          reformulate(terms, response = params$hearing_var),
+          data = data_subset,
+          weights = weights_subset / mean(weights_subset),
+          method = "REML",
+          family = gaussian()
         )
-      )$age.trend
-    }
+      }
 
-    smooth_coefs <- trend(fit(paste0("s(age, k = ", params$age_rate_k, ")")))
-    parametric_coefs <- trend(fit(c("age", "I(age^2)")))
+      trend <- function(model) {
+        as.data.frame(
+          emtrends(
+            model, ~age,
+            var = "age",
+            at = list(age = ages),
+            data = data_subset
+          )
+        )$age.trend
+      }
 
-    smooth_coefs - parametric_coefs
-  })
+      smooth_coefs <- trend(fit(paste0("s(age, k = ", params$age_rate_k, ", m = 3)")))
+      parametric_coefs <- trend(fit(c("age", "I(age^2)")))
 
-  SE_adj <- apply(boot_diff, 1, sd)
-  boot_z <- sweep(
-    boot_diff,
-    1,
-    rowMeans(boot_diff)
-  ) / SE_adj
+      smooth_coefs - parametric_coefs
+    },
+    future.seed = TRUE,
+    future.globals = TRUE,
+    future.packages = c(
+      "emmeans",
+      "mgcv",
+      "tidytable"
+    )
+  ))
+  
+  plan(sequential)
 
-  t_crit_mvt <- quantile(
-    apply(abs(boot_z), 2, max),
+  SE_adj <- apply(bootstrap_derivative_diff, 1, sd)
+
+  t_crit_max_t <- unname(quantile(
+    apply(
+      abs(sweep(bootstrap_derivative_diff, 1, rowMeans(bootstrap_derivative_diff), "-") / SE_adj),
+      2,
+      max
+    ),
     0.95
-  )
+  ))
 
-  cbind(SE_adj, t_crit_mvt)
+  cbind(SE_adj, t_crit_max_t)
 }
 
 system.time(
   pred_age_rate$derivative_smooth <- cbind(
     pred_age_rate$derivative_smooth,
     df %>% nonparametric_difference_bootstrap(
-      n_boot = params$n_boot
+      n_boot = params$n_boot,
+      threads = min(
+        params$n_threads,
+        as.numeric(future::availableCores()) - 1
+      )
     )
   ) %>%
     mutate(
       derivative_adj = derivative - pred_age_rate$quadratic_derivative$derivative,
-      ci_lower_adj = derivative_adj - t_crit_mvt * SE_adj,
-      ci_upper_adj = derivative_adj + t_crit_mvt * SE_adj
+      ci_lower_adj = derivative_adj - t_crit_max_t * SE_adj,
+      ci_upper_adj = derivative_adj + t_crit_max_t * SE_adj
     )
 )
 ```

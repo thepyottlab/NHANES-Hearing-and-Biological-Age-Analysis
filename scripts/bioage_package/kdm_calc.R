@@ -36,7 +36,7 @@ get_effs <- function(mod) {
 #' train <- kdm_calc(NHANES3,
 #'   biomarkers = c(
 #'     "fev", "sbp", "totchol", "hba1c", "albumin",
-#'     "creat", "lncrp", "alp", "bun"
+#'     "creat", "crp_log", "alp", "bun"
 #'   )
 #' )
 #'
@@ -44,7 +44,7 @@ get_effs <- function(mod) {
 #' kdm <- kdm_calc(NHANES4,
 #'   biomarkers = c(
 #'     "fev", "sbp", "totchol", "hba1c", "albumin",
-#'     "creat", "lncrp", "alp", "bun"
+#'     "creat", "crp_log", "alp", "bun"
 #'   ),
 #'   fit = train$fit,
 #'   s_ba2 = train$fit$s_ba2

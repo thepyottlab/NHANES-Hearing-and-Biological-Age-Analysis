@@ -11,7 +11,7 @@
 #' hd <- hd_calc(NHANES4, NHANES3,
 #'   biomarkers = c(
 #'     "albumin_gL", "lymph", "mcv", "glucose_mmol",
-#'     "rdw", "creat_umol", "lncrp", "alp", "wbc"
+#'     "rdw", "creat_umol", "crp_log", "alp", "wbc"
 #'   )
 #' )
 #'

@@ -44,7 +44,7 @@ editor_options:
 params:
   hearing_var:
     label: "Hearing predictor variable"
-    value: "pta_lf"
+    value: "pta_hf"
     input: select
     choices: ["pta_hf", "pta_lf"]
     help: "Set predictor variable"
@@ -55,7 +55,7 @@ params:
     help: "Check to use telolength dataset with smaller N"
   global_k:
     label: "K (n BAM base functions) biological age analysis"
-    value: 30
+    value: 15
     input: numeric
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   age_rate_k:
@@ -85,7 +85,7 @@ params:
     help: "Set to save large model results locally for fast reloading"
   load_model_results:
     label: "Load model results"
-    value: TRUE
+    value: FALSE
     input: checkbox
     help: "Set to skip refitting of k-fold validation if model results are present"
   covariates:
@@ -110,7 +110,7 @@ params:
     help: "Set to fit an additional biomarker model to see how much variance within phenoage is explained by the biomarker"
   run_optional_chunks:
     label: "Run tests and validations"
-    value: FALSE
+    value: TRUE
     input: checkbox
     help: "Set to run tests and validations, which can take a long time to compute"
   save_figures:

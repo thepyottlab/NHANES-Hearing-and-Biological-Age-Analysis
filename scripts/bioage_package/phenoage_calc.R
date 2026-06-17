@@ -18,7 +18,7 @@ surv_form <- function(x) {
 #' train <- phenoage_calc(NHANES3,
 #'   biomarkers = c(
 #'     "albumin_gL", "lymph", "mcv", "glucose_mmol",
-#'     "rdw", "creat_umol", "lncrp", "alp", "wbc"
+#'     "rdw", "creat_umol", "crp_log", "alp", "wbc"
 #'   )
 #' )
 #'
@@ -26,7 +26,7 @@ surv_form <- function(x) {
 #' phenoage <- phenoage_calc(NHANES4,
 #'   biomarkers = c(
 #'     "albumin_gL", "lymph", "mcv", "glucose_mmol",
-#'     "rdw", "creat_umol", "lncrp", "alp", "wbc"
+#'     "rdw", "creat_umol", "crp_log", "alp", "wbc"
 #'   ),
 #'   fit = train$fit
 #' )
@@ -99,7 +99,7 @@ phenoage_calc <- function(data, biomarkers, fit = NULL, orig = FALSE) {
 
   if (orig == TRUE) {
     xb_orig <- -19.90667 + (-0.03359355 * dat$albumin_gL) + (0.009506491 * dat$creat_umol) + (0.1953192 * dat$glucose_mmol) +
-      (0.09536762 * dat$lncrp) + (-0.01199984 * dat$lymph) + (0.02676401 * dat$mcv) + (0.3306156 * dat$rdw) +
+      (0.09536762 * dat$crp_log) + (-0.01199984 * dat$lymph) + (0.02676401 * dat$mcv) + (0.3306156 * dat$rdw) +
       (0.001868778 * dat$alp) + (0.05542406 * dat$wbc) + (0.08035356 * dat$age)
 
     m_orig <- 1 - (exp((-1.51714 * exp(xb_orig)) / 0.007692696))

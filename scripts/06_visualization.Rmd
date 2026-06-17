@@ -75,7 +75,8 @@ format_table <- function(summary_data, per_age_group = FALSE) {
 
 #### Store biomarker labels
 
-```{r}
+```{r biomarker_labels}
+if (isFALSE(params$telolength)) {
 biomarker_labels <- summary_biomarkers_overall %>%
   mutate(
     label =
@@ -121,6 +122,7 @@ biomarker_labels <- summary_biomarkers_overall %>%
   ) %>%
   arrange(desc(delta_rmse_w)) %>%
   select(predictors, label)
+}
 ```
 
 #### Order, filter, and rename tables
@@ -134,13 +136,13 @@ rename_bioage_table <- function(bioage_table) {
         Predictors == "age, hd_log" ~ "Age + HD",
         Predictors == "age, kdm" ~ "Age + KDM",
         Predictors == "age, phenoage" ~ "Age + PhenoAge",
-        isTRUE(params$telolength) & Predictors == "age, telolength_log" ~ "Age + Telolength",
+        isTRUE(params$telolength) & Predictors == "age, telolength_log" ~ "Age + Telomere Length",
         TRUE ~ Predictors
       ),
       Predictors = factor(
         Predictors,
         levels = if (isTRUE(params$telolength)) {
-          c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telolength")
+          c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telomere Length")
         } else {
           c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
         }
@@ -157,7 +159,7 @@ rename_biomarker_table <- function(biomarker_table) {
       !(Predictors %in% c(
         "age",
         "age, phenoage",
-        "age, lncrp, phenoage"
+        "age, crp_log, phenoage"
       ))
     ) %>%
     mutate(
@@ -175,19 +177,19 @@ rename_covariate_table <- function(covariates_table) {
     ) %>%
     mutate(
       Predictors = case_when(
-        Predictors == "age, sex, smoking, race, education, phenoage" ~ "Phenoage",
-        Predictors == "age, smoking, race, education" ~ "Gender",
+        Predictors == "age, sex, smoking, race, education, phenoage" ~ "PhenoAge",
+        Predictors == "age, smoking, race, education" ~ "Sex",
         Predictors == "age, sex, race, education" ~ "Smoking",
         Predictors == "age, sex, smoking, education" ~ "Race",
         Predictors == "age, sex, smoking, race" ~ "Education"
       ),
       Predictors = factor(Predictors, levels = c(
-        "Phenoage",
-        "Gender",
+        "PhenoAge",
+        "Sex",
         "Smoking",
         "Race",
         "Education",
-        "Gender * Race"
+        "Sex * Race"
       ))
     ) %>%
     rename(
@@ -633,7 +635,7 @@ color_scales <- function(color_list_name) {
         "age, hd_log" = if (isFALSE(params$telolength)) "Age + HD" else NULL,
         "age, kdm" = if (isFALSE(params$telolength)) "Age + KDM" else NULL,
         "age, phenoage" = if (isFALSE(params$telolength)) "Age + PhenoAge" else NULL,
-        "age, telolength_log" = if (isTRUE(params$telolength)) "Age + Telolength" else NULL
+        "age, telolength_log" = if (isTRUE(params$telolength)) "Age + Telomere Length" else NULL
       )
     ),
     covariates = build_color_scale(
@@ -669,7 +671,7 @@ color_scales <- function(color_list_name) {
         "1" = color("sunset")(2)[1],
         "2" = color("sunset")(2)[2]
       ),
-      fill = c(
+      fill_colors = c(
         "1" = color("sunset")(2)[1],
         "2" = color("sunset")(2)[2]
       ),
@@ -683,7 +685,7 @@ color_scales <- function(color_list_name) {
         "1" = color("PRGn")(2)[1],
         "2" = color("PRGn")(2)[2]
       ),
-      fill = c(
+      fill_colors = c(
         "1" = color("PRGn")(2)[1],
         "2" = color("PRGn")(2)[2]
       ),
@@ -699,7 +701,7 @@ color_scales <- function(color_list_name) {
         "4" = color("vibrant")(4)[3],
         "5" = color("vibrant")(4)[4]
       ),
-      fill = c(
+      fill_colors = c(
         "1" = color("vibrant")(4)[1],
         "3" = color("vibrant")(4)[2],
         "4" = color("vibrant")(4)[3],
@@ -720,7 +722,7 @@ color_scales <- function(color_list_name) {
         "4" = color("nightfall")(5)[4],
         "5" = color("nightfall")(5)[5]
       ),
-      fill = c(
+      fill_colors = c(
         "1" = color("nightfall")(5)[1],
         "2" = color("nightfall")(5)[2],
         "3" = color("nightfall")(5)[3],
@@ -737,32 +739,32 @@ color_scales <- function(color_list_name) {
     ),
     biomarker_diff = build_color_scale(
       colors = c(
-        "age, lncrp, phenoage" = "#CB2027",
-        "age, lncrp" = "#059748",
+        "age, crp_log, phenoage" = "#CB2027",
+        "age, crp_log" = "#059748",
         "age, phenoage" = "grey65"
       ),
       fill_colors = c(
-        "age, lncrp, phenoage" = "#F07E6E",
-        "age, lncrp" = "#90CD97",
+        "age, crp_log, phenoage" = "#F07E6E",
+        "age, crp_log" = "#90CD97",
         "age, phenoage" = "grey80"
       ),
       labels = c(
-        "age, lncrp, phenoage" = "Age + CRP + PhenoAge",
-        "age, lncrp" = "Age + CRP",
+        "age, crp_log, phenoage" = "Age + CRP + PhenoAge",
+        "age, crp_log" = "Age + CRP",
         "age, phenoage" = "Age + PhenoAge"
       ),
       breaks = c(
-        "age, lncrp, phenoage",
-        "age, lncrp",
+        "age, crp_log, phenoage",
+        "age, crp_log",
         "age, phenoage"
       )
     ),
     best_biomarkers = build_color_scale(
       colors = c(
-        "age, lncrp" = "#256DAB"
+        "age, crp_log" = "#256DAB"
       ),
       fill_colors = c(
-        "age, lncrp" = "#88BDE6"
+        "age, crp_log" = "#88BDE6"
       )
     )
   )
@@ -776,7 +778,7 @@ Note that using `update_geom_defaults()` is global and requires `reset_geom_defa
 plots with the same styling will not have repeated `update_geom_defaults()` calls to avoid overhead
 and clutter. Plots must therefore be run in order.
 
-```{r fun_plot_theme}
+```{r fun_geom_theme}
 set_geom_theme <- function(geom_theme_name, global_params = params) {
   config <- if (!is.null(global_params)) plot_config(global_params = global_params)
 
@@ -1780,16 +1782,16 @@ if (isFALSE(params$telolength)) {
 ```{r plot_biomarkers, include=FALSE}
 if (isFALSE(params$telolength) && isTRUE(params$run_biomarker_add_analysis)) {
   p1 <- summary_biomarkers %>%
-    filter(predictors %in% c("age, lncrp")) %>%
+    filter(predictors %in% c("age, crp_log")) %>%
     mutate(
       label = predictors,
       label = case_when(
-        label == "age, lncrp" ~ "Age + CRP",
+        label == "age, crp_log" ~ "Age + CRP",
         TRUE ~ NA
       ),
       predictors = factor(
         predictors,
-        levels = c("age, lncrp")
+        levels = c("age, crp_log")
       )
     ) %>%
     ggplot(
@@ -1803,9 +1805,9 @@ if (isFALSE(params$telolength) && isTRUE(params$run_biomarker_add_analysis)) {
     ) +
     geom_label(
       data = . %>%
-        filter(age_group == "20-30"),
+        filter(age_group == "20–29"),
       aes(
-        x = "20-30",
+        x = "20–29",
         y = 3.65,
         label = label,
         fill = predictors
@@ -1845,7 +1847,7 @@ if (isFALSE(params$telolength) && isTRUE(params$run_biomarker_add_analysis)) {
       nrow = 5,
       labeller = labeller(
         predictors = c(
-          "age, lncrp" = "Age + CRP"
+          "age, crp_log" = "Age + CRP"
         )
       )
     ) +
@@ -1876,16 +1878,16 @@ if (isFALSE(params$telolength) && isTRUE(params$run_biomarker_add_analysis)) {
     filter(
       predictors %in% c(
         "age, phenoage",
-        "age, lncrp",
-        "age, lncrp, phenoage"
+        "age, crp_log",
+        "age, crp_log, phenoage"
       )
     ) %>%
     mutate(predictors = factor(
       predictors,
       levels = c(
         "age, phenoage",
-        "age, lncrp",
-        "age, lncrp, phenoage"
+        "age, crp_log",
+        "age, crp_log, phenoage"
       )
     )) %>%
     ggplot(
@@ -1980,7 +1982,7 @@ if (isFALSE(params$telolength)) {
       predictors %in% c(
         "age",
         "age, phenoage",
-        "age, lncrp, phenoage"
+        "age, crp_log, phenoage"
       )
     )) %>%
     mutate(predictors = factor(

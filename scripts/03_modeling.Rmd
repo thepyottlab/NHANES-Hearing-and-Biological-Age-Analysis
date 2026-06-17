@@ -11,15 +11,14 @@ editor_options:
 ### Fold-maker function
 
 This function takes the indices of rows each age group, randomizes them, then assigns numbers of
-1-10. We could integrate this into the k-fold cross validation function, but by doing it separately
+1-k. We could integrate this into the k-fold cross validation function, but by doing it separately
 it's easier to inspect any possible issues. We shuffle indices within each age group so that the
-numbers 1-10 will equally be spaced throughout the age group, lncreating even age group
-distributions in each fold.
+numbers 1-k will equally be spaced throughout the age group, creating even age group distributions
+in each fold.
 
-We generate folds per individual, not per PSU within statum for two reasons: individuals preserves
+We generate folds per individual, not per PSU within stratum for two reasons: individuals preserves
 age balance well and the prediction target is prediction for held-out individual participants, not
-for entirely unseen PSUs/geographic clusters. Therefore, we should use ALL PSUs in each fold, so
-that all PSUs are represented in the testing data, by sampling individuals.
+for entirely unseen PSUs/geographic clusters.
 
 ```{r fun_make_folds}
 make_repeated_folds <- function(data, grouping_variable, k, repeats) {
@@ -99,8 +98,8 @@ each function. Max degrees of freedom are only computed once per variable and ca
   minus one.
 - `auto_limit_k`: if k exceeds the deg_free for a parameter (e.g., if k \> 25 for albumin), it will
   automatically be limited to the deg_free.
-- `equal_wiggliness`: gives an individual id to each sum-to-zero interaction term when FALSE which
-  ensures they have the same smoothing parameter. Setting to TRUE marginally improves fit but uses
+- `equal_wiggliness`: gives an individual id to each sum-to-zero interaction term when TRUE which
+  ensures they have the same smoothing parameter. Setting to FALSE marginally improves fit but uses
   many degrees of freedom.
 - `stepdown`: additionally creates formulas with age as predictor that each miss one covariate for a
   nested-CV comparison (i.e., compare, for example, the impact of adding 'sex' to a model that
@@ -480,7 +479,7 @@ cross_validation <- function(
   threads = 1
 ) {
   # Initialize age groups to stratify by and repeat column names that contain fold specification
-  age_groups <- c("20-30", "30-40", "40-50", "50-60", "60-70", if (isFALSE(params$telolength)) "70-80")
+  age_groups <- c("20–29", "30–39", "40–49", "50–59", "60–69", if (isFALSE(params$telolength)) "70–79")
   repeat_columns <- paste0("fold_r", seq_len(repeats))
 
   # Store predictor column names for prediction dataset
@@ -590,7 +589,7 @@ cross_validation <- function(
       # Use GAM to predict responses in current age group
       pred <- predict(mod, newdata = test_subset, type = "response")
 
-      # Make a tibble with predictions and sample sizes used in the model used for predictions
+      # Make a tibble with predictions and sample sizes (of an age group) used in the model used for predictions
       test_subset %>%
         as_tibble() %>%
         mutate(
@@ -715,7 +714,7 @@ if (isTRUE(params$store_model_results)) {
 
 #### Reverse bioage K-fold CV
 
-```{r bioage_cv, warning=FALSE}
+```{r bioage_cv_reverse, warning=FALSE}
 if (isFALSE(params$telolength)) {
   system.time({
     pred_bioage_reverse <- if (
@@ -740,9 +739,9 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-#### Store bioage modeling results
+#### Store bioage reverse modeling results
 
-```{r store_bioage_res}
+```{r store_bioage_reverse_res}
 if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
   saveRDS(
     object = pred_bioage_reverse,
@@ -859,7 +858,8 @@ We have three options for constructing the smooth.
     analysis is complex. By comparing between the quadratic model and GAM at specific ages, the null
     hypothesis is: at age $a$, the estimated rate of hearing loss is the same under the GAM and
     quadratic model. As a better alternative, we could also use `pta ~ s(age, m = 3)` and perform
-    the same analysis but without the double linear and quadratic terms.
+    the same analysis but without the double linear and quadratic terms. We can estimate the
+    standard error with bootstrapping.
 2.  `pta ~ age + I(age^2) + s(age, m = c(3,0))`: here we allow there to be a penalty null space in
     the first and second order polynomials (smooth starts penalizing third or higher-order
     polynomials) but we exclude the polynomials in the penalty null space from the smooth. This
@@ -897,7 +897,7 @@ We have three options for constructing the smooth.
 In option 1, the analysis is highly complex and we must estimate covariance between full models with
 high multicolinearity. In option 2, we have a nice model structure, but we need to truly isolate the
 smooth component at specific ages, which is not identifiable. In option 3, we have an even simpler
-model structure and instead ask whether the total GAM (which is will-identifiable) behaves
+model structure and instead ask whether the total GAM (which is well-identifiable) behaves
 quadratically at a given age range. Because option 2 is not well-identifiable, it's not viable.
 Option 1 requires bootstrapping to estimate model covariances (complex). Option 3 does not require
 bootstrapping but does require the coefficient-covariance matrix (vcov), as well (which is no
@@ -944,7 +944,7 @@ models_age_rate <- append(
   list(
     linear = model_age_rate("age"),
     quadratic = model_age_rate(c("age", "I(age^2)")),
-    smooth = model_age_rate(paste0("s(age, k = ", params$age_rate_k, ")"))
+    smooth = model_age_rate(paste0("s(age, k = ", params$age_rate_k, ", m = 3)"))
   )
 )
 
@@ -1098,7 +1098,9 @@ if (isTRUE(params$run_optional_chunks)) {
       )
       f2 <- paste0(
         params$hearing_var,
-        " ~ s(age) + s(age, ",
+        " ~ s(age, k = ",
+        k,
+        ") + s(age, ",
         covariate,
         ", bs = 'sz', k = ",
         k,

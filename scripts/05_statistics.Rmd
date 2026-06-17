@@ -140,15 +140,16 @@ if (isFALSE(params$telolength)) {
 ### Calculate mean MSE and MSE variance across folds
 
 The Nadeau Bengio corrected t-test estimates variance using the training and testing dataset sizes,
-because cross validations are not independent, violating the assumption of a paired t-test,
-inflating type 1 errors (false positives). We weigh the participants within folds by multiplying
-weights by sample size.
+which is needed because cross validations are not independent, violating the assumption of a paired
+t-test, inflating type 1 errors (false positives). MSE per fold is calculated using the weighted
+mean of prediction errors. Average MSE across folds is calculated by weighting folds by the sum of
+the participants' probability weights.
 
 In <https://www.jmlr.org/papers/volume6/markatou05a/markatou05a.pdf>, Analysis of Variance of
 Cross-Validation Estimators of the Generalization Error, the authors also report the variance
-estimate as `S² * (1/J + n2/n1)`, where `S2` is the variance (squared standard deviation), `J` is
-the total number of folds, `n2` is the validation/test set and `n1` is the training set size. They
-also show that when `J` is appropriate (`10*10`), it provides a good variance estimate.
+estimate as $S² * (1/J + n2/n1)$, where $S2$ is the variance (squared standard deviation), `J` is
+the total number of folds, $n2$ is the validation/test set and $n1$ is the training set size. They
+also show that when $J$ is appropriate ($10*10$), it provides a good variance estimate.
 
 ```{r calc_pooled_mse}
 calculate_pooled_mse <- function(results) {
@@ -350,7 +351,6 @@ compute_rmse_ci <- function(
       w_target <- w_target / mean(w_target)
 
       if (length(error_ref) != length(error_target)) {
-        browser()
         stop("Length of target and reference predictor subsets are not equal")
       }
 
@@ -519,7 +519,7 @@ the number of training data. We then calculate degrees of freedom by taking n - 
 `pt()` (which automatically calculates the critical value) using a one-tailed t-test of the upper
 tail. This is because we're not interested in whether an age + bioage model is different from
 age-only. We only want to know if its better. We then adjust p values with Hommel or Holm error
-correction. We could also use the mvt-adjusted 95% confidence intervals.
+correction.
 
 First, the question is, 'Does this bioage/biomarker add predictive value for hearing loss in the
 population while controlling for chronological age?', which we test with the overall comparisons.
@@ -606,7 +606,7 @@ if (isFALSE(params$telolength)) {
     exceptions = c(
       "age",
       "age, phenoage",
-      "age, lncrp, phenoage"
+      "age, crp_log, phenoage"
     ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
@@ -617,7 +617,7 @@ if (isFALSE(params$telolength)) {
     exceptions = c(
       "age",
       "age, phenoage",
-      "age, lncrp, phenoage"
+      "age, crp_log, phenoage"
     ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
@@ -874,36 +874,33 @@ By taking the derivative of the full model (with smooth) and subtracting the der
 nested quadratic model, we can test against zero to test deviations from a quadratic pattern.
 
 When making a smooth (or linear) model, we fit a line to noisy data as best we can, but other lines
-with different coefficients might fit almost as well and be better for some data points then for
+with a different derivative might fit almost as well and be better for some data points then for
 others. Therefore, there is an uncertainty. We can say that, for example, the best-guess slope is 5
 (5 increase PTA per year). But because the data is noisy, assuming a normal distribution, we know
 that the true slope that would actually fit the sampling population may be something different
 within a certain range of uncertainty (say, 2), which we can express as a standard error. When
-figuring out the derivative, we inherent this uncertainty. This standard error is what we can use to
+figuring out the derivative, we inherit this uncertainty. This standard error is what we can use to
 assess the likelihood of the null-hypothesis:
 
-**H0**: The rate of hearing loss is linear, so the GAM derivative minus the quadratic coefficients
-equals 0.
+**H0**: The GAM does not deviate from the quadratic age-rate function, so the GAM derivative minus
+the quadratic derivative equals 0.
 
-**H1**: The rate of aging is non-linear, so the GAM derivative minus the quadratic coefficients is
-not 0.
-
-With a p-value of 0.05, we can say that if we randomly sample 100 times from the population and the
-rate of aging **is** quadratic, then 5 times we'll see a significant non-zero smooth term.
+**H1**: The GAM does deviate from the quadratic age-rate function, so the GAM derivative minus the
+quadratic derivative is not 0.
 
 Depending on the variation/noise in the data, the smooth term derivative needs to be larger or
 smaller compared to 0 to get a p-value of 0.05. If the variation in the data is higher, the standard
 error is higher, and the derivative of the smooth term must be higher to get a p-value of 0.05 or
 lower.
 
-We want to know at which age ranges we have a non-zero slope (two-tailed test). However, rather than
-perform a t-test and correcting for multiple comparisons, which assumes independence of tests, we
-could use the mvt-adjusted 95% confidence intervals. If the 95% confidence intervals do not include
-0, it conceptually is the same as saying that p \< 0.05. However, it's hard to tell just how
-significant something is. We just get a binary decision saying whether it is or is below the alpha.
-The upside is that we don't make assumptions about independence and do a single test for inference
-on the whole model. We can report the effect size in the whole model and report significance at
-specific ages.
+We want to know at which age ranges we have a non-zero derivative difference (two-tailed test).
+However, rather than perform a t-test and correcting for multiple comparisons, which assumes
+independence of tests, we could use the multiplicity-adjusted 95% confidence intervals. If the 95%
+confidence intervals do not include 0, it conceptually is the same as saying that p \< 0.05.
+However, it's hard to tell just how significant something is. We just get a binary decision saying
+whether it is or is below the alpha. The upside is that we don't make assumptions about independence
+and do a single test for inference on the whole model. We can report the effect size in the whole
+model and report significance at specific ages.
 
 To identify significant boundaries, check which pairwise comparisons are significant, then check if
 the previous row was significant, then whenever a row is significant but the previous one was,
@@ -916,13 +913,14 @@ pwc_age_rate <- pred_age_rate$derivative_smooth %>%
   mutate(
     signif = case_when(
       ci_lower_adj > 0 ~ "*",
+      ci_upper_adj < 0 ~ "*",
       TRUE ~ "ns"
     )
   )
 
 pwc_age_rate_boundaries <- pwc_age_rate %>%
   mutate(
-    significant = (ci_lower_adj > 0),
+    significant = (ci_lower_adj > 0 | ci_upper_adj < 0),
     run = cumsum(
       significant != lag(
         significant,
@@ -950,9 +948,9 @@ pwc_age_rate_boundaries %>%
 
 ## Calculate coefficients
 
-We estimate the rate of change in dB/year and acceleration in dB/year² for the quadratic model and
-GAM. For the GAM, we estimate the acceleration by fitting a linear model to the derivative and
-calculating its coefficient.
+We estimate the rate of change in dB/year and (average) acceleration in dB/year² for the quadratic
+model and GAM. For the GAM, we estimate the acceleration by fitting a linear model to the derivative
+and calculating its coefficient.
 
 ```{r calc_coeffs}
 with(pred_age_rate$linear, cov(age, estimate) / var(age))
