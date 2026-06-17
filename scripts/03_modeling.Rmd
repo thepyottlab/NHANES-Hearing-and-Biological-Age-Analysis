@@ -16,6 +16,11 @@ it's easier to inspect any possible issues. We shuffle indices within each age g
 numbers 1-10 will equally be spaced throughout the age group, lncreating even age group
 distributions in each fold.
 
+We generate folds per individual, not per PSU within statum for two reasons: individuals preserves
+age balance well and the prediction target is prediction for held-out individual participants, not
+for entirely unseen PSUs/geographic clusters. Therefore, we should use ALL PSUs in each fold, so
+that all PSUs are represented in the testing data, by sampling individuals.
+
 ```{r fun_make_folds}
 make_repeated_folds <- function(data, grouping_variable, k, repeats) {
   # Helper to create random k-fold indices for one repeat
@@ -460,8 +465,9 @@ optionally the actual models (uses very large amounts of memory when discrete = 
 does nothing to the fitting but returns names based on nested covariate models instead of the
 regular predictors (which exclude covariates in the label). Model is fitted using normalized weights
 `weights / mean(weights)`. Weights can have large numbers (thousands), which mgcv would recognize as
-frequencies, making model estimates too small. By dividing by the mean we rescale the mean weight to
-1.
+frequencies, making model estimates too small. By dividing by the mean we rescale the mean weight
+to 1. Each fold gets its weights normalized to 1 so that mgcv does not overestimate variance. We can
+correct for different total weight per test sets across folds later.
 
 ```{r fun_CV}
 cross_validation <- function(
@@ -908,7 +914,7 @@ falls just wrong. We can test different $h$ values but that would cause false po
 pairwise comparisons between a single best-fitting quadratic model and a single GAM fits better with
 the (approximate) F-test.
 
-Survey weights are used.
+Probability weights are used.
 
 ```{r aging_models}
 models_age_rate <- list()
@@ -1490,6 +1496,10 @@ if (isTRUE(params$run_optional_chunks)) {
 
 ### (Optional) K stability analysis
 
+We observe at which K the model stops improving by fitting models with different K values. The
+largest of the two smallest Ks that is close to the ceiling for the HF-PTA and LF-PTA is used for
+both sets of models.
+
 ```{r assess_k_stability}
 if (isTRUE(params$run_optional_chunks)) {
   assess_stability_k <- function(data, threads = 1) {
@@ -1581,41 +1591,5 @@ if (isTRUE(params$run_optional_chunks)) {
       paste0("k stability analysis", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", ".png")
     )
   )
-}
-```
-
-### (Optional) Test k-fold validation
-
-Test k-fold validation on a single formula with specified k.
-
-```{r test_k_fold_val}
-if (isTRUE(params$run_optional_chunks)) {
-  test_cv <- function(run = FALSE, k = params$global_k, discrete = params$global_discrete) {
-    if (isTRUE(run)) {
-      formulas_test <- formula_generator(
-        data = df,
-        k = k,
-        auto_limit_k = TRUE,
-        equal_wiggliness = TRUE,
-        formulas = c("age, phenoage")
-      )
-
-      system.time({
-        output_test <- cross_validation(
-          df,
-          formulas_test,
-          folds = k,
-          repeats = params$global_repeats,
-          discrete = discrete,
-          threads = min(
-            params$n_threads,
-            as.numeric(future::availableCores()) - 1
-          )
-        )
-      })
-    }
-  }
-
-  test_cv(run = FALSE, k = params$global_k, discrete = params$global_discrete)
 }
 ```

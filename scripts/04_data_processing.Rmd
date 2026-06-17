@@ -23,15 +23,6 @@ To calculate the quadratic derivative, we can either calculate the slope at each
 Or we use emtrends to calculate the slope at each point. The result is the same. However, using
 emtrends we can calculate simultaneous intervals with "mvt". Emtrends also works with smooth terms.
 
-We add the uncertainty of the quadratic model derivative to that of the smooth (it's tiny compared
-to that of the smooth). This is slightly conservative, because the variances are positively
-correlated. However, the smooth term absorbs some of the variance normally explained by the linear
-and quadratic terms, so the terms aren't fully uncorrelated. Because of this, the coefficients of
-the linear and quadratic terms are different between the nested smooth and quadratic models and,
-therefore, uncertainties are also different, which we need to account for. We back-calculate the
-multivariate-corrected t-crit value for the smooth and recalculate the confidence intervals but with
-the combined uncertainty from the quadratic and smooth.
-
 ### Main models
 
 ```{r predict_aging}
@@ -134,6 +125,23 @@ pred_age_rate <- append(
 )
 ```
 
+### Quadratic-smooth derivative difference
+
+To calculate the difference between the smooth and quadratic derives, we can't simply sum their
+uncertainties, because need to account for their covariance.
+
+We take a nonparametric bootstrap, meaning we sample from the actual data. Within each replicate, we
+standardize the mean weight to 1, so that each replicate is equal in information, even if it happens
+to have a lower total weight, because mgcv is sensitive to the scale of weights. We take samples
+based on the primary sampling units within strata, rather than individuals. Within each replicate,
+we fit a GAM and quadratic model to the same data, calculate the derivative/coefficient for each
+age, and subtract the quadratic coefficient from the smooth to obtain a difference. If the sample at
+a given age is randomly higher and this bump raises the GAM's derivative but drops the derivative of
+the quadratic (if, for example, the bump leads to a higher intercept or linear component with lower
+quadratic component to compensate, i.e., the derivative rotates), then there is negative covariance
+and we get a higher total variance for that age. This means that both within-model variance and
+across-model covariance is accounted for when we compute the standard error from the bootstrap.
+
 ```{r}
 nonparametric_difference_bootstrap <- function(df, n_boot = 2000) {
   ages <- setNames(
@@ -150,7 +158,6 @@ nonparametric_difference_bootstrap <- function(df, n_boot = 2000) {
   set.seed(1)
 
   boot_diff <- replicate(n_boot, {
-
     indices <- sample.int(nrow(df), replace = TRUE)
     data_subset <- df[indices]
     weights_subset <- df$weights[indices]
@@ -193,28 +200,28 @@ nonparametric_difference_bootstrap <- function(df, n_boot = 2000) {
     apply(abs(boot_z), 2, max),
     0.95
   )
-  
+
   cbind(SE_adj, t_crit_mvt)
 }
 
 system.time(
-pred_age_rate$derivative_smooth <- cbind(
-  pred_age_rate$derivative_smooth,
-  df %>% nonparametric_difference_bootstrap(
-    n_boot = params$n_boot
-  )
-) %>%
-  mutate(
-    derivative_adj = derivative - pred_age_rate$quadratic_derivative$derivative,
-    ci_lower_adj = derivative_adj - t_crit_mvt * SE_adj,
-    ci_upper_adj = derivative_adj + t_crit_mvt * SE_adj
-  )
+  pred_age_rate$derivative_smooth <- cbind(
+    pred_age_rate$derivative_smooth,
+    df %>% nonparametric_difference_bootstrap(
+      n_boot = params$n_boot
+    )
+  ) %>%
+    mutate(
+      derivative_adj = derivative - pred_age_rate$quadratic_derivative$derivative,
+      ci_lower_adj = derivative_adj - t_crit_mvt * SE_adj,
+      ci_upper_adj = derivative_adj + t_crit_mvt * SE_adj
+    )
 )
 ```
 
 ### Covariates
 
-We predict the `hearing_var` for each age in the dataset (20-84) for each stratum level.
+We predict the `hearing_var` for each age in the dataset (20-79) for each stratum level.
 
 ```{r pred_covariate_pta}
 predict_age_rate_covariate <- function(
@@ -285,4 +292,3 @@ pred_covariates_full <- append(
   )
 )
 ```
-

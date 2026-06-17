@@ -44,7 +44,7 @@ editor_options:
 params:
   hearing_var:
     label: "Hearing predictor variable"
-    value: "pta_hf"
+    value: "pta_lf"
     input: select
     choices: ["pta_hf", "pta_lf"]
     help: "Set predictor variable"
@@ -144,7 +144,7 @@ checks if knitting or interactive session is in progress. If knitting, return ma
 interactive, only run code in environment and print a time message.
 
 We set default contrast to be sum to zero instead of treatment vs control, allow duplicate knitr
-labels (when rerunning chunks) and set maximum size per worker for multithreading to 1000 MB.
+labels (when rerunning chunks) and set maximum size per worker for multithreading to 4 GB.
 
 ```{r setup, include = FALSE, cache = FALSE}
 knitr::opts_chunk$set(
@@ -165,7 +165,7 @@ knitr::opts_knit$set(
 options(
   contrasts = c("contr.sum", "contr.poly"),
   knitr.duplicate.label = "allow",
-  future.globals.maxSize = 2048 * 1024^2
+  future.globals.maxSize = 4096 * 1024^2
 )
 
 run_module <- function(path) {

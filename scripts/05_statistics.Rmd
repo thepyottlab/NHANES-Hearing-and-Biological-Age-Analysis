@@ -280,8 +280,11 @@ observations are taken twice and others are omitted (set by `replace = TRUE`). I
 code once and don't filter per age group). Compile into a dataframe (tidytable) at the end and
 insert values into the summary dataframes.
 
-We flip the sign and order of upper and lower CIs of covariates. Survey weights are applied to
-calculate weighted column means.
+We flip the sign and order of upper and lower CIs of covariates. Probability weights are applied to
+calculate weighted column means. We do not need to use PSUs for sampling because we want to know the
+uncertainty over observed individuals' prediction errors, not estimating model coefficient
+uncertainty. We are bootstrapping based on already-computed prediction errors, not refitting GAMs
+inside each bootstrap.
 
 ```{r calc_RMSE_CI}
 compute_rmse_ci <- function(
@@ -516,7 +519,7 @@ the number of training data. We then calculate degrees of freedom by taking n - 
 `pt()` (which automatically calculates the critical value) using a one-tailed t-test of the upper
 tail. This is because we're not interested in whether an age + bioage model is different from
 age-only. We only want to know if its better. We then adjust p values with Hommel or Holm error
-correction.
+correction. We could also use the mvt-adjusted 95% confidence intervals.
 
 First, the question is, 'Does this bioage/biomarker add predictive value for hearing loss in the
 population while controlling for chronological age?', which we test with the overall comparisons.
@@ -524,14 +527,6 @@ Only if it's significantly different do we look at per age-group tests. Another 
 'Might bioage/biomarker only matter for specific age ranges, even if it doesn't have an overall
 predictive effect?', in which case we could consider doing pairwise on all, but we'd lose a lot of
 power and would have to use FDR and accept a 5% false discovery rate to salvage it.
-
-The CorrectR library has an implementation of the Nadeau-Bengio corrected t-test (with support for
-repeated k-fold validations), but this makes the (false) assumption that fold sizes are always
-equal, so there's a small error in calculation of the sample mean and variance. The sample mean and
-variance should be weighted by fold size. This gets relevant for age-group delta MSEs, because for
-the 50-60 age group, some folds have a test size of 99 and others of 98. That means that some folds
-weigh 1% more than another. Not correcting for that could make the difference between significant or
-not signficant.
 
 ```{r t_test_models}
 nb_corrected_repeated_t_test <- function(summary,
@@ -801,7 +796,11 @@ if (isFALSE(params$telolength)) {
 ### Compare linear vs quadratic vs smooth age fits
 
 We do a partial F-test to compare a full model with a constrained model, to see if the added term
-significantly improves fit. We also calculate RMSEs with a weighted mean of residuals.
+significantly improves fit. We also calculate RMSEs with a weighted mean of residuals. The GAM does
+not have explicit parametric linear and quadratic terms but instead has linear and quadratic terms
+in the null space, so they're unpenalized, which means they do have the parametric terms, just not
+spelled out in the formula. Adding the terms explicitly would make them double. We additionally
+calculate partial omega-squared for the effect size of the additional terms.
 
 ```{r compare_aging_models}
 aov_quadratic <- anova(
@@ -867,7 +866,7 @@ calculate_f_test_statistics(aov_gam)
 
 **We see that the quadratic curve fits better than the linear one, so the rate of aging is not
 linear, and the smooth curve fits better than the quadratic one, so there are deviations from a
-quadratic pattern**
+quadratic pattern.**
 
 ### Assess where rate of aging differs
 
@@ -883,11 +882,11 @@ within a certain range of uncertainty (say, 2), which we can express as a standa
 figuring out the derivative, we inherent this uncertainty. This standard error is what we can use to
 assess the likelihood of the null-hypothesis:
 
-**H0**: The rate of aging is quadratic, so the GAM derivative minus the quadratic coefficients
+**H0**: The rate of hearing loss is linear, so the GAM derivative minus the quadratic coefficients
 equals 0.
 
-**H1**: The rate of aging is non-quadratic, so the GAM derivative minus the quadratic coefficients
-is not 0.
+**H1**: The rate of aging is non-linear, so the GAM derivative minus the quadratic coefficients is
+not 0.
 
 With a p-value of 0.05, we can say that if we randomly sample 100 times from the population and the
 rate of aging **is** quadratic, then 5 times we'll see a significant non-zero smooth term.
@@ -897,18 +896,14 @@ smaller compared to 0 to get a p-value of 0.05. If the variation in the data is 
 error is higher, and the derivative of the smooth term must be higher to get a p-value of 0.05 or
 lower.
 
-We want to know at which age ranges we have a non-zero slope, so we can either test for each 10 year
-age group or test for each individual age integer with correct pairwise comparison corrections.
-
-A two-tailed p-value can be calculated when we know a z-score, which is calculated as sample mean -
-hypothesized mean divided by the standard error. The hypothesized mean is 0. For a two-tailed
-t-test, we then take `2 * pnorm(abs(z_score), lower.tail = FALSE)`. If we'd want to only know the
-left tail, we'd use `lower.tail = TRUE`.
-
-Because the t-tests are dependent and are likely to be either higher or lower when one is higher
-(because ages are adjacent and the aging rate can be either higher or lower), we should use Holm's
-correction, which will be too strict as pairwise comparisons are not independent, so type II error
-rate is high.
+We want to know at which age ranges we have a non-zero slope (two-tailed test). However, rather than
+perform a t-test and correcting for multiple comparisons, which assumes independence of tests, we
+could use the mvt-adjusted 95% confidence intervals. If the 95% confidence intervals do not include
+0, it conceptually is the same as saying that p \< 0.05. However, it's hard to tell just how
+significant something is. We just get a binary decision saying whether it is or is below the alpha.
+The upside is that we don't make assumptions about independence and do a single test for inference
+on the whole model. We can report the effect size in the whole model and report significance at
+specific ages.
 
 To identify significant boundaries, check which pairwise comparisons are significant, then check if
 the previous row was significant, then whenever a row is significant but the previous one was,
@@ -919,33 +914,15 @@ to identify boundaries. Only keep the significant stretches.
 ```{r find_sig_ages}
 pwc_age_rate <- pred_age_rate$derivative_smooth %>%
   mutate(
-    z_score = derivative_adj / SE_adj,
-    p = 2 * pnorm(abs(z_score), lower.tail = FALSE),
-    p_adj = p.adjust(p, method = "holm"),
     signif = case_when(
-      p_adj <= 0.001 ~ "***",
-      p_adj <= 0.01 ~ "**",
-      p_adj <= 0.05 ~ "*",
+      ci_lower_adj > 0 ~ "*",
       TRUE ~ "ns"
     )
-  ) %>%
-  select(
-    age,
-    derivative,
-    ci_lower,
-    ci_upper,
-    derivative_adj,
-    ci_lower_adj,
-    ci_upper_adj,
-    z_score,
-    p,
-    p_adj,
-    signif
   )
 
 pwc_age_rate_boundaries <- pwc_age_rate %>%
   mutate(
-    significant = (p_adj < 0.05),
+    significant = (ci_lower_adj > 0),
     run = cumsum(
       significant != lag(
         significant,

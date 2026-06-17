@@ -6,13 +6,16 @@ editor_options:
 
 # Visualization
 
+This section contains the main results and figures. Note that some supplementary figures are in
+02_data_preprocessing or 03_modeling.
+
 ## Tables
 
 #### Descriptives table
 
 #### Format table
 
-Round R² and delta RMSE, rename variables, set p values to bold and to " \< 0.001" when very small.
+Round R² and delta RMSE, rename variables, set p values to 'below 0.001' when very small.
 
 ```{r format_table}
 format_table <- function(summary_data, per_age_group = FALSE) {
