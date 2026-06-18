@@ -812,6 +812,18 @@ sameplot(
 
 There is some kurtosis for several variables in NHANES3, but that should not be an issue.
 
+#### Check PSU variance
+
+```{r}
+design$variables %>%
+  distinct(stratum, psu) %>%
+  count(stratum, name = "psu_n") %>%
+  count(psu_n, name = "stratum_n") %>%
+  construct_table(title = "Number of strata within PSUs")
+```
+
+**One stratum only has one PSU after filtering, so we can't estimate variance within it.**
+
 ## Calculate biological age
 
 We train PhenoAge on ages 20-79 (full sample) in line with the Levine paper. We train KDM on ages

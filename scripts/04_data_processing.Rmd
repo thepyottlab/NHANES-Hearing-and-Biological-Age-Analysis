@@ -32,10 +32,10 @@ predict_age_rate <- function(
   type = c("predict", "predict_derivative")
 ) {
   ages <- seq(
-  min(df[[predictor]], na.rm = TRUE),
-  max(df[[predictor]], na.rm = TRUE),
-  by = 1
-)
+    min(df[[predictor]], na.rm = TRUE),
+    max(df[[predictor]], na.rm = TRUE),
+    by = 1
+  )
 
   formula <- as.formula(
     paste("~", predictor)
@@ -136,6 +136,23 @@ quadratic component to compensate, i.e., the derivative rotates), then there is 
 and we get a higher total variance for that age. This means that both within-model variance and
 across-model covariance is accounted for when we compute the standard error from the bootstrap.
 
+The PSU-based sampling creates an interaction variable for PSU \* stratum, so that we identify the
+PSUs within each stratum. We then identify the rows/IDs pertaining to each PSU. We then identify
+which PSUs belong to which stratum. We then randomly sample PSUs within each stratum. For example,
+if have 3 PSUs within one stratum, one bootstrap replicate we may have 1 2 3, another 1 1 3, another
+2 2 2, another 1 3 1, etc. When a PSU is sampled, we include all rows/IDs within that PSU.
+Individuals inside the same PSU are not independent, as they're from the same geographical
+location/sampling context. A single stratum may be, for example, high socioeconomic rural Texan
+black females, and they might have 3 centers where this demographic is sampled. Each center is then
+a single PSU. By sampling individuals, the model sees noise at a person level (sometimes a person is
+duplicated, some are dropped), assuming people are independent, which they're not because people
+within a PSU share geographical context, but with a PSU bootstrap, the model sees noise at the
+cluster level. Some replicates a PSU with systematically more hearing loss gets sampled twice. The
+bootstrapping then tells us the uncertainty based on 'what if this whole sampled cluster had more or
+less influence' instead of 'what if these isolated people had more or less influence'. This mimicks
+'what if NHANES had sampled different PSUs' instead of 'what if NHANES had picked different people
+from the same PSUs', which is less generalizable.
+
 ```{r}
 nonparametric_difference_bootstrap <- function(df, n_boot = 2000, threads = 1) {
   ages <- seq(
@@ -144,14 +161,20 @@ nonparametric_difference_bootstrap <- function(df, n_boot = 2000, threads = 1) {
     by = 1
   )
 
-  set.seed(2)
+  psu_id <- interaction(df$stratum, df$psu, drop = TRUE)
+  psu_rows <- split(seq_len(nrow(df)), psu_id, drop = TRUE)
+  stratum_psus <- split(names(psu_rows), df$stratum[match(names(psu_rows), as.character(psu_id))])
 
+  set.seed(2)
   plan(multisession, workers = threads)
-  
+
   bootstrap_derivative_diff <- simplify2array(future_lapply(
     seq_len(n_boot),
     function(i) {
-      indices <- sample.int(nrow(df), replace = TRUE)
+      indices <- unlist(lapply(stratum_psus, function(psus) {
+        unlist(psu_rows[sample(psus, replace = TRUE)], use.names = FALSE)
+      }), use.names = FALSE)
+
       data_subset <- df[indices, ]
       weights_subset <- df$weights[indices]
 
@@ -189,7 +212,7 @@ nonparametric_difference_bootstrap <- function(df, n_boot = 2000, threads = 1) {
       "tidytable"
     )
   ))
-  
+
   plan(sequential)
 
   SE_adj <- apply(bootstrap_derivative_diff, 1, sd)
