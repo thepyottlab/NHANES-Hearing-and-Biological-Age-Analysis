@@ -1,5 +1,5 @@
 ---
-title: "Predictive Modelling of Hearing Effect of Bioage"
+title: "Predictive Modelling of the Hearing Effects of Biological Age"
 author: "Landy Qu & Tom Naber"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 
@@ -55,7 +55,7 @@ params:
     help: "Check to use telolength dataset with smaller N"
   global_k:
     label: "K (n BAM base functions) biological age analysis"
-    value: 15
+    value: 30
     input: numeric
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   age_rate_k:
@@ -65,7 +65,7 @@ params:
     help: "Set GAM wiggliness; higher K improves fit at higher computational cost"
   global_discrete: 
     label: "Discretize BAM"
-    value: TRUE
+    value: FALSE
     input: checkbox
     help: "Check to speed up fitting but create larger models that perform a little worse"
   global_folds: 
@@ -85,7 +85,7 @@ params:
     help: "Set to save large model results locally for fast reloading"
   load_model_results:
     label: "Load model results"
-    value: FALSE
+    value: TRUE
     input: checkbox
     help: "Set to skip refitting of k-fold validation if model results are present"
   covariates:
@@ -100,17 +100,12 @@ params:
     help: "Set number of threads used during cross-validation, set to large value (e.g. 1000) to use all - 1 threads"
   n_boot:
     label: "RMSE bootstrap N"
-    value: 2000
+    value: 10000
     input: numeric
     help: "Set number of samples to take when bootstrapping RMSEs for CI calculations"
-  run_biomarker_add_analysis:
-    label: "Run biomarker additional variance analysis"
-    value: FALSE
-    input: checkbox
-    help: "Set to fit an additional biomarker model to see how much variance within phenoage is explained by the biomarker"
   run_optional_chunks:
     label: "Run tests and validations"
-    value: TRUE
+    value: FALSE
     input: checkbox
     help: "Set to run tests and validations, which can take a long time to compute"
   save_figures:
@@ -132,7 +127,7 @@ params:
     label: "Set plot theme"
     value: "paper"
     input: radio
-    choices: ["paper", "poster"]
+    choices: ["paper"]
     help: "Set theme preset to use for plots"
 ---
 
@@ -165,7 +160,7 @@ knitr::opts_knit$set(
 options(
   contrasts = c("contr.sum", "contr.poly"),
   knitr.duplicate.label = "allow",
-  future.globals.maxSize = 4096 * 1024^2
+  future.globals.maxSize = 5120 * 1024^2
 )
 
 run_module <- function(path) {

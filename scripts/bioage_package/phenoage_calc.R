@@ -11,29 +11,8 @@ surv_form <- function(x) {
 #' @param data A projection dataset.
 #' @param biomarkers A character vector indicating the names of the biomarkers included in the Phenotypic Age algorithm.
 #' @param fit An S3 object for model fit. If the value is NULL, then the parameters to use for training Phenotypic Age are calculated.
-#' @param orig TRUE to compute the origianl Phenotypic Age.
+#' @param orig TRUE to compute the original Phenotypic Age.
 #' @return An object of class "phenoage". This object is a list with two elements (data and fit). The dataset can be drawn by typing 'data'. The model can be drawn by typing 'fit'.
-#' @examples
-#' # Train using the NHANES III
-#' train <- phenoage_calc(NHANES3,
-#'   biomarkers = c(
-#'     "albumin_gL", "lymph", "mcv", "glucose_mmol",
-#'     "rdw", "creat_umol", "crp_log", "alp", "wbc"
-#'   )
-#' )
-#'
-#' # Project into the NHANES IV
-#' phenoage <- phenoage_calc(NHANES4,
-#'   biomarkers = c(
-#'     "albumin_gL", "lymph", "mcv", "glucose_mmol",
-#'     "rdw", "creat_umol", "crp_log", "alp", "wbc"
-#'   ),
-#'   fit = train$fit
-#' )
-#'
-#' # Extract phenoage dataset
-#' data <- phenoage$data
-#'
 #' @export
 #' @import flexsurv
 
@@ -47,7 +26,7 @@ phenoage_calc <- function(data, biomarkers, fit = NULL, orig = FALSE) {
   bm_name <- paste(bm, collapse = "+")
   rm(biomarkers)
 
-  # calculate  modified Levine's method
+  # calculate modified Levine's method
   if (is.null(fit)) {
     gom <- flexsurvreg(surv_form(bm_name), data = dat, dist = "gompertz")
     coef <- as.data.frame(gom$coefficients)

@@ -50,7 +50,7 @@ make_repeated_folds <- function(data, grouping_variable, k, repeats) {
     # Create an output with the length of the number of observations
     bins <- integer(observations)
 
-    # Using the random order, 1-10 is repeated until we've reached the last observation
+    # Using the random order, 1-k is repeated until we've reached the last observation
     bins[indices] <- rep(1:k, ceiling(observations / k))[1:observations]
 
     # Return shuffled k-folds, which is pasted into a new column in 'data'
@@ -119,7 +119,7 @@ formula_generator <- function(
 ) {
   # Initialize the repeat columns with folds and unique fold numbers in folds
   fold_columns <- grep("^fold_r", names(data), value = TRUE)
-  folds <- seq_along(fold_columns)
+  folds <- 1:params$global_folds
 
   # Initialize a list for compiled formulas
   formula_list <- list()
@@ -411,9 +411,7 @@ if (isFALSE(params$telolength)) {
     equal_wiggliness = TRUE,
     formulas = c(
       "age",
-      paste0("age, ", biomarker_vars),
-      if (isTRUE(params$run_biomarker_add_analysis)) "age, phenoage" else NULL,
-      if (isTRUE(params$run_biomarker_add_analysis)) "age, crp_log, phenoage" else NULL
+      paste0("age, ", biomarker_vars)
     ),
     covariates = covariate_interactions
   )
@@ -572,7 +570,8 @@ cross_validation <- function(
       weights = weights / mean(weights),
       method = if (isTRUE(discrete)) "fREML" else "REML",
       discrete = if (isTRUE(discrete)) TRUE else FALSE,
-      nthreads = 1
+      nthreads = 1,
+      select = TRUE
     )
 
     map(age_groups, function(age_group_val) {
@@ -589,7 +588,7 @@ cross_validation <- function(
       # Use GAM to predict responses in current age group
       pred <- predict(mod, newdata = test_subset, type = "response")
 
-      # Make a tibble with predictions and sample sizes (of an age group) used in the model used for predictions
+      # Make a tibble with predictions and sample sizes  used in the model for predictions (n_train must be constructed by combining across all age groups)
       test_subset %>%
         as_tibble() %>%
         mutate(
@@ -847,19 +846,17 @@ problem when assessing the rate of aging. Therefore, we need to have a penalty f
 useless base functions so that they shrink to 0. Default shrinkage solution still permits large
 complexity despite the RMSE improving little over a simpler model.
 
-We have three options for constructing the smooth.
+We have three options for constructing the smooth. Option 1 was used in this analysis.
 
 1.  `pta ~ age + I(age^2) + s(age, m = 3)`: we can create a smooth model with a linear term for age,
     a quadratic term for age, and a smooth term for age. The smooth term then also contains a
     penalized quadratic and unpenalized linear component, so the structure is complex and the model
-    is highly concurve (multicolinear). With this model, we then need to compare the full quadratic
-    model with the full GAM model, (i.e., separate models) and estimate their covariance with the
-    delta method. Because local comparison at specific ages requires cross-model covariance, the
-    analysis is complex. By comparing between the quadratic model and GAM at specific ages, the null
-    hypothesis is: at age $a$, the estimated rate of hearing loss is the same under the GAM and
-    quadratic model. As a better alternative, we could also use `pta ~ s(age, m = 3)` and perform
-    the same analysis but without the double linear and quadratic terms. We can estimate the
-    standard error with bootstrapping.
+    is highly concurve (multicolinear). By comparing between the quadratic model and GAM at specific
+    ages, the null hypothesis is: at age $a$, the estimated rate of hearing loss is the same under
+    the GAM and quadratic model. As a better alternative, we could also use `pta ~ s(age, m = 3)`
+    and perform the same analysis but without the double linear and quadratic terms. We can estimate
+    the standard error with bootstrapping. The delta method (using gratia) is used to calculate
+    derivatives.
 2.  `pta ~ age + I(age^2) + s(age, m = c(3,0))`: here we allow there to be a penalty null space in
     the first and second order polynomials (smooth starts penalizing third or higher-order
     polynomials) but we exclude the polynomials in the penalty null space from the smooth. This
@@ -894,49 +891,40 @@ We have three options for constructing the smooth.
     $f'(a-h) - 2f'(a) + f'(a+h) = 0$. The null hypothesis is: around age $a$, the rate of hearing
     loss changes linearly with age, as required by a quadratic trajectory.
 
-In option 1, the analysis is highly complex and we must estimate covariance between full models with
-high multicolinearity. In option 2, we have a nice model structure, but we need to truly isolate the
-smooth component at specific ages, which is not identifiable. In option 3, we have an even simpler
-model structure and instead ask whether the total GAM (which is well-identifiable) behaves
-quadratically at a given age range. Because option 2 is not well-identifiable, it's not viable.
-Option 1 requires bootstrapping to estimate model covariances (complex). Option 3 does not require
-bootstrapping but does require the coefficient-covariance matrix (vcov), as well (which is no
-problem) to calculate a difference. However, option 1 and option 3 ask fundamentally different
-questions in pairwise comparisons. Option 1 asks whether there are any ages at which the GAM
-derivative is different from the best-fitting quadratic derivative. Option 3 asks whether for any
-age range $2h$, a local quadratic fit could explain the difference, as we're fitting a quadratic
+In option 1, we must account for covariance between full models with high multicolinearity.
+Estimating this covariance is hard, but if we bootstrap differences between derivatives for each
+age, then we include covariance. In option 2, we have a nice model structure, but we need to truly
+isolate the smooth component at specific ages, which is not identifiable. In option 3, we have an
+even simpler model structure and instead ask whether the total GAM (which is well-identifiable)
+behaves quadratically at a given age range. Because option 2 is not well-identifiable, it's not
+viable. Option 1 requires bootstrapping to estimate model covariances (computationally intensive).
+Option 3 does not require bootstrapping but does require the coefficient-covariance matrix (vcov),
+which we can compute, to calculate a difference. However, option 1 and option 3 ask fundamentally
+different questions in pairwise comparisons. Option 1 asks whether there are any ages at which the
+GAM derivative is different from the best-fitting quadratic derivative. Option 3 asks whether for
+any age range $2h$, a local quadratic fit could explain the difference, as we're fitting a quadratic
 model just to a 6-year period and seeing if the rate of change for 2 3-year periods is constant. The
 downside of option 3 is that you don't get a true difference between the GAM and a single
 best-fitting quadratic model, and you also manually need to pick the $h$ value. If $h$ is too small,
 then changes in the rate of HL that perpetuate over a longer time may be missed, but if $h$ is too
 big, we may include a linear portion with a nonlinear portion and miss the effect, or the 'binwidth'
 falls just wrong. We can test different $h$ values but that would cause false positives. Moreover,
-pairwise comparisons between a single best-fitting quadratic model and a single GAM fits better with
-the (approximate) F-test.
+pairwise comparisons (albeit through confidence intervals) between a single best-fitting quadratic
+model and a single GAM fits better with the (approximate) F-test. Therefore, option 1 was used.
 
 Probability weights are used.
 
 ```{r aging_models}
 models_age_rate <- list()
 
-model_age_rate <- function(terms, model_type = "gam") {
-  if (model_type == "gam") {
-    gam(
-      reformulate(terms, response = params$hearing_var),
-      data = df,
-      weights = weights / mean(weights),
-      method = "REML",
-      family = gaussian()
-    )
-  } else {
-    bam(
-      reformulate(terms, response = params$hearing_var),
-      data = df,
-      weights = weights / mean(weights),
-      method = "REML",
-      family = gaussian()
-    )
-  }
+model_age_rate <- function(terms) {
+  bam(
+    reformulate(terms, response = params$hearing_var),
+    data = df,
+    weights = weights / mean(weights),
+    method = "REML",
+    family = gaussian()
+  )
 }
 
 models_age_rate <- append(
@@ -969,29 +957,25 @@ models_covariates <- append(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
         paste0("s(age, sex, bs = 'sz', k = ", params$global_k, ", id = 1)")
-      ),
-      model_type = "bam"
+      )
     ),
     smooth_smoking = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
         paste0("s(age, smoking, bs = 'sz', k = ", params$global_k, ", id = 1)")
-      ),
-      model_type = "bam"
+      )
     ),
     smooth_race = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
         paste0("s(age, race, bs = 'sz', k = ", params$global_k, ", id = 1)")
-      ),
-      model_type = "bam"
+      )
     ),
     smooth_education = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
         paste0("s(age, education, bs = 'sz', k = ", params$global_k, ", id = 1)")
-      ),
-      model_type = "bam"
+      )
     )
   )
 )

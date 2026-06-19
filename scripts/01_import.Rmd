@@ -15,11 +15,11 @@ library(here) # for file access
 library(haven) # for importing .xpt
 
 # Statistics
-library(matrixStats) # used for weighted variance calculation
 library(emmeans) # for pairwise comparisons
 library(mgcv) # used to train model
 library(survey) # to account for survey design
 library(survival) # for Cox regressions
+library(gratia) # for calculating smooth derivative
 
 # Visualization
 library(kableExtra) # for pretty tables
@@ -34,13 +34,13 @@ library(sameplot) # for plotting consistently
 
 # Data operations
 library(flexsurv) # for calculating phenoage
-library(data.table) # for speedy dataframes
+library(data.table) # for fast dataframes
 library(tidyverse) # for general data operations
 library(tidytable) # for fast data loading
 
 # Multithreading
-library(future)
-library(future.apply)
+library(future) # for multithreading
+library(future.apply) # for multithreading
 ```
 
 ## Import scripts

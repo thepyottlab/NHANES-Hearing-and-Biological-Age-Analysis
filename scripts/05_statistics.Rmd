@@ -353,6 +353,9 @@ compute_rmse_ci <- function(
       if (length(error_ref) != length(error_target)) {
         stop("Length of target and reference predictor subsets are not equal")
       }
+      if (any(w_target != w_ref)) {
+        stop("Target and reference weights are different, SEQN likely not matching")
+      }
 
       if (!age_bin %in% names(index_cache)) {
         index_cache[[age_bin]] <- matrix(
@@ -368,10 +371,10 @@ compute_rmse_ci <- function(
       idx <- index_cache[[age_bin]]
 
       rmse_target <- sqrt(
-        apply(idx, 2, function(i) weighted.mean(error_target[i], w = w_target[i]))
+        apply(idx, 2, function(i) sum(error_target[i] * w_target[i]) / sum(w_target[i]))
       )
       rmse_ref <- sqrt(
-        apply(idx, 2, function(i) weighted.mean(error_ref[i], w = w_ref[i]))
+        apply(idx, 2, function(i) sum(error_ref[i] * w_ref[i]) / sum(w_ref[i]))
       )
 
       ci_list[[index_ci_list]] <- tibble(
@@ -510,16 +513,16 @@ if (isFALSE(params$telolength)) {
 
 ### Calculate p-values
 
-Calculate t-statistic according to Nadeau Bengio, which is `t = m/(√(variance(1/n + n2/n1)))`. `m`
-is the difference between the sample mean and hypothesized population mean. In this case, we've
-normalized it to age, so the null hypothesis (the hypothesized population mean) is 0, i.e., there is
-no difference from age only. The variance was already calculated before. `n` is equivalent to the
-number of folds times the number of repeats. `n2` is the number of testing/validation data and `n1`
-the number of training data. We then calculate degrees of freedom by taking n - 1. Then we use
-`pt()` (which automatically calculates the critical value) using a one-tailed t-test of the upper
-tail. This is because we're not interested in whether an age + bioage model is different from
-age-only. We only want to know if its better. We then adjust p values with Hommel or Holm error
-correction.
+Calculate t-statistic according to Nadeau Bengio (although we use a weighted adaptation of it),
+which is `t = m/(√(variance(1/n + n2/n1)))`. `m` is the difference between the sample mean and
+hypothesized population mean. In this case, we've normalized it to age, so the null hypothesis (the
+hypothesized population mean) is 0, i.e., there is no difference from age only. The variance was
+already calculated before. `n` is equivalent to the number of folds times the number of repeats.
+`n2` is the number of testing/validation data and `n1` the number of training data. We then
+calculate degrees of freedom by taking n - 1. Then we use `pt()` (which automatically calculates the
+critical value) using a one-tailed t-test of the upper tail. This is because we're not interested in
+whether an age + bioage model is different from age-only. We only want to know if it is better. We
+then adjust p values with Holm error correction.
 
 First, the question is, 'Does this bioage/biomarker add predictive value for hearing loss in the
 population while controlling for chronological age?', which we test with the overall comparisons.
@@ -604,9 +607,7 @@ if (isFALSE(params$telolength)) {
   summary_biomarkers_overall <- nb_corrected_repeated_t_test(
     summary_biomarkers_overall,
     exceptions = c(
-      "age",
-      "age, phenoage",
-      "age, crp_log, phenoage"
+      "age"
     ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
@@ -615,9 +616,7 @@ if (isFALSE(params$telolength)) {
   summary_biomarkers <- nb_corrected_repeated_t_test(
     summary_biomarkers,
     exceptions = c(
-      "age",
-      "age, phenoage",
-      "age, crp_log, phenoage"
+      "age"
     ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
@@ -800,7 +799,8 @@ significantly improves fit. We also calculate RMSEs with a weighted mean of resi
 not have explicit parametric linear and quadratic terms but instead has linear and quadratic terms
 in the null space, so they're unpenalized, which means they do have the parametric terms, just not
 spelled out in the formula. Adding the terms explicitly would make them double. We additionally
-calculate partial omega-squared for the effect size of the additional terms.
+calculate partial omega-squared for the effect size of the additional terms. Note that the effect
+size for the GAM is approximate, because the degrees of freedom are estimated.
 
 ```{r compare_aging_models}
 aov_quadratic <- anova(
@@ -874,7 +874,7 @@ By taking the derivative of the full model (with smooth) and subtracting the der
 nested quadratic model, we can test against zero to test deviations from a quadratic pattern.
 
 When making a smooth (or linear) model, we fit a line to noisy data as best we can, but other lines
-with a different derivative might fit almost as well and be better for some data points then for
+with a different derivative might fit almost as well and be better for some data points than for
 others. Therefore, there is an uncertainty. We can say that, for example, the best-guess slope is 5
 (5 increase PTA per year). But because the data is noisy, assuming a normal distribution, we know
 that the true slope that would actually fit the sampling population may be something different
@@ -888,19 +888,20 @@ the quadratic derivative equals 0.
 **H1**: The GAM does deviate from the quadratic age-rate function, so the GAM derivative minus the
 quadratic derivative is not 0.
 
-Depending on the variation/noise in the data, the smooth term derivative needs to be larger or
-smaller compared to 0 to get a p-value of 0.05. If the variation in the data is higher, the standard
-error is higher, and the derivative of the smooth term must be higher to get a p-value of 0.05 or
-lower.
+Depending on the variation/noise in the data, the difference between the quadratic and smooth
+derivative needs to be larger or smaller compared to 0 to get a p-value of 0.05. If the variation in
+the data is higher, the standard error is higher, and the derivative of the smooth term must be
+higher to get a p-value of 0.05 or lower.
 
 We want to know at which age ranges we have a non-zero derivative difference (two-tailed test).
-However, rather than perform a t-test and correcting for multiple comparisons, which assumes
-independence of tests, we could use the multiplicity-adjusted 95% confidence intervals. If the 95%
-confidence intervals do not include 0, it conceptually is the same as saying that p \< 0.05.
-However, it's hard to tell just how significant something is. We just get a binary decision saying
-whether it is or is below the alpha. The upside is that we don't make assumptions about independence
-and do a single test for inference on the whole model. We can report the effect size in the whole
-model and report significance at specific ages.
+However, rather than perform a t-test and correcting for multiple comparisons, we could use the
+multiplicity-adjusted 95% confidence intervals, which directly uses the bootstrap covariance of the
+whole plot rather than test per age and adjust for multiplicity. If the 95% confidence intervals do
+not include 0, it is equivalent to rejection at family-wise alpha 0.05 for that age. However, it's
+hard to tell just how significant something is. We just get a binary decision saying whether it is
+above or is below the alpha. The upside is that we don't make assumptions about independence and do
+a single test for inference on the whole model. We can report the effect size in the whole model and
+report significance at specific ages.
 
 To identify significant boundaries, check which pairwise comparisons are significant, then check if
 the previous row was significant, then whenever a row is significant but the previous one was,

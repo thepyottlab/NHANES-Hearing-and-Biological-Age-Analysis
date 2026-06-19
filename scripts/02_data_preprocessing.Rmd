@@ -176,7 +176,7 @@ standardize_values <- function(data) {
       -total_years_for_group
     )
 
-  data %>%
+  data <- data %>%
     mutate(
       age_group = case_when(
         age < 20 ~ "19-",
@@ -187,7 +187,10 @@ standardize_values <- function(data) {
         age >= 60 & age < 70 ~ "60–69",
         isFALSE(params$telolength) & age >= 70 & age < 80 ~ "70–79",
         isFALSE(params$telolength) & age >= 80 ~ "80+"
-      ),
+      )
+    )
+  data <- data %>%
+    mutate(
       status = case_when(
         time > 120 ~ 0,
         TRUE ~ status
@@ -195,7 +198,11 @@ standardize_values <- function(data) {
       time = case_when(
         time > 120 ~ 120,
         TRUE ~ time
-      ),
+      )
+    )
+
+  data %>%
+    mutate(
       race = case_when(
         race == 2 ~ 1,
         TRUE ~ race
@@ -273,8 +280,8 @@ standardize_values <- function(data) {
 
 ### Calculate hearing metrics
 
-Any values of "666" or "888" in audiometry are set to NA so that they're not used for calculating
-the audiometric compound measures.
+Any values of "888" in audiometry are set to NA so that they're not used for calculating the
+audiometric compound measures.
 
 #### List audiometry cols
 
@@ -299,11 +306,22 @@ audiometry_cols <- c(
 
 #### Calculate metrics
 
+We recode 'no response' to the ceiling value to avoid bias.
+
 ```{r calc_metrics}
 calculate_hearing <- function(data, audiometry_cols) {
   data %>%
     mutate(
-      across(contains("audio"), ~ if_else(. %in% c(666, 888), NA_real_, as.numeric(.)))
+      across(
+        all_of(audiometry_cols),
+        ~ case_when(
+          . == 888 ~ NA_real_,
+          . == 666 & str_detect(cur_column(), "500|1000|2000|4000|6000") & cycle != "2017_2020" ~ 120,
+          . == 666 & str_detect(cur_column(), "8000") & cycle != "2017_2020" ~ 110,
+          . == 666 & str_detect(cur_column(), "500|1000|2000|4000|6000|8000") & cycle == "2017_2020" ~ 110,
+          TRUE ~ as.numeric(.)
+        )
+      )
     ) %>%
     rowwise() %>%
     mutate(
@@ -567,8 +585,8 @@ to subset `design` on.
     This also avoids weighting issues of the 70+ group in earlier and later cycles.
 2.  People under 20 years of age aren't included in this study.
 3.  Pregnant women are excluded (NAs are explicitly kept).
-4.  Subjects with any missing audiometry data are excluded, even if this is at a frequency not
-    needed for calculating the PTA, is this is only a very small subsample.
+4.  Subjects with missing audiometry data for frequencies used in PTA are excluded ('no response
+    values' have been recoded to ceiling).
 5.  Subjects with large test-retest differences are excluded, as this suggests unreliable
     measurement.
 6.  Subjects with missing or unknown covariate data are excluded.
@@ -669,7 +687,7 @@ if (isTRUE(params$telolength)) {
 ### Check data issues (NHANES3 is unweighted)
 
 ```{r check_df_balance}
-check_biomarker_standardization <- function(design, training_set, biomarker_var, training_spec_path) {
+check_biomarker_standardization <- function(design, training_set, biomarker_vars, training_spec_path) {
   all_vars <- c("age", "pta_hf", "pta_lf", biomarker_vars)
   cycles <- unique(design$variables$cycle)
 
@@ -716,13 +734,14 @@ check_biomarker_standardization <- function(design, training_set, biomarker_var,
 
 design %>% check_biomarker_standardization(
   training_set = df_train,
+  biomarker_vars = biomarker_vars,
   training_spec_path = here("specs", "col_spec_nhanes3.csv")
 )
 ```
 
-ALP was higher in NHANES3, but could be in part due to survey design (old people weigh too heavily)
-and large SD. Creatinine is also higher in NHANES3 but could be due to the same reason. CRP being
-lower could be due to different detection limit.
+ALP was higher in NHANES3, but could be in part due to survey design (older participants receive
+higher weights) and large SD. Creatinine is also higher in NHANES3 but could be due to the same
+reason. CRP being lower could be due to different detection limit.
 
 #### Verify normal distribution
 
@@ -819,7 +838,7 @@ design$variables %>%
   distinct(stratum, psu) %>%
   count(stratum, name = "psu_n") %>%
   count(psu_n, name = "stratum_n") %>%
-  construct_table(title = "Number of strata within PSUs")
+  construct_table(title = "Number of PSUs within strata")
 ```
 
 **One stratum only has one PSU after filtering, so we can't estimate variance within it.**
@@ -835,8 +854,8 @@ biomarker data and pregnant women in all measures and people with missing mortal
 PhenoAge.
 
 ```{r calc_bioage, warning=FALSE}
-insert_bioage <- function(design, train_data, train_data_hd, orig_phenoage = TRUE) {
-  bioage_calc <- function(data, train_data, train_data_hd, orig_phenoage = TRUE) {
+insert_bioage <- function(design, train_data, train_data_hd) {
+  bioage_calc <- function(data, train_data, train_data_hd) {
     biomarkers_phenoage <- c(
       "alb", "alp", "crp_log", "creat", "lymph", "mcv", "wbc", "rdw", "glu"
     )
@@ -863,8 +882,6 @@ insert_bioage <- function(design, train_data, train_data_hd, orig_phenoage = TRU
       data = train_data_kdm %>%
         filter(sex == 2),
       biomarkers = biomarkers_kdm,
-      fit = NULL,
-      s_ba2 = NULL,
       verbose = FALSE
     )
 
@@ -872,8 +889,6 @@ insert_bioage <- function(design, train_data, train_data_hd, orig_phenoage = TRU
       data = train_data_kdm %>%
         filter(sex == 1),
       biomarkers = biomarkers_kdm,
-      fit = NULL,
-      s_ba2 = NULL,
       verbose = FALSE
     )
 
@@ -914,8 +929,7 @@ insert_bioage <- function(design, train_data, train_data_hd, orig_phenoage = TRU
 
     train_phenoage <- phenoage_calc(
       data = train_data_phenoage,
-      biomarkers = biomarkers_phenoage,
-      fit = NULL
+      biomarkers = biomarkers_phenoage
     )
 
     test_phenoage <- phenoage_calc(
@@ -983,7 +997,7 @@ design <- insert_bioage(design, train_data = df_train, train_data_hd = df_train_
 We check the correlations between chronological and biological age and calculate Cox hazard ratios
 on the differences/advances (corrected for age, sex, race, education, and smoking) and normalize to
 the standard deviation so that 1 unit away means 1 standard deviation. The hazard ratios are
-expressed as hazard per standard deviation away.
+expressed as hazard per standard deviation away. The hazard ratios are unweighted.
 
 ```{r plot_aging_measures}
 plot_bioage_correlations <- function(design, predictors, labels, predictors_advance, covariates = c("age", "sex", "race", "education", "smoking")) {
@@ -1008,15 +1022,18 @@ plot_bioage_correlations <- function(design, predictors, labels, predictors_adva
       )
     )
     fit <- survival::coxph(form, data = dplyr::filter(data, !is.na(time), !is.na(status)))
-    setNames(exp(c(coef(fit)[p], confint(fit)[p, ])), c("HR", "lo", "hi"))
+    setNames(exp(c(coef(fit)[p], confint(fit)[p, ])), c("HR", "ci_low", "ci_high"))
   }
-  hrs <- vapply(predictors_advance, cox_hr, numeric(3))
+  hazard_ratios <- vapply(predictors_advance, cox_hr, numeric(3))
 
   labs <- setNames(
     sprintf(
-      "%s\nr = %.2f\nHR = %.2f (%.2f, %.2f)",
-      labels, correlations,
-      hrs["HR", ], hrs["lo", ], hrs["hi", ]
+      "<b>%s</b><br><i>r</i> = %.2f<br>HR = %.2f, 95%% CI [%.2f, %.2f]",
+      labels,
+      correlations,
+      hazard_ratios["HR", ],
+      hazard_ratios["ci_low", ],
+      hazard_ratios["ci_high", ]
     ),
     predictors
   )
@@ -1025,9 +1042,10 @@ plot_bioage_correlations <- function(design, predictors, labels, predictors_adva
     pivot_longer(all_of(predictors), names_to = "metric", values_to = "value") %>%
     mutate(sex = factor(sex)) %>%
     ggplot(aes(x = age, y = value)) +
-    geom_point(aes(color = sex), alpha = 0.05, shape = 1) +
+    geom_point(aes(color = sex, alpha = 0.04 * weights / mean(weights)), shape = 20) +
     geom_smooth(method = "lm", se = TRUE, color = "black", formula = y ~ x) +
     facet_wrap(~metric, scales = "free_y", labeller = as_labeller(labs)) +
+    scale_alpha_identity() +
     scale_color_manual(
       values = c("1" = color("sunset")(2)[1], "2" = color("sunset")(2)[2]),
       labels = c("1" = "Male", "2" = "Female")
@@ -1035,6 +1053,29 @@ plot_bioage_correlations <- function(design, predictors, labels, predictors_adva
     labs(y = "Biological Age", x = "Age (Years)") +
     theme_few() +
     theme(
+      axis.text.x = element_markdown(
+        "sans",
+        size = 8
+      ),
+      axis.text.y = element_markdown(
+        "sans",
+        size = 8
+      ),
+      strip.text.x = element_markdown(
+        "sans",
+        size = 9,
+        lineheight = 1.1
+      ),
+      axis.title.x = element_markdown(
+        "sans",
+        size = 9,
+        lineheight = 1.1
+      ),
+      axis.title.y = element_markdown(
+        "sans",
+        size = 9,
+        lineheight = 1.1
+      ),
       legend.title = element_blank(),
       legend.background = element_rect(fill = "transparent", color = NA),
       legend.box.background = element_rect(fill = "transparent", color = NA),
@@ -1046,6 +1087,19 @@ plot_bioage_correlations <- function(design, predictors, labels, predictors_adva
         colour = "grey30",
         side = "lb",
         linewidth = 0.5
+      ),
+      plot.margin = margin(1, 1, 0, 1, unit = "pt")
+    ) +
+    guides(
+      colour = guide_legend(
+        override.aes = list(size = 1.25),
+        keywidth = unit(0.3, "cm"),
+        keyheight = unit(0.3, "cm"),
+        label.theme = element_markdown(
+          "sans",
+          size = 9,
+          margin = margin(l = 3, t = 1.5, unit = "pt")
+        )
       )
     )
 }
@@ -1116,7 +1170,6 @@ calculate_descriptive_statistics <- function(design, audiometry_cols, incl_bioag
 
   groups <- c(Sex = "sex", Race = "race", Smoking = "smoking", Education = "education")
   age_groups <- factor(c("Overall", "20–29", "30–39", "40–49", "50–59", "60–69", if (isFALSE(params$telolength)) "70–79" else NULL))
-  hearing_var <- as.formula(paste0("~", params$hearing_var))
   results <- list()
 
   design <- design %>%
@@ -1151,8 +1204,10 @@ calculate_descriptive_statistics <- function(design, audiometry_cols, incl_bioag
         n = nrow(design_subset),
         proportion = nrow(design_subset) / nrow(design),
         proportion_w = proportion_w,
-        mean_w_pta = coef(svymean(hearing_var, design_subset)),
-        sd_w_pta = sqrt(coef(svyvar(hearing_var, design_subset))),
+        mean_w_pta_hf = coef(svymean(~pta_hf, design_subset)),
+        sd_w_pta_hf = sqrt(coef(svyvar(~pta_hf, design_subset))),
+        mean_w_pta_lf = coef(svymean(~pta_lf, design_subset)),
+        sd_w_pta_lf = sqrt(coef(svyvar(~pta_lf, design_subset))),
         mean_w_age = coef(svymean(~age, design_subset)),
         sd_w_age = sqrt(coef(svyvar(~age, design_subset)))
       ) %>%
@@ -1180,12 +1235,14 @@ calculate_descriptive_statistics <- function(design, audiometry_cols, incl_bioag
         data.frame(
           age_group = age_group_val,
           group = group,
-          category = svyby(hearing_var, grouping_variable, design_subset, svymean)[[groups[[group]]]],
+          category = svyby(~pta_hf, grouping_variable, design_subset, svymean)[[groups[[group]]]],
           n = as.vector(counts),
           proportion = as.vector(counts) / nrow(design_subset),
           proportion_w = as.vector(proportions_w),
-          mean_w_pta = svyby(hearing_var, grouping_variable, design_subset, svymean)[[params$hearing_var]],
-          sd_w_pta = sqrt(svyby(hearing_var, grouping_variable, design_subset, svyvar)[[params$hearing_var]]),
+          mean_w_pta_hf = svyby(~pta_hf, grouping_variable, design_subset, svymean)[["pta_hf"]],
+          sd_w_pta_hf = sqrt(svyby(~pta_hf, grouping_variable, design_subset, svyvar)[["pta_hf"]]),
+          mean_w_pta_lf = svyby(~pta_lf, grouping_variable, design_subset, svymean)[["pta_lf"]],
+          sd_w_pta_lf = sqrt(svyby(~pta_lf, grouping_variable, design_subset, svyvar)[["pta_lf"]]),
           mean_w_age = svyby(~age, grouping_variable, design_subset, svymean)[["age"]],
           sd_w_age = sqrt(svyby(~age, grouping_variable, design_subset, svyvar)[["age"]])
         ) %>%
@@ -1220,6 +1277,183 @@ calculate_descriptive_statistics <- function(design, audiometry_cols, incl_bioag
 
 descriptives_unfiltered <- calculate_descriptive_statistics(design_no_missing, audiometry_cols = audiometry_cols)
 descriptives <- calculate_descriptive_statistics(design, audiometry_cols = audiometry_cols, incl_bioage = TRUE)
+```
+
+### Show descriptives tables
+
+```{r show_descr_table}
+descriptives_unfiltered %>%
+  construct_table(
+    title = "Descriptive statistics (before filtering)"
+  )
+
+descriptives %>%
+  construct_table(
+    title = "Descriptive statistics (after filtering)"
+  )
+```
+
+#### Show summary descriptives table
+
+```{r summary_descr_table}
+descriptive_summary_table <- bind_rows(
+  descriptives %>%
+    filter(age_group == "Overall", group == "Sex") %>%
+    arrange(match(category, c("Male", "Female"))) %>%
+    transmute(
+      Characteristic = as.character(category),
+      Value = sprintf(
+        "%.1f%% (<i>n</i> = %s)",
+        100 * proportion_w,
+        format(n, big.mark = ",")
+      )
+    ) %>%
+    add_row(Characteristic = "<b>Sex</b>", Value = "", .before = 1),
+  descriptives %>%
+    filter(group == "Overall", category == "Overall") %>%
+    transmute(
+      Characteristic = if_else(
+        age_group == "Overall",
+        "<b>Chronological Age (years)</b>",
+        as.character(age_group)
+      ),
+      Value = if_else(
+        age_group == "Overall",
+        sprintf("%.1f ± %.1f", mean_w_age, sd_w_age),
+        sprintf(
+          "%.1f%% (<i>n</i> = %s)",
+          100 * proportion_w,
+          format(n, big.mark = ",")
+        )
+      )
+    ),
+  descriptives %>%
+    filter(age_group == "Overall", group == "Race") %>%
+    arrange(match(category, c("White", "Black", "Hispanic", "Other"))) %>%
+    transmute(
+      Characteristic = recode(
+        as.character(category),
+        White = "White, non-Hispanic",
+        Black = "Black, non-Hispanic"
+      ),
+      Value = sprintf(
+        "%.1f%% (<i>n</i> = %s)",
+        100 * proportion_w,
+        format(n, big.mark = ",")
+      )
+    ) %>%
+    add_row(
+      Characteristic = "<b>Race/Ethnicity</b>",
+      Value = "",
+      .before = 1
+    ),
+  descriptives %>%
+    filter(
+      age_group == "Overall",
+      group == "Overall",
+      category == "Overall"
+    ) %>%
+    transmute(
+      Characteristic = list(sprintf("<b>%s</b>", c(
+        "HF-PTA (dB HL)",
+        "LF-PTA (dB HL)",
+        "KDM",
+        "PhenoAge",
+        "HD (log)",
+        "Telomere Mean Length (log)"
+      ))),
+      Value = list(c(
+        sprintf("%.1f ± %.1f", mean_w_pta_hf, sd_w_pta_hf),
+        sprintf("%.1f ± %.1f", mean_w_pta_lf, sd_w_pta_lf),
+        sprintf("%.1f ± %.1f", mean_w_kdm, sd_w_kdm),
+        sprintf("%.1f ± %.1f", mean_w_phenoage, sd_w_phenoage),
+        sprintf("%.1f ± %.1f", mean_w_hd_log, sd_w_hd_log),
+        sprintf(
+          "%.2f ± %.2f (<i>n</i> = %s)",
+          mean_w_telolength_log,
+          sd_w_telolength_log,
+          format(
+            design$variables %>%
+              filter(!is.na(telolength_log)) %>%
+              nrow(),
+            big.mark = ","
+          )
+        )
+      ))
+    ) %>%
+    unnest(c(Characteristic, Value))
+) %>%
+  kable(
+    format = "html",
+    col.names = c(
+      "Characteristic",
+      "Percentage or<br>Mean ± Standard Deviation"
+    ),
+    align = c("c", "c"),
+    escape = FALSE,
+    table.attr = paste0(
+      'cellspacing="0" cellpadding="0" ',
+      'style="width:159mm; table-layout:fixed; border-collapse:collapse; ',
+      "border:1px solid black; margin-left:auto; margin-right:auto; ",
+      "font-family:'Times New Roman', Times, serif; ",
+      'font-size:10pt; color:black;"'
+    )
+  ) %>%
+  row_spec(
+    0,
+    extra_css = paste0(
+      "border-bottom:1px solid black;",
+      "padding:0;",
+      "font-family:'Times New Roman', Times, serif;",
+      "font-size:10pt;",
+      "color:black;"
+    )
+  ) %>%
+  row_spec(
+    c(3, 10, 15:21),
+    extra_css = paste0(
+      "border-bottom:1px solid black;",
+      "padding:0;",
+      "font-family:'Times New Roman', Times, serif;",
+      "font-size:10pt;",
+      "color:black;"
+    )
+  ) %>%
+  column_spec(
+    1,
+    include_thead = TRUE,
+    extra_css = paste0(
+      "border-right:1px solid black;",
+      "padding:0;",
+      "font-family:'Times New Roman', Times, serif;",
+      "font-size:10pt;",
+      "color:black;"
+    )
+  ) %>%
+  column_spec(
+    2,
+    extra_css = paste0(
+      "padding:0;",
+      "font-family:'Times New Roman', Times, serif;",
+      "font-size:10pt;",
+      "color:black;"
+    )
+  )
+
+if (isTRUE(params$save_figures)) {
+  save_kable(descriptive_summary_table, here(
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "descriptive_summary.html"
+  ))
+}
+
+descriptive_summary_table
 ```
 
 ### Check survey proportion representation
@@ -1343,8 +1577,9 @@ sameplot(
 )
 ```
 
-**Proportions remain roughly the same before and after filtering. Proportions are still roughly the
-same if including missing audiometry data in proportions.**
+**Proportions remain roughly the same before and after filtering. Gender skews slightly towards men
+after filtering due to excluding pregnant women. Relative black people drops by \~12% after
+filtering but absolute change is under 3% for any stratum.**
 
 ### Check descriptive statistics before and after filtering
 
@@ -1352,23 +1587,14 @@ We plot survey design-adjusted hearing means and variances per-stratum of covari
 filtered dataset to assess whether the filtered dataset is representative of the general population.
 
 ```{r survey_balance_check}
-descriptives_unfiltered %>%
-  construct_table(
-    title = "Descriptive statistics (before filtering)"
-  )
-
-descriptives %>%
-  construct_table(
-    title = "Descriptive statistics (after filtering)"
-  )
-
 plot_descriptives <- function(data, title) {
+  paste0("mean_w_", params$hearing_var)
   ggplot(
     data,
-    aes(x = category, y = mean_w_pta, group = group)
+    aes(x = category, y = .data[[paste0("mean_w_", params$hearing_var)]], group = group)
   ) +
     geom_col(aes(fill = category, color = category)) +
-    geom_errorbar(aes(ymin = mean_w_pta - sd_w_pta, ymax = mean_w_pta + sd_w_pta), width = 0.2) +
+    geom_errorbar(aes(ymin = .data[[paste0("mean_w_", params$hearing_var)]] - .data[[paste0("sd_w_", params$hearing_var)]], ymax = .data[[paste0("mean_w_", params$hearing_var)]] + .data[[paste0("sd_w_", params$hearing_var)]]), width = 0.2) +
     facet_grid(age_group ~ group, scales = "free_x", space = "free_x") +
     labs(
       title = title,
@@ -1435,7 +1661,7 @@ plot_selection_bias <- function(ref, test) {
   ref <- ref %>% filter(group == "Overall")
   test <- test %>% filter(group == "Overall")
 
-  diff <- ref$mean_w_pta - test$mean_w_pta
+  diff <- ref[[paste0("mean_w_", params$hearing_var)]] - test[[paste0("mean_w_", params$hearing_var)]]
 
   ref %>%
     mutate(
@@ -1469,12 +1695,12 @@ Selection bias is minimal in both LF-PTA and HF-PTA.
 ### Create dataframe
 
 We can discard the survey design from this point onward. Further analyses are a nested F-test
-between models (in-sample) that share the same design, so inflation of variance due to PSU/strata is
-symmetrical and mostly cancels out. Weights are still used for model fitting. For cross-validation,
-we estimate prediction error differences between models that share the same design, canceling out
-the variance estimate due to PSU/strata. Moreover, gam() doesn't support PSU and strata uncertainty
-adjustment. We will use PSUs within strata to select bootstrapping samples later on, but we don't
-need the survey object for this.
+between models (in-sample) that share the same design, so inflation of variance due to PSU/strata
+should be fairly symmetrical and not of high impact. Weights are still used for model fitting. For
+cross-validation, we estimate prediction error differences between models that share the same
+design, not a population estimate. Moreover, gam() doesn't support PSU and strata uncertainty
+adjustment/complex survey design. We will use PSUs within strata to select bootstrapping samples
+later on, but we don't need the survey object for this.
 
 ```{r extract_df}
 df <- design$variables
