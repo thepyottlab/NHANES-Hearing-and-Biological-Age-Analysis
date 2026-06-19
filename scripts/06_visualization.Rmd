@@ -232,7 +232,8 @@ render_and_save_table <- function(table, path, covariate = FALSE) {
       table.attr = paste0(
         'border="1" cellspacing="0" cellpadding="0" ',
         'style="width:159mm; table-layout:fixed; border-collapse:collapse; ',
-        'font-family:\'Times New Roman\', Times, serif; font-size:10pt;"'
+        "font-family:'Times New Roman', Times, serif; ",
+        'font-size:10pt; color:black;"'
       )
     ) %>%
     collapse_rows(
