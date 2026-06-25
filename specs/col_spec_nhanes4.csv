@@ -1,51 +1,3 @@
-<<<<<<< HEAD
-﻿label,variable,description,unit,dataset_id,dataset_description,cycles,type,vartype,used_for,Include,notes
-SEQN,SEQN,ID,NA,NA,,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",character,id,all,TRUE,Same SEQN is used for NHANES3 and NHANES4
-psu,SDMVPSU,Primary sampling units,NA,DEMO,Demographic Variables & Sample Weights,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",factor,design,all,TRUE,
-stratum,SDMVSTRA,Strata,NA,DEMO,Demographic Variables & Sample Weights,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",factor,design,all,TRUE,
-weights,WTSAU4YR,4-year audiometry probability weights,Dimensionless,AUX,Audiometry,"1999_2000, 2001_2002",numeric,design,all,TRUE,4-yr audiometry weights are recommended in first two cylces
-weights,WTSAU2YR,2-year audiometry probability weights,Dimensionless,AUX,Audiometry,2003_2004,numeric,design,all,TRUE,2-yr audiometry weights are recommended in 2003-2004
-weights,WTMEC2YR,2-year examination probability weights,Dimensionless,DEMO,Demographic Variables & Sample Weights,"2005_2006, 2009_2010, 2015_2016",numeric,design,all,TRUE,MEC weights are used from now onward because audiometry is done in full samples
-weights,WTMECPRP,Covid examination probability weights,Dimensionless,DEMO,Demographic Variables & Sample Weights,2017_2020,numeric,design,all,TRUE,Special weights for covid period
-age,RIDAGEYR,Age,Years,DEMO,Demographic Variables & Sample Weights,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,"predictor, biomarker",all,TRUE,
-telolength,TELOMEAN,Mean telomere to single copy gene ratio,Dimensionless,TELO,Telomere Mean and Standard Deviation (Surplus),"1999_2000, 2001_2002",numeric,predictor,all,TRUE,Only present in first 2 cycles
-gender,RIAGENDR,Sex,NA,DEMO,Demographic Variables & Sample Weights,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",factor,covariate,all,TRUE,
-smoking,SMQ020,Smoking,NA,SMQ,Smoking - Cigarette/Tobacco Use - Adult,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",factor,covariate,all,TRUE,
-race,RIDRETH1,Race,NA,DEMO,Demographic Variables & Sample Weights,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",factor,covariate,all,TRUE,
-education,DMDEDUC2,Education,NA,DEMO,Demographic Variables & Sample Weights,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",factor,covariate,all,TRUE,
-pregnant,RIDEXPRG,Pregnancy,NA,DEMO,Demographic Variables & Sample Weights,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",factor,exclusion,filtering,TRUE,Only present at reproductive age so NA should not be excluded
-audio_right_500,AUXU500R,0.5 kHz right ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-audio_right_1000,AUXU1K1R,1 kHz right ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-audio_right_1000_retest,AUXU1K2R,1 kHz right ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-audio_right_2000,AUXU2KR,2 kHz right ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-audio_right_3000,AUXU3KR,3 kHz right ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-audio_right_4000,AUXU4KR,4 kHz right ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-audio_right_6000,AUXU6KR,6 kHz right ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-audio_right_8000,AUXU8KR,8 kHz right ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-audio_left_500,AUXU500L,0.5 kHz left ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-audio_left_1000,AUXU1K1L,1 kHz left ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-audio_left_1000_retest,AUXU1K2L,1 kHz left ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-audio_left_2000,AUXU2KL,2 kHz left ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-audio_left_3000,AUXU3KL,3 kHz left ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-audio_left_4000,AUXU4KL,4 kHz left ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-audio_left_6000,AUXU6KL,6 kHz left ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-audio_left_8000,AUXU8KL,8 kHz left ear pure tone threshold,dB HL,AUX,Audiometry,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,response,all,TRUE,
-alb,LBDSALSI,Albumin,g/L,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,"kdm, phenoage, hd",TRUE,
-creat,LBDSCRSI,Creatinine,umol/L,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,"kdm, phenoage",TRUE,
-crp,LBXCRP,C-reactive protein,mg/dL,"LAB11, L11","C-Reactive protein (CRP), Fibrinogen, Bone Alkaline Phosphatase & Urinary N-telopeptides","1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010",numeric,biomarker,"kdm, phenoage",TRUE,requires standardization
-crp,LBDHRPLC,C-reactive protein (high-sensitivity),mg/L,HSCRP,High-Sensitivity C-Reactive Protein,"2015_2016, 2017_2020",numeric,biomarker,"kdm, phenoage",TRUE,requires standardization
-lymph,LBXLYPCT,Percentage serum lymphocytes,%,"LAB25, L25, CBC",Complete Blood Count with 5-part Differential - Whole Blood,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,"phenoage, hd",TRUE,
-mcv,LBXMCVSI,Mean blood cell volume,fL,"LAB25, L25, CBC",Complete Blood Count with 5-part Differential - Whole Blood,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,phenoage,TRUE,
-rdw,LBXRDW,Red blood cell distribution width,%,"LAB25, L25, CBC",Complete Blood Count with 5-part Differential - Whole Blood,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,"phenoage, hd",TRUE,
-alp,LBXSAPSI,Alkaline phosphatase,U/L,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,"kdm, phenoage, hd",TRUE,
-alp,LB2SAPSI,Alkaline phosphatase,U/L,L40_2,Standard Biochemistry Profile,2001_2002,numeric,biomarker,"kdm, phenoage, hd",TRUE,Only present in second exam in 2001_2002
-wbc,LBXWBCSI,White blood cell count,"1,000 cells/uL","LAB25, L25, CBC",Complete Blood Count with 5-part Differential - Whole Blood,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,"phenoage, hd",TRUE,
-hba1c,LBXGH,Glycated hemoglobin,%,"LAB10, L10, GHB",Glycohemoglobin,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,kdm,TRUE,
-totchol,LBXTC,Total cholesterol,mg/dL,"LAB13, L13, TCHOL",Cholesterol - Total & HDL,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,"kdm, hd",TRUE,
-cmv,SSCMVOD,Cytomegalovirus optical density from ELISA,Absorbance units,SSCMV,SSCMV_B,"1999_2000, 2001_2002, 2003_2004",numeric,biomarker,kdm,FALSE,Only present in 1999_2000 - 2003_2004
-fev1,,Forced expiratory volume in 1s,,,,,,,,FALSE,Only present in NHANES3
-bun,LBXSBU,Blood urea nitrogen,mg/dL,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,kdm,TRUE,
-=======
 ﻿label,variable,description,unit,dataset_id,dataset_description,cycles,type,vartype,used_for,include,notes
 SEQN,SEQN,ID,NA,NA,,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",character,id,all,TRUE,Same SEQN is used for NHANES3 and NHANES4
 time,PERMTH_EXM,Time from exam until death,Months,NHANES_CYCLE_MORT_2019_PUBLIC,Mortality,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016",numeric,mortality,all,TRUE,Only used to validate mortality risk of biological age measures
@@ -78,7 +30,6 @@ sex,RIAGENDR,Sex,NA,DEMO,Demographic Variables & Sample Weights,"1999_2000, 2001
 race,RIDRETH1,Race,NA,DEMO,Demographic Variables & Sample Weights,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",factor,covariate,all,TRUE,
 smoking,SMQ020,Smoking,NA,SMQ,Smoking - Cigarette/Tobacco Use - Adult,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",factor,covariate,all,TRUE,
 telolength,TELOMEAN,Mean telomere to single copy gene ratio,Dimensionless,TELO,Telomere Mean and Standard Deviation (Surplus),"1999_2000, 2001_2002",numeric,predictor,all,TRUE,Only present in first 2 cycles
->>>>>>> alt_biomarkers
 sbp1,BPXSY1,Systolic blood pressure session 1,mmHg,BPX,Blood Pressure,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016",numeric,biomarker,kdm,TRUE,Must be averaged over 4 sessions
 sbp2,BPXSY2,Systolic blood pressure session 2,mmHg,BPX,Blood Pressure,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016",numeric,biomarker,kdm,TRUE,Must be averaged over 4 sessions
 sbp3,BPXSY3,Systolic blood pressure session 3,mmHg,BPX,Blood Pressure,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016",numeric,biomarker,kdm,TRUE,Must be averaged over 4 sessions
@@ -86,45 +37,6 @@ sbp4,BPXSY4,Systolic blood pressure session 4,mmHg,BPX,Blood Pressure,"1999_2000
 sbp1,BPXOSY1,Systolic blood pressure session 1,mmHg,BPXO,Blood Pressure,2017_2020,numeric,biomarker,kdm,TRUE,Must be averaged over 3 sessions (oscillometer readings)
 sbp2,BPXOSY2,Systolic blood pressure session 2,mmHg,BPXO,Blood Pressure,2017_2020,numeric,biomarker,kdm,TRUE,Must be averaged over 3 sessions (oscillometer readings)
 sbp3,BPXOSY3,Systolic blood pressure session 3,mmHg,BPXO,Blood Pressure,2017_2020,numeric,biomarker,kdm,TRUE,Must be averaged over 3 sessions (oscillometer readings)
-<<<<<<< HEAD
-rbc,LBXRBCSI,Red blood cell count,"1,000,000 cells/uL","LAB25, L25, CBC",Complete Blood Count with 5-part Differential - Whole Blood,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,"kdm, hd",TRUE,
-cal,LBXSCA,Serum calcium,mg/dL,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-chlor,LBXSCLSI,Serum chloride,mmol/L,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-sod,LBXSNASI,Serum sodium,mmol/L,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-pot,LBXSKSI,Serum potassium,mmol/L,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-phos,LBDSPHSI,Serum phosphorus,mmol/L,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-hg,LBXHGB,Hemoglobin,g/dL,"LAB25, L25, CBC",Complete Blood Count with 5-part Differential - Whole Blood,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-htc,LBXHCT,Hematocrit,%,"LAB25, L25, CBC",Complete Blood Count with 5-part Differential - Whole Blood,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-iron,LBDSIRSI,Iron,umol/L,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-mch,LBXMCHSI,Mean cell hemoglobin,pg,"LAB25, L25, CBC",Complete Blood Count with 5-part Differential - Whole Blood,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-mchc,LBXMC,Mean cell hemoglobin concentration,g/dL,"LAB25, L25, CBC",Complete Blood Count with 5-part Differential - Whole Blood,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-ferr,LBDFERSI,Ferritin,ug/L,"LAB06, L06, L06TFR, FERTIN","Cadmium, Lead, Mercury, Cotinine & Nutritional Biochemistries","1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-tp,LBXSTP,Total protein,g/dL,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-ggt,LBXSGTSI,Gamma-glutamyl transpeptidase,U/L,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-ld,LB2SLDSI,Lactate dehydrogenase,U/L,LAB18,Standard Biochemistry Profile,1999_2000,numeric,biomarker,hd,TRUE,
-ld,LBXSLDSI,Lactate dehydrogenase,U/L,"L40, BIOPRO",Standard Biochemistry Profile,"2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-ua,LBXSUA,Uric acid,mg/dL,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-alt,LBXSATSI,Alanine transaminase,U/L,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-ast,LBXSASSI,Aspartate transaminase,U/L,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-neut,LBXNEPCT,Neutrophils,%,"LAB25, L25, CBC",Complete Blood Count with 5-part Differential - Whole Blood,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-mono,LBXMOPCT,Monocytes,%,"LAB25, L25, CBC",Complete Blood Count with 5-part Differential - Whole Blood,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-baso,LBXBAPCT,Basophils,%,"LAB25, L25, CBC",Complete Blood Count with 5-part Differential - Whole Blood,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-tg,LBDSTRSI,Triglycerides,mmol/L,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-hdl,LBDHDLSI,High-density lipoprotein cholesterol,mmol/L,"LAB13, L13",Cholesterol - Total & HDL,"1999_2000, 2001_2002",numeric,biomarker,hd,TRUE,Cholesterol changes due to method effects likely
-hdl,LBDHDDSI,High-density lipoprotein cholesterol,mmol/L,"L13, HDL",Cholesterol - Total & HDL,"2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,Cholesterol changes due to method effects likely
-ldl,LBDLDLSI,Low-density lipoprotein cholesterol,mmol/L,"LAB13AM, L13AM, TRIGLY",Cholesterol - LDL & Triglycerides,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,hd,TRUE,
-b12,LBXB12,Vitamin B12,pg/mL,"LAB06, L06","Cadmium, Lead, Mercury, Cotinine & Nutritional Biochemistries","1999_2000, 2001_2002, 2003_2004, 2005_2006",numeric,biomarker,hd,FALSE,"Missing in 2009_2010, 2015_2016, and 2017_2020"
-folate,LBXFOL,Folate,ng/mL,"LAB06, L06, L06NB, FOLATE","Cadmium, Lead, Mercury, Cotinine & Nutritional Biochemistries","1999_2000, 2001_2002, 2003_2004, 2005_2006",numeric,biomarker,hd,FALSE,Requires standardization
-folate,LBXFOLSI,Folate,ng/mL,FOLATE,Folate Forms - Total & Individual - Serum,2009_2010,numeric,biomarker,hd,FALSE,Requires standardization
-folate,LBDFOTSI,Folate,ng/mL,FOLFMS,Folate Forms - Total & Individual - Serum,"2015_2016, 2017_2020",numeric,biomarker,hd,FALSE,Requires standardization
-vita,LBXVIA,Vitamin A/retinol,ug/dL,L06VIT,"Vitamin A, Vitamin E & Carotenoids","1999_2000, 2001_2002, 2003_2004, 2005_2006, 2017_2018",numeric,biomarker,hd,FALSE,Missing in 2009_2010 and 2017_2020
-toco,LBXGTC,Gamma-tocopherol,ug/dL,L06VIT,"Vitamin A, Vitamin E & Carotenoids","1999_2000, 2001_2002, 2003_2004, 2005_2006, 2017_2018",numeric,biomarker,hd,FALSE,Missing in 2009_2010 and 2017_2020
-crypto,LBXCRY,Beta-cryptoxanthin,ug/dL,L06VIT,"Vitamin A, Vitamin E & Carotenoids","1999_2000, 2001_2002, 2003_2004, 2005_2006, 2017_2018",numeric,biomarker,hd,FALSE,Missing in 2009_2010 and 2017_2020
-caro,LBXALC,Alpha-carotene,ug/dL,L06VIT,"Vitamin A, Vitamin E & Carotenoids","2001_2002, 2003_2004, 2005_2006, 2017_2018",numeric,biomarker,hd,FALSE,"Missing in 1999_2020, 2009_2010 and 2017_2020"
-vitd,LB2VID,Vitamin D(25),ng/mL,VID_2,Vitamin D,1999_2000,numeric,biomarker,hd,FALSE,"Requires standardization, missing in 2020"
-vitd,LBXVID,Vitamin D(25),ng/mL,L06VID,Vitamin D,"2001_2002, 2007_2008, 2009_2010, 2015_2016",numeric,biomarker,hd,FALSE,"Requires standardization, missing in 2020"
-vitd,LBDVID,Vitamin D(25),ng/mL,L06VID,Vitamin D,2003-2004,numeric,biomarker,hd,FALSE,"Requires standardization, missing in 2020"
-=======
 glu,LBDSGLSI,Glucose,mmol/L,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,phenoage,TRUE,None
 crp,LBXHSCRP,C-reactive protein (high-sensitivity),mg/L,HSCRP,High-Sensitivity C-Reactive Protein,"2015_2016, 2017_2020",numeric,biomarker,"kdm, phenoage",TRUE,must be converted to mg / dL by dividing by 10 to be consistent with previous cycles
 alb,LBXSAL,Albumin,g/dL,"LAB18, L40, BIOPRO",Standard Biochemistry Profile,"1999_2000, 2001_2002, 2003_2004, 2005_2006, 2009_2010, 2015_2016, 2017_2020",numeric,biomarker,"kdm, phenoage, hd",TRUE,"Standardized in 2017_2020, converted to si units (g/dL to g/L) by multiplying by 10 to work with original PhenoAge coefficients"
@@ -180,4 +92,3 @@ tg,LBXTR,Triglycerides,mg/dL,"LAB13AM, L13AM, TRIGLY",Cholesterol - LDL & Trigly
 cmv,SSCMVOD,Cytomegalovirus optical density from ELISA,Absorbance units,SSCMV,SSCMV_B,"1999_2000, 2001_2002, 2003_2004",numeric,biomarker,kdm,FALSE,Only present in 1999_2000 - 2003_2004
 vitd,LB2VID,Vitamin D(25),ng/mL,VID_2,Vitamin D,1999_2000,numeric,biomarker,hd,FALSE,"Requires standardization, missing in 2020"
 fev1,,Forced expiratory volume in 1s,,,,,,,kdm,FALSE,Only present in NHANES3
->>>>>>> alt_biomarkers
