@@ -16,6 +16,7 @@
 
 # Output
 *.pptx
+*.html
 /output/
 
 # Environment/state
@@ -30,3 +31,4 @@
 desktop.ini
 **/desktop.ini
 .positai
+*.html
