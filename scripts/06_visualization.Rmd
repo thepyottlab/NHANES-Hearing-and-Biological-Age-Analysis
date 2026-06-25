@@ -6,67 +6,60 @@ editor_options:
 
 # Visualization
 
+This section contains the main results and figures. Note that some supplementary figures are in
+02_data_preprocessing or 03_modeling.
+
 ## Tables
 
 #### Descriptives table
 
-#### Format table
+#### Store biomarker labels
 
-Round R² and delta RMSE, rename variables, set p values to bold and to " \< 0.001" when very small.
-
-```{r format_table}
-format_table <- function(summary_data, per_age_group = FALSE) {
-  table <- summary_data %>%
+```{r biomarker_labels}
+if (isFALSE(params$telolength)) {
+  biomarker_labels <- summary_biomarkers_overall %>%
     mutate(
-      r2 = round(r2_w, 3),
-      delta_rmse = round(delta_rmse_w, 2)
+      label =
+        c(
+          "Age",
+          "GLU",
+          "ALB",
+          "ALP",
+          "HbA1c",
+          "CREA",
+          "BASO",
+          "Ca",
+          "Cl",
+          "HDL-C",
+          "BUN",
+          "Hb",
+          "HCT",
+          "Fe",
+          "LDH",
+          "LYMPH",
+          "MCH",
+          "MCHC",
+          "Mono",
+          "NEUT",
+          "P",
+          "K",
+          "RBC",
+          "RDW",
+          "MCV",
+          "Na",
+          "TC",
+          "TP",
+          "UA",
+          "WBC",
+          "SBP",
+          "ALT",
+          "AST",
+          "GGT",
+          "CRP"
+        )
     ) %>%
-    rename(
-      "Predictors" = predictors,
-      "∆RMSE (vs age, dB HL)" = delta_rmse,
-      "R²" = r2,
-      "p (vs age)" = p_adj
-    ) %>%
-    mutate(
-      `p (vs age)` = as.character(round(`p (vs age)`, 3)),
-      `p (vs age)` = case_when(
-        signif == "***" ~
-          cell_spec("< 0.001", "html", bold = TRUE),
-        suppressWarnings(
-          !is.na(as.numeric(`p (vs age)`)) &
-            as.numeric(`p (vs age)`) < 0.05
-        ) &
-          `p (vs age)` != "< 0.001" ~
-          cell_spec(
-            suppressWarnings(
-              round(as.numeric(`p (vs age)`), 3)
-            ),
-            "html",
-            bold = TRUE
-          ),
-        TRUE ~ `p (vs age)`
-      ),
-      `p (vs age)` = case_when(
-        Predictors == "age" ~ "",
-        TRUE ~ `p (vs age)`
-      ),
-      `∆RMSE (vs age, dB HL)` = as.character(`∆RMSE (vs age, dB HL)`),
-      `∆RMSE (vs age, dB HL)` = case_when(
-        Predictors == "age" ~ "",
-        TRUE ~ `∆RMSE (vs age, dB HL)`
-      )
-    )
-
-  if (isTRUE(per_age_group)) {
-    table <- table %>%
-      rename("Age" = age_group) %>%
-      select(Predictors, Age, n, `R²`, `∆RMSE (vs age, dB HL)`, `p (vs age)`)
-  } else {
-    table <- table %>%
-      select(Predictors, n, `R²`, `∆RMSE (vs age, dB HL)`, `p (vs age)`)
-  }
-
-  table
+    arrange(desc(delta_rmse_w)) %>%
+    select(predictors, label)
 }
 ```
 
@@ -76,24 +69,24 @@ format_table <- function(summary_data, per_age_group = FALSE) {
 rename_bioage_table <- function(bioage_table) {
   bioage_table <- bioage_table %>%
     mutate(
-      Predictors = case_when(
-        Predictors == "age" ~ "Age",
-        Predictors == "age, hd_log" ~ "Age + HD",
-        Predictors == "age, kdm" ~ "Age + KDM",
-        Predictors == "age, phenoage" ~ "Age + PhenoAge",
-        isTRUE(params$telolength) & Predictors == "age, telolength_log" ~ "Age + Telolength",
-        TRUE ~ Predictors
+      predictors = case_when(
+        predictors == "age" ~ "Age",
+        predictors == "age, hd_log" ~ "Age + HD",
+        predictors == "age, kdm" ~ "Age + KDM",
+        predictors == "age, phenoage" ~ "Age + PhenoAge",
+        isTRUE(params$telolength) & predictors == "age, telolength_log" ~ "Age + Telomere Length",
+        TRUE ~ predictors
       ),
-      Predictors = factor(
-        Predictors,
+      predictors = factor(
+        predictors,
         levels = if (isTRUE(params$telolength)) {
-          c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telolength")
+          c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge", "Age + Telomere Length")
         } else {
           c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
         }
       )
     ) %>%
-    arrange(Predictors)
+    arrange(predictors)
 
   bioage_table
 }
@@ -101,47 +94,14 @@ rename_bioage_table <- function(bioage_table) {
 rename_biomarker_table <- function(biomarker_table) {
   biomarker_table <- biomarker_table %>%
     filter(
-      !(Predictors %in% c(
-        "age",
-        "age, phenoage",
-        "age, lncrp, phenoage"
+      !(predictors %in% c(
+        "age"
       ))
     ) %>%
     mutate(
-      Predictors = case_when(
-        Predictors == "age, rdw" ~ "Age + RDW",
-        Predictors == "age, alp" ~ "Age + ALP",
-        Predictors == "age, lncrp" ~ "Age + CRP",
-        Predictors == "age, totchol" ~ "Age + TC",
-        Predictors == "age, albumin_gL" ~ "Age + ALB",
-        Predictors == "age, hba1c" ~ "Age + HbA1c",
-        Predictors == "age, glucose" ~ "Age + Glc",
-        Predictors == "age, sbp" ~ "Age + SBP",
-        Predictors == "age, bun" ~ "Age + BUN",
-        Predictors == "age, mcv" ~ "Age + MCV",
-        Predictors == "age, wbc" ~ "Age + WBC",
-        Predictors == "age, lymph" ~ "Age + Lymphs",
-        Predictors == "age, uap" ~ "Age + UA",
-        Predictors == "age, lncreat" ~ "Age + Creat"
-      ),
-      Predictors = factor(Predictors, levels = c(
-        "Age + SBP",
-        "Age + BUN",
-        "Age + MCV",
-        "Age + Lymphs",
-        "Age + RDW",
-        "Age + TC",
-        "Age + Creat",
-        "Age + UA",
-        "Age + Glc",
-        "Age + WBC",
-        "Age + ALP",
-        "Age + ALB",
-        "Age + HbA1c",
-        "Age + CRP"
-      ))
+      predictors = factor(predictors, levels = biomarker_labels$predictors, labels = paste0("Age + ", biomarker_labels$label))
     ) %>%
-    arrange(Predictors)
+    arrange(predictors)
 
   biomarker_table
 }
@@ -149,32 +109,71 @@ rename_biomarker_table <- function(biomarker_table) {
 rename_covariate_table <- function(covariates_table) {
   covariates_table <- covariates_table %>%
     filter(
-      Predictors != "age, gender, smoking, race, education"
+      predictors != "age, sex, smoking, race, education"
     ) %>%
     mutate(
-      Predictors = case_when(
-        Predictors == "age, gender, smoking, race, education, phenoage" ~ "Phenoage",
-        Predictors == "age, smoking, race, education" ~ "Gender",
-        Predictors == "age, gender, race, education" ~ "Smoking",
-        Predictors == "age, gender, smoking, education" ~ "Race",
-        Predictors == "age, gender, smoking, race" ~ "Education"
+      predictors = case_when(
+        predictors == "age, smoking, race, education" ~ "Sex",
+        predictors == "age, sex, race, education" ~ "Smoking",
+        predictors == "age, sex, smoking, education" ~ "Race",
+        predictors == "age, sex, smoking, race" ~ "Education"
       ),
-      Predictors = factor(Predictors, levels = c(
-        "Phenoage",
-        "Gender",
+      predictors = factor(predictors, levels = c(
+        "Sex",
         "Smoking",
         "Race",
-        "Education",
-        "Gender * Race"
+        "Education"
       ))
     ) %>%
-    rename(
-      "p (vs full model)" = `p (vs age)`,
-      "∆RMSE (vs full model, dB HL)" = `∆RMSE (vs age, dB HL)`,
-    ) %>%
-    arrange(Predictors)
+    arrange(predictors)
 
   covariates_table
+}
+```
+
+#### Format table
+
+Round R² and delta RMSE, rename variables, set p values to 'below 0.001' when very small.
+
+```{r format_table}
+format_table <- function(summary_data, per_age_group = FALSE) {
+  table <- summary_data %>%
+    mutate(
+      r2 = round(r2_w, 3),
+      delta_rmse = round(delta_rmse_w, 2)
+    ) %>%
+    mutate(
+      p_adj = as.character(round(p_adj, 3)),
+      p_adj = case_when(
+        signif == "***" ~ cell_spec("< 0.001", "html", bold = TRUE),
+        suppressWarnings(as.numeric(p_adj) < 0.05) ~ cell_spec(p_adj, "html", bold = TRUE),
+        is.na(p_adj) ~ "",
+        TRUE ~ p_adj
+      ),
+      delta_rmse = as.character(delta_rmse),
+      delta_rmse = case_when(
+        predictors == "age" ~ "",
+        TRUE ~ delta_rmse
+      )
+    ) %>%
+    rename(
+      "Predictors" = predictors,
+      "∆RMSE (dB HL)*" = delta_rmse,
+      "<i>n</i>" = n,
+      "<i>R²<i>" = r2,
+      "<i>p</i> value" = p_adj
+    )
+
+  if (isTRUE(per_age_group)) {
+    table <- table %>%
+      rename("Age" = age_group) %>%
+      select(Predictors, Age, `<i>n</i>`, `<i>R²<i>`, `∆RMSE (dB HL)*`, `<i>p</i> value`)
+  } else {
+    table <- table %>%
+      select(Predictors, `<i>n</i>`, `<i>R²<i>`, `∆RMSE (dB HL)*`, `<i>p</i> value`)
+  }
+
+  table
 }
 ```
 
@@ -182,54 +181,65 @@ rename_covariate_table <- function(covariates_table) {
 
 ```{r table_format_pipe}
 table_bioage <- summary_bioage %>%
+  rename_bioage_table() %>%
   format_table(
     per_age_group = TRUE
-  ) %>%
-  rename_bioage_table()
+  )
 
 table_bioage_overall <- summary_bioage_overall %>%
-  format_table() %>%
-  rename_bioage_table()
+  rename_bioage_table() %>%
+  format_table()
 
 if (isFALSE(params$telolength)) {
   table_biomarkers <- summary_biomarkers %>%
+    rename_biomarker_table() %>%
     format_table(
       per_age_group = TRUE
-    ) %>%
-    rename_biomarker_table()
+    )
 
   table_biomarkers_overall <- summary_biomarkers_overall %>%
-    format_table() %>%
-    rename_biomarker_table()
+    rename_biomarker_table() %>%
+    format_table()
 
   table_covariates <- summary_covariates %>%
+    rename_covariate_table() %>%
     format_table(
       per_age_group = TRUE
-    ) %>%
-    rename_covariate_table()
+    )
 
   table_covariates_overall <- summary_covariates_overall %>%
-    format_table() %>%
-    rename_covariate_table()
+    rename_covariate_table() %>%
+    format_table()
 }
 ```
 
 #### Render table
 
 ```{r store_tables}
-render_and_save_table <- function(table, path) {
+render_and_save_table <- function(table, path, covariate = FALSE) {
+  column_names <- names(table)
+
+  if (isTRUE(covariate)) {
+    column_names[1:2] <- c("&nbsp;", "&nbsp;")
+  }
+
   html_table <- table %>%
     kable(
       format = "html",
-      align = c("l", "l", "r", "r", "r", "r", "r", "r", "r"),
-      escape = FALSE
+      col.names = column_names,
+      align = rep("c", ncol(table)),
+      escape = FALSE,
+      table.attr = paste0(
+        'border="1" cellspacing="0" cellpadding="0" ',
+        'style="width:159mm; table-layout:fixed; border-collapse:collapse; ',
+        "font-family:'Times New Roman', Times, serif; ",
+        'font-size:10pt; color:black;"'
+      )
     ) %>%
-    kable_styling(
-      bootstrap_options = c("striped", "hover", "condensed"),
-      full_width = FALSE,
-      position = "center"
-    ) %>%
-    collapse_rows(columns = 1, valign = "top")
+    collapse_rows(
+      columns = 1,
+      valign = "middle"
+    )
 
   if (isTRUE(params$save_figures)) {
     save_kable(html_table, path)
@@ -240,12 +250,30 @@ render_and_save_table <- function(table, path) {
 
 render_and_save_table(
   table = table_bioage,
-  path = here("output", "figures", params$hearing_var, "table_bioage.html")
+  path = here(
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "table_bioage.html"
+  )
 )
 
 render_and_save_table(
   table = table_bioage_overall,
-  path = here("output", "figures", params$hearing_var, "table_bioage_overall.html")
+  path = here(
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "table_bioage_overall.html"
+  )
 )
 
 if (isFALSE(params$telolength)) {
@@ -283,12 +311,16 @@ We recode variables, combine means and SDs, pivot table, and format it
 if (isFALSE(params$telolength)) {
   table_covariates_descriptive <- descriptives %>%
     filter(
-      age_group != "Overall",
-      group != "Overall"
+      age_group != "Overall"
     ) %>%
     mutate(
-      stat = sprintf("%.2f (%.2f)", mean_w_pta, sd_w_pta),
+      stat = sprintf("%.2f (%.2f)", .data[[paste0("mean_w_", params$hearing_var)]], .data[[paste0("sd_w_", params$hearing_var)]]),
+      category = case_when(
+        category == "Overall" ~ "All",
+        TRUE ~ category
+      ),
       category = factor(category, levels = c(
+        "All",
         "Male",
         "Female",
         "White",
@@ -308,10 +340,7 @@ if (isFALSE(params$telolength)) {
       age_group, group, category, stat
     ) %>%
     pivot_wider(names_from = age_group, values_from = stat) %>%
-    group_by(group) %>%
-    mutate(group = if_else(row_number() == 1L, group, "")) %>%
-    ungroup() %>%
-    rename(" " = group, "  " = category)
+    as.data.frame()
 }
 ```
 
@@ -321,10 +350,15 @@ if (isFALSE(params$telolength)) {
 if (isFALSE(params$telolength)) {
   render_and_save_table(
     table_covariates_descriptive,
+    covariate = TRUE,
     path = here(
       "output",
       "figures",
-      params$hearing_var,
+      if (isTRUE(params$telolength)) {
+        paste0(params$hearing_var, "_telolength_log")
+      } else {
+        params$hearing_var
+      },
       "table_covariates_descriptives.html"
     )
   )
@@ -349,7 +383,6 @@ plot_config <- function(variable = NULL, global_params = params) {
     global = list(
       axis_unit_color = "#4D4D4D" # used later when constructing axes from HTML
     ),
-    poster = list(),
     paper = list(
       figure_dir = here(
         "output",
@@ -463,7 +496,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         config = config,
         axis = "x",
         type = "discrete",
-        limits = c(1.4, 5.7),
+        limits = c(1.3, 5.7),
         name = "Age",
         unit = "Years"
       ),
@@ -472,7 +505,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         axis = "x",
         type = "continuous",
         breaks = seq(-20, 20, 20),
-        limits = c(-20, 20),
+        limits = c(-25, 25),
         name = "PhenoAge Age Acceleration",
         unit = "PhenoAge – Age (Years)"
       ),
@@ -481,7 +514,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         axis = "x",
         type = "continuous",
         breaks = seq(-20, 20, 20),
-        limits = c(-20, 20),
+        limits = c(-25, 25),
         name = "KDM Age Acceleration",
         unit = "KDM – Age (Years)"
       )
@@ -494,7 +527,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         config = config,
         axis = "y",
         type = "discrete",
-        limits = c(1, 7),
+        limits = c(1, 7.3),
         name = "Age",
         unit = "Years"
       ),
@@ -512,7 +545,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         axis = "y",
         type = "continuous",
         breaks = seq(-1, 2, 1),
-        limits = c(-1.1, 2.6),
+        limits = c(-0.3, 2),
         name = "Rate of HL",
         unit = "dB HL/Year"
       ),
@@ -521,25 +554,25 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         axis = "y",
         type = "continuous",
         breaks = seq(-1, 2, 1),
-        limits = c(-1.1, 2.8),
+        limits = c(-1.25, 2),
         name = "Deviation Rate of HL",
         unit = "dB HL/Year"
-      ),
-      dmse_bioage = define_axis(
-        config = config,
-        axis = "y",
-        type = "continuous",
-        breaks = seq(0, 8, 2),
-        limits = c(-2, 10),
-        name = "Additional Predictive Capacity",
-        unit = "ΔMSE (dB HL)<sup>2</sup>"
       ),
       drmse_pred = define_axis(
         config = config,
         axis = "y",
         type = "continuous",
-        breaks = seq(0, 0.3, 0.1),
-        limits = c(-0.1, 0.35),
+        breaks = seq(0, 3, 0.5),
+        limits = c(0, 3.1),
+        name = "Additional Predictive Capacity",
+        unit = "&Delta;RMSE<span style='color:transparent;'>xi</span>(dB HL)"
+      ),
+      drmse_reverse_pred = define_axis(
+        config = config,
+        axis = "y",
+        type = "continuous",
+        breaks = seq(0, 15, 2.5),
+        limits = c(0, 15.5),
         name = "Additional Predictive Capacity",
         unit = "ΔRMSE (dB HL)"
       ),
@@ -557,27 +590,9 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         axis = "y",
         type = "continuous",
         breaks = seq(0, 2, 0.5),
-        limits = c(-0.05, 2.5),
+        limits = c(-0.05, 2.3),
         name = "Additional Predictive Capacity",
         unit = "ΔRMSE (dB HL)"
-      ),
-      dmse_conf = define_axis(
-        config = config,
-        axis = "y",
-        type = "continuous",
-        breaks = seq(0, 40, 5),
-        limits = c(-1, 40),
-        name = "Additional Predictive Capacity",
-        unit = "ΔMSE (dB HL)<sup>2</sup>"
-      ),
-      add_pred_conf = define_axis(
-        config = config,
-        axis = "y",
-        type = "continuous",
-        breaks = seq(0, 14, 2),
-        limits = c(-1, 15),
-        name = "Additional Predictive Capacity",
-        unit = "% Change MSE"
       )
     )
   }
@@ -611,27 +626,44 @@ color_scales <- function(color_list_name) {
         "age, hd_log" = if (isFALSE(params$telolength)) "Age + HD" else NULL,
         "age, kdm" = if (isFALSE(params$telolength)) "Age + KDM" else NULL,
         "age, phenoage" = if (isFALSE(params$telolength)) "Age + PhenoAge" else NULL,
-        "age, telolength_log" = if (isTRUE(params$telolength)) "Age + Telolength" else NULL
+        "age, telolength_log" = if (isTRUE(params$telolength)) "Age + Telomere Length" else NULL
+      )
+    ),
+    bioage_reverse = build_color_scale(
+      colors = c(
+        "hd_log, age" = color("highcontrast")(3)[1],
+        "kdm, age" = color("highcontrast")(3)[2],
+        "phenoage, age" = color("highcontrast")(3)[3]
+      ),
+      fill_colors = c(
+        "hd_log, age" = color("highcontrast")(3)[1],
+        "kdm, age" = color("highcontrast")(3)[2],
+        "phenoage, age" = color("highcontrast")(3)[3]
+      ),
+      labels = c(
+        "hd_log, age" = "HD + Age",
+        "kdm, age" = "KDM + Age",
+        "phenoage, age" = "PhenoAge + Age"
       )
     ),
     covariates = build_color_scale(
       colors = c(
         "age, smoking, race, education" = color("bright")(4)[1],
-        "age, gender, smoking, education" = color("bright")(4)[2],
-        "age, gender, smoking, race" = color("bright")(4)[3],
-        "age, gender, race, education" = color("bright")(4)[4]
+        "age, sex, smoking, education" = color("bright")(4)[2],
+        "age, sex, smoking, race" = color("bright")(4)[3],
+        "age, sex, race, education" = color("bright")(4)[4]
       ),
       fill_colors = c(
         "age, smoking, race, education" = color("bright")(4)[1],
-        "age, gender, smoking, education" = color("bright")(4)[2],
-        "age, gender, smoking, race" = color("bright")(4)[3],
-        "age, gender, race, education" = color("bright")(4)[4]
+        "age, sex, smoking, education" = color("bright")(4)[2],
+        "age, sex, smoking, race" = color("bright")(4)[3],
+        "age, sex, race, education" = color("bright")(4)[4]
       ),
       labels = c(
         "age, smoking, race, education" = "Sex",
-        "age, gender, smoking, education" = "Race",
-        "age, gender, smoking, race" = "Education",
-        "age, gender, race, education" = "Smoking"
+        "age, sex, smoking, education" = "Race",
+        "age, sex, smoking, race" = "Education",
+        "age, sex, race, education" = "Smoking"
       )
     ),
     covariates_overall = build_color_scale(
@@ -642,12 +674,12 @@ color_scales <- function(color_list_name) {
         "Education" = color("bright")(4)[3]
       )
     ),
-    gender = build_color_scale(
+    sex = build_color_scale(
       colors = c(
         "1" = color("sunset")(2)[1],
         "2" = color("sunset")(2)[2]
       ),
-      fill = c(
+      fill_colors = c(
         "1" = color("sunset")(2)[1],
         "2" = color("sunset")(2)[2]
       ),
@@ -661,7 +693,7 @@ color_scales <- function(color_list_name) {
         "1" = color("PRGn")(2)[1],
         "2" = color("PRGn")(2)[2]
       ),
-      fill = c(
+      fill_colors = c(
         "1" = color("PRGn")(2)[1],
         "2" = color("PRGn")(2)[2]
       ),
@@ -677,7 +709,7 @@ color_scales <- function(color_list_name) {
         "4" = color("vibrant")(4)[3],
         "5" = color("vibrant")(4)[4]
       ),
-      fill = c(
+      fill_colors = c(
         "1" = color("vibrant")(4)[1],
         "3" = color("vibrant")(4)[2],
         "4" = color("vibrant")(4)[3],
@@ -698,7 +730,7 @@ color_scales <- function(color_list_name) {
         "4" = color("nightfall")(5)[4],
         "5" = color("nightfall")(5)[5]
       ),
-      fill = c(
+      fill_colors = c(
         "1" = color("nightfall")(5)[1],
         "2" = color("nightfall")(5)[2],
         "3" = color("nightfall")(5)[3],
@@ -712,36 +744,6 @@ color_scales <- function(color_list_name) {
         "4" = "Some college or AA degree",
         "5" = "College graduate or higher"
       )
-    ),
-    biomarker_diff = build_color_scale(
-      colors = c(
-        "age, lncrp, phenoage" = "#CB2027",
-        "age, lncrp" = "#059748",
-        "age, phenoage" = "grey65"
-      ),
-      fill_colors = c(
-        "age, lncrp, phenoage" = "#F07E6E",
-        "age, lncrp" = "#90CD97",
-        "age, phenoage" = "grey80"
-      ),
-      labels = c(
-        "age, lncrp, phenoage" = "Age + CRP + PhenoAge",
-        "age, lncrp" = "Age + CRP",
-        "age, phenoage" = "Age + PhenoAge"
-      ),
-      breaks = c(
-        "age, lncrp, phenoage",
-        "age, lncrp",
-        "age, phenoage"
-      )
-    ),
-    best_biomarkers = build_color_scale(
-      colors = c(
-        "age, lncrp" = "#256DAB"
-      ),
-      fill_colors = c(
-        "age, lncrp" = "#88BDE6"
-      )
     )
   )
 }
@@ -754,7 +756,7 @@ Note that using `update_geom_defaults()` is global and requires `reset_geom_defa
 plots with the same styling will not have repeated `update_geom_defaults()` calls to avoid overhead
 and clutter. Plots must therefore be run in order.
 
-```{r fun_plot_theme}
+```{r fun_geom_theme}
 set_geom_theme <- function(geom_theme_name, global_params = params) {
   config <- if (!is.null(global_params)) plot_config(global_params = global_params)
 
@@ -1134,64 +1136,9 @@ sameplot(
 )
 ```
 
-#### Additional plots
+### Covariates
 
-##### Plot aging mean without covariates
-
-```{r plot_aging_mean}
-if (isFALSE(params$telolength)) {
-  p0 <- ggplot() +
-    geom_point(
-      data = df,
-      aes(
-        x = age,
-        y = .data[[params$hearing_var]],
-        alpha = 0.05 * weights / mean(weights)
-      ),
-      show.legend = FALSE
-    ) +
-    geom_line(
-      data = pred_age_rate$smooth,
-      aes(
-        x = age,
-        y = estimate
-      )
-    ) +
-    geom_line(
-      data = svyby(as.formula(paste0("~", params$hearing_var)), ~age, design, svymean),
-      aes(
-        x = age,
-        y = .data[[params$hearing_var]]
-      ),
-      alpha = 0.4
-    ) +
-    geom_ribbon(
-      data = pred_age_rate$smooth,
-      aes(
-        x = age,
-        ymin = ci_lower,
-        ymax = ci_upper
-      )
-    ) +
-    axes(
-      x = "age",
-      y = "hl"
-    ) +
-    scale_alpha_identity() +
-    plot_theme()
-
-  sameplot(
-    p0,
-    file = here(plot_config("figure_dir"), "Extras", "age_rate_mean.png"),
-    width = params$single_column_width,
-    height = 3,
-    res = 600,
-    save = params$save_figures
-  )
-}
-```
-
-##### Plot aging GAM with covariates with raw means (supplementary)
+#### Plot aging GAM with covariates (paper)
 
 ```{r plot_covariate_model_fits_means}
 if (isFALSE(params$telolength)) {
@@ -1201,36 +1148,36 @@ if (isFALSE(params$telolength)) {
       aes(
         x = age,
         y = .data[[params$hearing_var]],
-        color = gender,
+        color = sex,
         alpha = 0.05 * weights / mean(weights)
       ),
       show.legend = FALSE
     ) +
     geom_line(
-      data = pred_covariates_full$smooth_gender,
+      data = pred_covariates_full$smooth_sex,
       aes(
         x = age,
         y = estimate,
-        color = gender
+        color = sex
       ),
       show.legend = TRUE
     ) +
     geom_line(
-      data = svyby(as.formula(paste0("~", params$hearing_var)), ~ gender * age, design, svymean),
+      data = svyby(as.formula(paste0("~", params$hearing_var)), ~ sex * age, design, svymean),
       aes(
         x = as.numeric(age),
         y = .data[[params$hearing_var]],
-        color = as.factor(gender)
+        color = as.factor(sex)
       ),
       alpha = 0.4
     ) +
     geom_ribbon(
-      data = pred_covariates_full$smooth_gender,
+      data = pred_covariates_full$smooth_sex,
       aes(
         x = age,
         ymin = ci_lower,
         ymax = ci_upper,
-        fill = gender
+        fill = sex
       ),
       show.legend = FALSE
     ) +
@@ -1239,7 +1186,7 @@ if (isFALSE(params$telolength)) {
       y = "hl"
     ) +
     scale_alpha_identity() +
-    color_scales("gender") +
+    color_scales("sex") +
     plot_theme() +
     theme(
       axis.title.x = element_blank()
@@ -1430,14 +1377,175 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-### Bioage
+#### covariates predictive capacity plot (supplementary)
 
-#### Bioage RMSE plot (paper)
-
-```{r plot_bioage_rmse}
+```{r plot_covariates, warning=FALSE}
 update_geom_defaults("point", set_geom_theme("mse_point"))
 update_geom_defaults("line", set_geom_theme("mse_line"))
-p <- summary_bioage %>%
+
+if (isFALSE(params$telolength)) {
+  p <- summary_covariates %>%
+    filter(!predictors %in% c("age, sex, smoking, race, education")) %>%
+    ggplot(
+      aes(
+        x = age_group,
+        y = delta_rmse_w
+      )
+    ) +
+    geom_hline(
+      yintercept = 0
+    ) +
+    geom_ribbon(
+      aes(
+        fill = predictors,
+        group = predictors,
+        ymin = ci_low_delta_rmse,
+        ymax = ci_high_delta_rmse
+      ),
+      show.legend = FALSE
+    ) +
+    geom_line(
+      aes(
+        color = predictors,
+        group = predictors
+      ),
+      show.legend = TRUE
+    ) +
+    geom_point(
+      aes(
+        color = predictors
+      ),
+      show.legend = TRUE
+    ) +
+    geom_text(
+      data = . %>%
+        filter(signif != "ns"),
+      aes(
+        x = age_group,
+        y = ci_high_delta_rmse,
+        label = signif,
+        color = predictors
+      ),
+      size = plot_config("signif_size") / (14 / 5)
+    ) +
+    axes(
+      x = "age_group",
+      y = "drmse_conf"
+    ) +
+    color_scales("covariates") +
+    plot_theme()
+
+  sameplot(
+    p,
+    file = here(plot_config("figure_dir"), "covariate_panel.png"),
+    width = params$single_column_width,
+    height = 2.15,
+    res = 600,
+    save = params$save_figures
+  )
+}
+```
+
+#### covariates predictive capacity overall plot
+
+```{r plot_covariates_overall, warning=FALSE}
+if (isFALSE(params$telolength)) {
+  p <- summary_covariates_overall %>%
+    filter(!predictors %in% c("age, sex, smoking, race, education")) %>%
+    mutate(predictors = factor(
+      predictors,
+      levels = c(
+        "age, smoking, race, education",
+        "age, sex, smoking, education",
+        "age, sex, smoking, race",
+        "age, sex, race, education"
+      ),
+      labels = c(
+        "Sex",
+        "Race",
+        "Education",
+        "Smoking"
+      )
+    )) %>%
+    ggplot(
+      aes(
+        x = predictors,
+        y = delta_rmse_w
+      )
+    ) +
+    geom_hline(
+      yintercept = 0
+    ) +
+    geom_ribbon(
+      aes(
+        fill = predictors,
+        group = predictors,
+        ymin = ci_low_delta_rmse,
+        ymax = ci_high_delta_rmse
+      ),
+      show.legend = FALSE
+    ) +
+    geom_line(
+      aes(
+        color = predictors,
+        group = predictors
+      ),
+      show.legend = FALSE
+    ) +
+    geom_linerange(
+      aes(
+        color = predictors,
+        ymin = ci_low_delta_rmse,
+        ymax = ci_high_delta_rmse
+      ),
+      position = position_dodge(0.8),
+      lineend = "round",
+      show.legend = FALSE
+    ) +
+    geom_point(
+      aes(
+        color = predictors
+      ),
+      show.legend = FALSE
+    ) +
+    geom_text(
+      data = . %>%
+        filter(signif != "ns"),
+      aes(
+        x = predictors,
+        y = ci_high_delta_rmse,
+        label = signif,
+        color = predictors
+      ),
+      size = plot_config("signif_size") / (14 / 5),
+      show.legend = FALSE
+    ) +
+    axes(
+      y = "drmse_conf"
+    ) +
+    color_scales("covariates_overall") +
+    plot_theme() +
+    theme(
+      axis.title.x = element_blank()
+    )
+
+  sameplot(
+    p,
+    file = here(plot_config("figure_dir"), "covariate_panel_overall.png"),
+    width = params$single_column_width,
+    height = 2.15,
+    res = 600,
+    save = params$save_figures
+  )
+}
+```
+
+### Bioage
+
+#### Bioage delta RMSE plot
+
+```{r plot_bioage_rmse}
+p1 <- summary_bioage %>%
   {
     if (isTRUE(params$telolength)) filter(., !predictors %in% c("age, phenoage", "age, kdm", "age, hd_log")) else .
   } %>%
@@ -1485,8 +1593,8 @@ p <- summary_bioage %>%
   plot_theme()
 
 sameplot(
-  p,
-  file = here(plot_config("figure_dir"), "bioage_panel.png"),
+  p1,
+  file = here(plot_config("figure_dir"), "bioage_panel_A.png"),
   width = params$single_column_width,
   height = 2.15,
   res = 600,
@@ -1494,9 +1602,98 @@ sameplot(
 )
 ```
 
-#### Additional Plots
+#### Age delta RMSE plot
 
-##### Advance bioage plot (supplementary)
+```{r plot_bioage_reverse_rmse}
+if (isFALSE(params$telolength)) {
+  p2 <- summary_bioage_reverse %>%
+    filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
+    mutate(predictors = factor(predictors, levels = c("phenoage, age", "kdm, age", "hd_log, age"))) %>%
+    ggplot(
+      aes(
+        x = age_group, y = delta_rmse_w
+      )
+    ) +
+    geom_hline(yintercept = 0) +
+    geom_ribbon(
+      aes(
+        fill = predictors,
+        group = predictors,
+        ymin = ci_low_delta_rmse,
+        ymax = ci_high_delta_rmse
+      ),
+      alpha = 0.1,
+      show.legend = FALSE
+    ) +
+    geom_line(
+      aes(color = predictors, group = predictors),
+      show.legend = TRUE
+    ) +
+    geom_point(
+      aes(color = predictors),
+      show.legend = TRUE
+    ) +
+    geom_text(
+      data = . %>%
+        filter(signif != "ns"),
+      aes(
+        x = age_group,
+        y = ci_high_delta_rmse + 0.01,
+        label = signif,
+        color = predictors
+      ),
+      size = plot_config("signif_size") / (14 / 5)
+    ) +
+    axes(
+      x = "age_group",
+      y = "drmse_reverse_pred"
+    ) +
+    color_scales("bioage_reverse") +
+    plot_theme() +
+    theme(
+      axis.title.y = element_blank()
+    )
+
+  sameplot(
+    p2,
+    file = here(plot_config("figure_dir"), "bioage_panel_B_reverse.png"),
+    width = params$single_column_width,
+    height = 2.15,
+    res = 600,
+    save = params$save_figures
+  )
+}
+```
+
+#### Composite plot (paper)
+
+```{r composite_bioage_plot}
+p <-
+  ggarrange(
+    p1,
+    NULL,
+    p2,
+    nrow = 1,
+    widths = c(1, 0, 1),
+    labels = c("A", "", "B"),
+    label.x = 0.03,
+    label.y = 1.01,
+    align = "v"
+  )
+
+sameplot(
+  p,
+  file = here(plot_config("figure_dir"), "bioage_panel.png"),
+  width = params$double_column_width,
+  height = 2.15,
+  res = 600,
+  save = params$save_figures
+)
+```
+
+### Additional Plots
+
+#### Advance bioage plot (supplementary)
 
 ```{r plot_bioage_advance}
 p1 <- df %>%
@@ -1585,368 +1782,13 @@ sameplot(
   p,
   file = here(plot_config("figure_dir"), "Extras", "age_acceleration.png"),
   width = params$double_column_width,
-  height = 2.4,
+  height = 3,
   res = 600,
   save = params$save_figures
 )
 ```
 
-##### covariates predictive capacity plot
-
-```{r plot_covariates, warning=FALSE}
-if (isFALSE(params$telolength)) {
-  p <- summary_covariates %>%
-    filter(!predictors %in% c("age, gender, smoking, race, education", "age, gender, smoking, race, education, phenoage")) %>%
-    ggplot(
-      aes(
-        x = age_group,
-        y = delta_rmse_w
-      )
-    ) +
-    geom_hline(
-      yintercept = 0
-    ) +
-    geom_ribbon(
-      aes(
-        fill = predictors,
-        group = predictors,
-        ymin = ci_low_delta_rmse,
-        ymax = ci_high_delta_rmse
-      ),
-      show.legend = FALSE
-    ) +
-    geom_line(
-      aes(
-        color = predictors,
-        group = predictors
-      ),
-      show.legend = TRUE
-    ) +
-    geom_point(
-      aes(
-        color = predictors
-      ),
-      show.legend = TRUE
-    ) +
-    geom_text(
-      data = . %>%
-        filter(signif != "ns"),
-      aes(
-        x = age_group,
-        y = ci_high_delta_rmse,
-        label = signif,
-        color = predictors
-      ),
-      size = plot_config("signif_size") / (14 / 5)
-    ) +
-    axes(
-      x = "age_group",
-      y = "drmse_conf"
-    ) +
-    color_scales("covariates") +
-    plot_theme()
-
-  sameplot(
-    p,
-    file = here(plot_config("figure_dir"), "covariate_panel.png"),
-    width = params$single_column_width,
-    height = 2.15,
-    res = 600,
-    save = params$save_figures
-  )
-}
-```
-
-##### covariates predictive capacity overall plot
-
-```{r plot_covariates_overall, warning=FALSE}
-if (isFALSE(params$telolength)) {
-  p <- summary_covariates_overall %>%
-    filter(!predictors %in% c("age, gender, smoking, race, education", "age, gender, smoking, race, education, phenoage")) %>%
-    mutate(predictors = factor(
-      predictors,
-      levels = c(
-        "age, smoking, race, education",
-        "age, gender, smoking, education",
-        "age, gender, smoking, race",
-        "age, gender, race, education"
-      ),
-      labels = c(
-        "Sex",
-        "Race",
-        "Education",
-        "Smoking"
-      )
-    )) %>%
-    ggplot(
-      aes(
-        x = predictors,
-        y = delta_rmse_w
-      )
-    ) +
-    geom_hline(
-      yintercept = 0
-    ) +
-    geom_ribbon(
-      aes(
-        fill = predictors,
-        group = predictors,
-        ymin = ci_low_delta_rmse,
-        ymax = ci_high_delta_rmse
-      ),
-      show.legend = FALSE
-    ) +
-    geom_line(
-      aes(
-        color = predictors,
-        group = predictors
-      ),
-      show.legend = FALSE
-    ) +
-    geom_linerange(
-      aes(
-        color = predictors,
-        ymin = ci_low_delta_rmse,
-        ymax = ci_high_delta_rmse
-      ),
-      position = position_dodge(0.8),
-      lineend = "round",
-      show.legend = FALSE
-    ) +
-    geom_point(
-      aes(
-        color = predictors
-      ),
-      show.legend = FALSE
-    ) +
-    geom_text(
-      data = . %>%
-        filter(signif != "ns"),
-      aes(
-        x = predictors,
-        y = ci_high_delta_rmse,
-        label = signif,
-        color = predictors
-      ),
-      size = plot_config("signif_size") / (14 / 5),
-      show.legend = FALSE
-    ) +
-    axes(
-      y = "drmse_conf"
-    ) +
-    color_scales("covariates_overall") +
-    plot_theme() +
-    theme(
-      axis.title.x = element_blank()
-    )
-
-  sameplot(
-    p,
-    file = here(plot_config("figure_dir"), "covariate_panel_overall.png"),
-    width = params$single_column_width,
-    height = 2.15,
-    res = 600,
-    save = params$save_figures
-  )
-}
-```
-
-##### Biomarker phenoage variance plots
-
-###### Plot Delta mse Biomarkers (only relevant ones)
-
-```{r plot_biomarkers, include=FALSE}
-if (isFALSE(params$telolength) && isTRUE(params$run_biomarker_add_analysis)) {
-  p1 <- summary_biomarkers %>%
-    filter(predictors %in% c("age, lncrp")) %>%
-    mutate(
-      label = predictors,
-      label = case_when(
-        label == "age, lncrp" ~ "Age + CRP",
-        TRUE ~ NA
-      ),
-      predictors = factor(
-        predictors,
-        levels = c("age, lncrp")
-      )
-    ) %>%
-    ggplot(
-      aes(
-        x = age_group,
-        y = delta_rmse_w
-      )
-    ) +
-    geom_hline(
-      yintercept = 0
-    ) +
-    geom_label(
-      data = . %>%
-        filter(age_group == "20-30"),
-      aes(
-        x = "20-30",
-        y = 3.65,
-        label = label,
-        fill = predictors
-      ),
-      size = 8 / (14 / 5),
-      hjust = 0,
-      label.padding = unit(0.3, "lines"),
-      nudge_x = -0.1,
-      color = "white",
-      show.legend = FALSE
-    ) +
-    geom_ribbon(
-      aes(
-        fill = predictors,
-        group = predictors,
-        ymin = ci_low_delta_rmse,
-        ymax = ci_high_delta_rmse
-      ),
-      show.legend = FALSE
-    ) +
-    geom_line(
-      aes(
-        color = predictors,
-        group = predictors
-      ),
-      show.legend = FALSE
-    ) +
-    geom_point(
-      aes(
-        color = predictors
-      ),
-      show.legend = FALSE
-    ) +
-    facet_wrap(
-      ~predictors,
-      ncol = 1,
-      nrow = 5,
-      labeller = labeller(
-        predictors = c(
-          "age, lncrp" = "Age + CRP"
-        )
-      )
-    ) +
-    axes(
-      x = "age_group",
-      y = "drmse_pred"
-    ) +
-    color_scales("best_biomarkers") +
-    plot_theme() +
-    theme(strip.text.x = element_blank())
-
-  sameplot(
-    p1,
-    file = here(plot_config("figure_dir"), "biomarkers_biomarkers_panel.png"),
-    width = 2.5,
-    height = 3,
-    res = 600,
-    save = FALSE
-  )
-}
-```
-
-###### Plot biomarkers together vs biomarkers + phenoage
-
-```{r plot_explained_var, include=FALSE}
-if (isFALSE(params$telolength) && isTRUE(params$run_biomarker_add_analysis)) {
-  p2 <- summary_biomarkers %>%
-    filter(
-      predictors %in% c(
-        "age, phenoage",
-        "age, lncrp",
-        "age, lncrp, phenoage"
-      )
-    ) %>%
-    mutate(predictors = factor(
-      predictors,
-      levels = c(
-        "age, phenoage",
-        "age, lncrp",
-        "age, lncrp, phenoage"
-      )
-    )) %>%
-    ggplot(
-      aes(
-        x = age_group,
-        y = delta_rmse_w
-      )
-    ) +
-    geom_hline(
-      yintercept = 0,
-    ) +
-    geom_ribbon(
-      aes(
-        fill = predictors,
-        group = predictors,
-        ymin = ci_low_delta_rmse,
-        ymax = ci_high_delta_rmse
-      ),
-      show.legend = FALSE
-    ) +
-    geom_line(
-      aes(
-        color = predictors,
-        group = predictors
-      ),
-      show.legend = TRUE
-    ) +
-    geom_point(
-      aes(
-        color = predictors
-      ),
-      show.legend = FALSE
-    ) +
-    axes(
-      x = "age_group",
-      y = "drmse_pred"
-    ) +
-    color_scales("biomarker_diff") +
-    plot_theme() +
-    theme(
-      axis.title.y = element_blank(),
-      plot.margin = margin(1, 1, 0, 0, unit = "pt")
-    )
-
-  sameplot(
-    p2,
-    file = here(plot_config("figure_dir"), "biomarkers_v_phenoage.png"),
-    width = 3,
-    height = 4,
-    res = 600,
-    save = FALSE
-  )
-}
-```
-
-###### Composite plot
-
-```{r plot_biomark_panel}
-if (isFALSE(params$telolength) && isTRUE(params$run_biomarker_add_analysis)) {
-  p <- ggarrange(
-    p1,
-    NULL,
-    p2,
-    nrow = 1,
-    widths = c(0.6, 0, 1),
-    labels = c("A", "", "B"),
-    label.x = 0.02,
-    label.y = 1.01,
-    align = "v"
-  )
-
-  sameplot(
-    p,
-    file = here(plot_config("figure_dir"), "biomarkers_fig_panel.png"),
-    width = params$double_column_width,
-    height = 3,
-    res = 600,
-    save = params$save_figures
-  )
-}
-```
-
-##### Biomarkers supplemental plots
+#### Biomarkers (supplementary)
 
 ```{r plot_biomarker_all, warning=FALSE}
 if (isFALSE(params$telolength)) {
@@ -1956,45 +1798,13 @@ if (isFALSE(params$telolength)) {
   p <- summary_biomarkers_overall %>%
     filter(!(
       predictors %in% c(
-        "age",
-        "age, phenoage",
-        "age, lncrp, phenoage"
+        "age"
       )
     )) %>%
     mutate(predictors = factor(
       predictors,
-      levels = c(
-        "age, mcv",
-        "age, bun",
-        "age, uap",
-        "age, glucose",
-        "age, lymph",
-        "age, totchol",
-        "age, sbp",
-        "age, wbc",
-        "age, rdw",
-        "age, lncreat",
-        "age, hba1c",
-        "age, albumin_gL",
-        "age, alp",
-        "age, lncrp"
-      ),
-      labels = c(
-        "MCV",
-        "BUN",
-        "UA",
-        "Glc",
-        "Lymphs",
-        "TC",
-        "SBP",
-        "WBC",
-        "RDW",
-        "Creat",
-        "HbA1c",
-        "ALB",
-        "ALP",
-        "CRP"
-      )
+      levels = rev(biomarker_labels$predictors),
+      labels = rev(biomarker_labels$label)
     )) %>%
     ggplot(
       aes(
@@ -2051,7 +1861,7 @@ if (isFALSE(params$telolength)) {
   sameplot(
     p,
     file = here(plot_config("figure_dir"), "biomarkers_panel.png"),
-    width = params$single_column_width,
+    width = params$double_column_width,
     height = 2.15,
     res = 600,
     save = params$save_figures

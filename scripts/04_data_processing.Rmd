@@ -8,13 +8,12 @@ editor_options:
 
 ## Build predictions dataframe age rate
 
-We sample 1 point for each age and predict the FI using the smooth-only model and generate
+We sample 1 point for each age and predict the PTA using the smooth-only model and generate
 simultaneous confidence intervals with 'mvt'. We could ask for a single point and ask where the true
 mean would be with 95% certainty, but if we'd apply that to all 60 points, there's a large chance
 that somewhere we get a false positive. With the simultaneous interval or with multivariate t
 distribution error correction, we can say that we're 95% sure that the **entire** derivative in the
-true population that was sampled from (all people on earth if NHANES is representative) is within
-the band.
+true population that was sampled from (whole US population) is within the band.
 
 To calculate the quadratic derivative, we can either calculate the slope at each point manually with
 
@@ -23,33 +22,19 @@ To calculate the quadratic derivative, we can either calculate the slope at each
 Or we use emtrends to calculate the slope at each point. The result is the same. However, using
 emtrends we can calculate simultaneous intervals with "mvt". Emtrends also works with smooth terms.
 
-We add the uncertainty of the quadratic model derivative to that of the smooth (it's tiny compared
-to that of the smooth). This is slightly conservative, because the variances are positively
-correlated. However, the smooth term absorbs some of the variance normally explained by the linear
-and quadratic terms, so the terms aren't fully uncorrelated. Because of this, the coefficients of
-the linear and quadratic terms are different between the nested smooth and quadratic models and,
-therefore, uncertainties are also different, which we need to account for. We back-calculate the
-multivariate-corrected t-crit value for the smooth and recalculate the confidence intervals but with
-the combined uncertainty from the quadratic and smooth.
-
 ### Main models
 
 ```{r predict_aging}
-predict_age_rate <- function(
+predict_age_rate_parametric <- function(
   df,
   model,
   predictor = "age",
   type = c("predict", "predict_derivative")
 ) {
-  ages <- setNames(
-    list(
-      seq(
-        min(df[[predictor]]),
-        max(df[[predictor]]),
-        by = 1
-      )
-    ),
-    predictor
+  ages <- seq(
+    min(df[[predictor]], na.rm = TRUE),
+    max(df[[predictor]], na.rm = TRUE),
+    by = 1
   )
 
   formula <- as.formula(
@@ -60,16 +45,16 @@ predict_age_rate <- function(
     em <- emmeans(
       model,
       formula,
-      at = ages,
+      at = list(age = ages),
       type = "response",
       data = df
     )
-  } else {
+  } else if (type == "predict_derivative") {
     em <- emtrends(
       model,
       formula,
       var = predictor,
-      at = ages,
+      at = list(age = ages),
       data = df
     )
   }
@@ -85,7 +70,7 @@ predict_age_rate <- function(
         "ci_lower" = lower.CL,
         "ci_upper" = upper.CL
       )
-  } else {
+  } else if (type == "predict_derivative") {
     predictions %>%
       rename(
         "derivative" = !!paste0(predictor, ".trend"),
@@ -100,52 +85,209 @@ pred_age_rate <- list()
 pred_age_rate <- append(
   pred_age_rate,
   list(
-    linear = predict_age_rate(
+    linear = predict_age_rate_parametric(
       df,
       models_age_rate$linear,
       type = "predict"
     ),
-    linear_derivative = predict_age_rate(
+    linear_derivative = predict_age_rate_parametric(
       df,
       models_age_rate$linear,
       type = "predict_derivative"
     ),
-    quadratic = predict_age_rate(
+    quadratic = predict_age_rate_parametric(
       df,
       models_age_rate$quadratic,
       type = "predict"
     ),
-    quadratic_derivative = predict_age_rate(
+    quadratic_derivative = predict_age_rate_parametric(
       df,
       models_age_rate$quadratic,
       type = "predict_derivative"
     ),
-    smooth = predict_age_rate(
-      df,
+    smooth = confint(
       models_age_rate$smooth,
-      type = "predict"
-    ),
-    derivative_smooth = predict_age_rate(
-      df,
+      parm = "s(age)",
+      data = data.frame(age = seq(
+        min(df[["age"]], na.rm = TRUE),
+        max(df[["age"]], na.rm = TRUE),
+        by = 1
+      )),
+      interval = "simultaneous",
+      shift = TRUE
+    ) %>%
+      select(
+        age,
+        estimate = .estimate,
+        SE = .se,
+        ci_lower = .lower_ci,
+        ci_upper = .upper_ci
+      ),
+    derivative_smooth = derivatives(
       models_age_rate$smooth,
-      type = "predict_derivative"
-    )
+      select = "s(age)",
+      data = data.frame(age = seq(
+        min(df[["age"]], na.rm = TRUE),
+        max(df[["age"]], na.rm = TRUE),
+        by = 1
+      )),
+      interval = "simultaneous"
+    ) %>%
+      select(
+        age,
+        derivative = .derivative,
+        SE = .se,
+        ci_lower = .lower_ci,
+        ci_upper = .upper_ci
+      )
   )
 )
+```
 
-pred_age_rate$derivative_smooth <- pred_age_rate$derivative_smooth %>%
-  mutate(
-    SE_adj = sqrt(SE^2 + pred_age_rate$quadratic_derivative$SE^2),
-    derivative_adj = derivative - pred_age_rate$quadratic_derivative$derivative,
-    t_crit_mvt = (ci_upper - ci_lower) / (2 * SE),
-    ci_lower_adj = derivative_adj - t_crit_mvt * SE_adj,
-    ci_upper_adj = derivative_adj + t_crit_mvt * SE_adj
+### Quadratic-smooth derivative difference
+
+To calculate the difference between the smooth and quadratic derivatives, we can't simply sum their
+uncertainties, because we need to account for their covariance.
+
+We take a nonparametric bootstrap, meaning we sample from the actual data. Within each replicate, we
+standardize the mean weight to 1, so that each replicate is equal in information, even if it happens
+to have a lower total weight, because mgcv is sensitive to the scale of weights. We take samples
+based on the primary sampling units within strata, rather than individuals. Within each replicate,
+we fit a GAM and quadratic model to the same data, calculate the derivative for each age, and
+subtract the quadratic derivative from the smooth to obtain a difference. If the sample at a given
+age is randomly higher and this bump raises the GAM's derivative but drops the derivative of the
+quadratic (if, for example, the bump leads to a higher intercept or linear component with lower
+quadratic component to compensate, i.e., the derivative rotates), then there is negative covariance
+and we get a higher total variance for that age. This means that both within-model variance and
+across-model covariance is accounted for when we compute the standard error from the bootstrap.
+
+The PSU-based sampling creates an interaction variable for PSU \* stratum, so that we identify the
+PSUs within each stratum. We then identify the rows/IDs pertaining to each PSU. We then identify
+which PSUs belong to which stratum. We then randomly sample PSUs within each stratum. For example,
+if have 3 PSUs within one stratum, one bootstrap replicate we may have 1 2 3, another 1 1 3, another
+2 2 2, another 1 3 1, etc. When a PSU is sampled, we include all rows/IDs within that PSU.
+Individuals inside the same PSU are not independent, as they're from the same, for example,
+geographical location. A single stratum may be, for example, high socioeconomic rural Texan black
+females, and they might have 3 centers where this demographic is sampled. Each center is then a
+single PSU. By sampling individuals, the model sees noise at a person level (sometimes a person is
+duplicated, some are dropped), assuming people are independent, which they're not because people
+within a PSU share geographical context, but with a PSU bootstrap, the model sees noise at the
+cluster level. Some replicates a PSU with systematically more hearing loss gets sampled twice. The
+bootstrapping then tells us the uncertainty based on 'what if this whole sampled cluster had more or
+less influence' instead of 'what if these isolated people had more or less influence'. This mimics
+'what if NHANES had sampled different PSUs' instead of 'what if NHANES had picked different people
+from the same PSUs', which is less generalizable.
+
+```{r diff_smooth_boot}
+nonparametric_difference_bootstrap <- function(df, n_boot = 2000, threads = 1) {
+  ages <- seq(
+    min(df[["age"]], na.rm = TRUE),
+    max(df[["age"]], na.rm = TRUE),
+    by = 1
   )
+
+  psu_id <- interaction(df$stratum, df$psu, drop = TRUE)
+  psu_rows <- split(seq_len(nrow(df)), psu_id, drop = TRUE)
+  stratum_psus <- split(names(psu_rows), df$stratum[match(names(psu_rows), as.character(psu_id))])
+
+  set.seed(2)
+  plan(multisession, workers = threads)
+
+  bootstrap_derivative_diff <- simplify2array(future_lapply(
+    seq_len(n_boot),
+    function(i) {
+      indices <- unlist(lapply(stratum_psus, function(psus) {
+        unlist(psu_rows[sample(psus, replace = TRUE)], use.names = FALSE)
+      }), use.names = FALSE)
+
+      data_subset <- df[indices, ]
+      weights_subset <- df$weights[indices]
+
+      fit <- function(terms) {
+        bam(
+          reformulate(terms, response = params$hearing_var),
+          data = data_subset,
+          weights = weights_subset / mean(weights_subset),
+          method = "REML",
+          family = gaussian()
+        )
+      }
+
+      derivative_smooth <- function(model) {
+        derivatives(
+          model,
+          select = "s(age)",
+          data = data.frame(age = ages)
+        ) %>%
+          as.data.frame() %>%
+          pull(.derivative)
+      }
+
+      derivative_parametric <- function(model) {
+        as.data.frame(
+          emtrends(
+            model, ~age,
+            var = "age",
+            at = list(age = ages),
+            data = data_subset
+          )
+        )$age.trend
+      }
+
+      smooth_coefs <- derivative_smooth(fit(paste0("s(age, k = ", params$age_rate_k, ", m = 3)")))
+      parametric_coefs <- derivative_parametric(fit(c("age", "I(age^2)")))
+
+      smooth_coefs - parametric_coefs
+    },
+    future.seed = TRUE,
+    future.globals = TRUE,
+    future.packages = c(
+      "emmeans",
+      "mgcv",
+      "tidytable",
+      "gratia"
+    )
+  ))
+
+  plan(sequential)
+
+  SE_adj <- apply(bootstrap_derivative_diff, 1, sd)
+
+  t_crit_max_t <- unname(quantile(
+    apply(
+      abs(sweep(bootstrap_derivative_diff, 1, rowMeans(bootstrap_derivative_diff), "-") / SE_adj),
+      2,
+      max
+    ),
+    0.95
+  ))
+
+  cbind(SE_adj, t_crit_max_t)
+}
+
+system.time(
+  pred_age_rate$derivative_smooth <- cbind(
+    pred_age_rate$derivative_smooth,
+    df %>% nonparametric_difference_bootstrap(
+      n_boot = params$n_boot,
+      threads = min(
+        params$n_threads,
+        as.numeric(future::availableCores()) - 1
+      )
+    )
+  ) %>%
+    mutate(
+      derivative_adj = derivative - pred_age_rate$quadratic_derivative$derivative,
+      ci_lower_adj = derivative_adj - t_crit_max_t * SE_adj,
+      ci_upper_adj = derivative_adj + t_crit_max_t * SE_adj
+    )
+)
 ```
 
 ### Covariates
 
-We predict the `hearing_var` for each age in the dataset (20-84) for each stratum level.
+We predict the `hearing_var` for each age in the dataset (20-79) for each stratum level with
+pointwise confidence intervals.
 
 ```{r pred_covariate_pta}
 predict_age_rate_covariate <- function(
@@ -154,38 +296,29 @@ predict_age_rate_covariate <- function(
   predictor = "age",
   covariate
 ) {
-  ages <- setNames(
-    list(
-      seq(
-        min(df[[predictor]]),
-        max(df[[predictor]]),
-        by = 1
-      )
-    ),
-    predictor
+  ages <- seq(
+    min(df[[predictor]], na.rm = TRUE),
+    max(df[[predictor]], na.rm = TRUE),
+    by = 1
   )
 
-  em <- emmeans(
+  newdata <- expand.grid(
+    age = ages,
+    covariate_level = unique(df[[covariate]])
+  )
+
+  names(newdata) <- c(predictor, covariate)
+
+  fitted_values(
     model,
-    as.formula(
-      paste0("~ ", predictor, " + ", covariate)
-    ),
-    at = ages,
-    by = covariate,
-    type = "response",
-    data = df
+    data = newdata,
+    scale = "response",
+    ci_level = 0.95
+  ) %>% rename(
+    estimate = .fitted,
+    ci_lower = .lower_ci,
+    ci_upper = .upper_ci
   )
-
-  predictions <- as.data.frame(
-    confint(em)
-  )
-
-  predictions %>%
-    rename(
-      "estimate" = emmean,
-      "ci_lower" = lower.CL,
-      "ci_upper" = upper.CL
-    )
 }
 
 pred_covariates_full <- list()
@@ -193,10 +326,10 @@ pred_covariates_full <- list()
 pred_covariates_full <- append(
   pred_covariates_full,
   list(
-    smooth_gender = predict_age_rate_covariate(
+    smooth_sex = predict_age_rate_covariate(
       df,
-      models_covariates$smooth_gender,
-      covariate = "gender"
+      models_covariates$smooth_sex,
+      covariate = "sex"
     ),
     smooth_smoking = predict_age_rate_covariate(
       df,

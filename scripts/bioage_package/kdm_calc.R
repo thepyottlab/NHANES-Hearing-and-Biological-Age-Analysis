@@ -31,28 +31,6 @@ get_effs <- function(mod) {
 #' @param n_allowed_missing_biomarkers Number of biomarkers per subject that are allowed missing before subject is excluded. Residual bioage variance is rescaled to number of missing values if greater than 0. Note that this can inflate noise and assumes missing biomarker residual variance to be high if other biomarkers have high residual variance.
 #' @param verbose A boolean to instruct whether to send messages about incomplete included and/or excluded data. Uses the substitute function to read name of dataframe.
 #' @return An object of class "kdm". This object is a list with two elements (data and fit). The dataset can be drawn by typing 'data'. The model can be drawn by typing 'fit'.
-#' @examples
-#' # Train using the NHANES III
-#' train <- kdm_calc(NHANES3,
-#'   biomarkers = c(
-#'     "fev", "sbp", "totchol", "hba1c", "albumin",
-#'     "creat", "lncrp", "alp", "bun"
-#'   )
-#' )
-#'
-#' # Project into the NHANES IV
-#' kdm <- kdm_calc(NHANES4,
-#'   biomarkers = c(
-#'     "fev", "sbp", "totchol", "hba1c", "albumin",
-#'     "creat", "lncrp", "alp", "bun"
-#'   ),
-#'   fit = train$fit,
-#'   s_ba2 = train$fit$s_ba2
-#' )
-#'
-#' # Extract KDM dataset
-#' data <- kdm$data
-#'
 #' @export
 #' @import dplyr
 #' @import survey
@@ -78,7 +56,7 @@ kdm_calc <- function(data, biomarkers, fit = NULL, s_ba2 = NULL, n_allowed_missi
 
   if (isTRUE(verbose)) {
     if (is.null(getOption("kdm_calc_tip_printed"))) {
-      message("Note that a separate message may be printed per gender subset. Set verbose = FALSE to silence these messages.")
+      message("Note that a separate message may be printed per sex subset. Set verbose = FALSE to silence these messages.")
       options(kdm_calc_tip_printed = TRUE)
     }
 

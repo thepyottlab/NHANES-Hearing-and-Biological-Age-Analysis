@@ -123,12 +123,12 @@ if (isFALSE(params$telolength)) {
 
   results_covariates_overall <- pred_covariates %>%
     calculate_mse_per_fold(
-      reference = "age, gender, smoking, race, education",
+      reference = "age, sex, smoking, race, education",
       covariate_analysis = TRUE
     )
   results_covariates <- pred_covariates %>%
     calculate_mse_per_fold(
-      reference = "age, gender, smoking, race, education",
+      reference = "age, sex, smoking, race, education",
       per_age_group = TRUE,
       covariate_analysis = TRUE
     )
@@ -140,15 +140,16 @@ if (isFALSE(params$telolength)) {
 ### Calculate mean MSE and MSE variance across folds
 
 The Nadeau Bengio corrected t-test estimates variance using the training and testing dataset sizes,
-because cross validations are not independent, violating the assumption of a paired t-test,
-inflating type 1 errors (false positives). We weigh the participants within folds by multiplying
-weights by sample size.
+which is needed because cross validations are not independent, violating the assumption of a paired
+t-test, inflating type 1 errors (false positives). MSE per fold is calculated using the weighted
+mean of prediction errors. Average MSE across folds is calculated by weighting folds by the sum of
+the participants' probability weights.
 
 In <https://www.jmlr.org/papers/volume6/markatou05a/markatou05a.pdf>, Analysis of Variance of
 Cross-Validation Estimators of the Generalization Error, the authors also report the variance
-estimate as `S² * (1/J + n2/n1)`, where `S2` is the variance (squared standard deviation), `J` is
-the total number of folds, `n2` is the validation/test set and `n1` is the training set size. They
-also show that when `J` is appropriate (`10*10`), it provides a good variance estimate.
+estimate as $S² * (1/J + n2/n1)$, where $S2$ is the variance (squared standard deviation), `J` is
+the total number of folds, $n2$ is the validation/test set and $n1$ is the training set size. They
+also show that when $J$ is appropriate ($10*10$), it provides a good variance estimate.
 
 ```{r calc_pooled_mse}
 calculate_pooled_mse <- function(results) {
@@ -280,8 +281,11 @@ observations are taken twice and others are omitted (set by `replace = TRUE`). I
 code once and don't filter per age group). Compile into a dataframe (tidytable) at the end and
 insert values into the summary dataframes.
 
-We flip the sign and order of upper and lower CIs of covariates. Survey weights are applied to
-calculate weighted column means.
+We flip the sign and order of upper and lower CIs of covariates. Probability weights are applied to
+calculate weighted column means. We do not need to use PSUs for sampling because we want to know the
+uncertainty over observed individuals' prediction errors, not estimating model coefficient
+uncertainty. We are bootstrapping based on already-computed prediction errors, not refitting GAMs
+inside each bootstrap.
 
 ```{r calc_RMSE_CI}
 compute_rmse_ci <- function(
@@ -347,8 +351,10 @@ compute_rmse_ci <- function(
       w_target <- w_target / mean(w_target)
 
       if (length(error_ref) != length(error_target)) {
-        browser()
         stop("Length of target and reference predictor subsets are not equal")
+      }
+      if (any(w_target != w_ref)) {
+        stop("Target and reference weights are different, SEQN likely not matching")
       }
 
       if (!age_bin %in% names(index_cache)) {
@@ -365,10 +371,10 @@ compute_rmse_ci <- function(
       idx <- index_cache[[age_bin]]
 
       rmse_target <- sqrt(
-        apply(idx, 2, function(i) weighted.mean(error_target[i], w = w_target[i]))
+        apply(idx, 2, function(i) sum(error_target[i] * w_target[i]) / sum(w_target[i]))
       )
       rmse_ref <- sqrt(
-        apply(idx, 2, function(i) weighted.mean(error_ref[i], w = w_ref[i]))
+        apply(idx, 2, function(i) sum(error_ref[i] * w_ref[i]) / sum(w_ref[i]))
       )
 
       ci_list[[index_ci_list]] <- tibble(
@@ -507,16 +513,16 @@ if (isFALSE(params$telolength)) {
 
 ### Calculate p-values
 
-Calculate t-statistic according to Nadeau Bengio, which is `t = m/(√(variance(1/n + n2/n1)))`. `m`
-is the difference between the sample mean and hypothesized population mean. In this case, we've
-normalized it to age, so the null hypothesis (the hypothesized population mean) is 0, i.e., there is
-no difference from age only. The variance was already calculated before. `n` is equivalent to the
-number of folds times the number of repeats. `n2` is the number of testing/validation data and `n1`
-the number of training data. We then calculate degrees of freedom by taking n - 1. Then we use
-`pt()` (which automatically calculates the critical value) using a one-tailed t-test of the upper
-tail. This is because we're not interested in whether an age + bioage model is different from
-age-only. We only want to know if its better. We then adjust p values with Hommel or Holm error
-correction.
+Calculate t-statistic according to Nadeau Bengio (although we use a weighted adaptation of it),
+which is `t = m/(√(variance(1/n + n2/n1)))`. `m` is the difference between the sample mean and
+hypothesized population mean. In this case, we've normalized it to age, so the null hypothesis (the
+hypothesized population mean) is 0, i.e., there is no difference from age only. The variance was
+already calculated before. `n` is equivalent to the number of folds times the number of repeats.
+`n2` is the number of testing/validation data and `n1` the number of training data. We then
+calculate degrees of freedom by taking n - 1. Then we use `pt()` (which automatically calculates the
+critical value) using a one-tailed t-test of the upper tail. This is because we're not interested in
+whether an age + bioage model is different from age-only. We only want to know if it is better. We
+then adjust p values with Holm error correction.
 
 First, the question is, 'Does this bioage/biomarker add predictive value for hearing loss in the
 population while controlling for chronological age?', which we test with the overall comparisons.
@@ -524,14 +530,6 @@ Only if it's significantly different do we look at per age-group tests. Another 
 'Might bioage/biomarker only matter for specific age ranges, even if it doesn't have an overall
 predictive effect?', in which case we could consider doing pairwise on all, but we'd lose a lot of
 power and would have to use FDR and accept a 5% false discovery rate to salvage it.
-
-The CorrectR library has an implementation of the Nadeau-Bengio corrected t-test (with support for
-repeated k-fold validations), but this makes the (false) assumption that fold sizes are always
-equal, so there's a small error in calculation of the sample mean and variance. The sample mean and
-variance should be weighted by fold size. This gets relevant for age-group delta MSEs, because for
-the 50-60 age group, some folds have a test size of 99 and others of 98. That means that some folds
-weigh 1% more than another. Not correcting for that could make the difference between significant or
-not signficant.
 
 ```{r t_test_models}
 nb_corrected_repeated_t_test <- function(summary,
@@ -586,7 +584,7 @@ summary_bioage_overall <- nb_corrected_repeated_t_test(
 
 summary_bioage <- nb_corrected_repeated_t_test(
   summary_bioage,
-  exceptions = c("age, phenoage", "age, kdm", if (params$hearing_var == "pta_lf") c("age, hd_log") else NULL),
+  exceptions = c("age, phenoage", "age, kdm"),
   exception_include_exclude = "include",
   adjust_method = "holm"
 )
@@ -609,9 +607,7 @@ if (isFALSE(params$telolength)) {
   summary_biomarkers_overall <- nb_corrected_repeated_t_test(
     summary_biomarkers_overall,
     exceptions = c(
-      "age",
-      "age, phenoage",
-      "age, lncrp, phenoage"
+      "age"
     ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
@@ -620,9 +616,7 @@ if (isFALSE(params$telolength)) {
   summary_biomarkers <- nb_corrected_repeated_t_test(
     summary_biomarkers,
     exceptions = c(
-      "age",
-      "age, phenoage",
-      "age, lncrp, phenoage"
+      "age"
     ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
@@ -631,7 +625,7 @@ if (isFALSE(params$telolength)) {
   summary_covariates_overall <- nb_corrected_repeated_t_test(
     summary_covariates_overall,
     exceptions = c(
-      "age, gender, smoking, race, education"
+      "age, sex, smoking, race, education"
     ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
@@ -639,7 +633,7 @@ if (isFALSE(params$telolength)) {
 
   summary_covariates <- nb_corrected_repeated_t_test(
     summary_covariates,
-    exceptions = c("age, gender, smoking, race, education"),
+    exceptions = c("age, sex, smoking, race, education"),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
   )
@@ -801,7 +795,12 @@ if (isFALSE(params$telolength)) {
 ### Compare linear vs quadratic vs smooth age fits
 
 We do a partial F-test to compare a full model with a constrained model, to see if the added term
-significantly improves fit. We also calculate RMSEs with a weighted mean of residuals.
+significantly improves fit. We also calculate RMSEs with a weighted mean of residuals. The GAM does
+not have explicit parametric linear and quadratic terms but instead has linear and quadratic terms
+in the null space, so they're unpenalized, which means they do have the parametric terms, just not
+spelled out in the formula. Adding the terms explicitly would make them double. We additionally
+calculate partial omega-squared for the effect size of the additional terms. Note that the effect
+size for the GAM is approximate, because the degrees of freedom are estimated.
 
 ```{r compare_aging_models}
 aov_quadratic <- anova(
@@ -867,7 +866,7 @@ calculate_f_test_statistics(aov_gam)
 
 **We see that the quadratic curve fits better than the linear one, so the rate of aging is not
 linear, and the smooth curve fits better than the quadratic one, so there are deviations from a
-quadratic pattern**
+quadratic pattern.**
 
 ### Assess where rate of aging differs
 
@@ -875,40 +874,34 @@ By taking the derivative of the full model (with smooth) and subtracting the der
 nested quadratic model, we can test against zero to test deviations from a quadratic pattern.
 
 When making a smooth (or linear) model, we fit a line to noisy data as best we can, but other lines
-with different coefficients might fit almost as well and be better for some data points then for
+with a different derivative might fit almost as well and be better for some data points than for
 others. Therefore, there is an uncertainty. We can say that, for example, the best-guess slope is 5
 (5 increase PTA per year). But because the data is noisy, assuming a normal distribution, we know
 that the true slope that would actually fit the sampling population may be something different
 within a certain range of uncertainty (say, 2), which we can express as a standard error. When
-figuring out the derivative, we inherent this uncertainty. This standard error is what we can use to
+figuring out the derivative, we inherit this uncertainty. This standard error is what we can use to
 assess the likelihood of the null-hypothesis:
 
-**H0**: The rate of aging is quadratic, so the GAM derivative minus the quadratic coefficients
-equals 0.
+**H0**: The GAM does not deviate from the quadratic age-rate function, so the GAM derivative minus
+the quadratic derivative equals 0.
 
-**H1**: The rate of aging is non-quadratic, so the GAM derivative minus the quadratic coefficients
-is not 0.
+**H1**: The GAM does deviate from the quadratic age-rate function, so the GAM derivative minus the
+quadratic derivative is not 0.
 
-With a p-value of 0.05, we can say that if we randomly sample 100 times from the population and the
-rate of aging **is** quadratic, then 5 times we'll see a significant non-zero smooth term.
+Depending on the variation/noise in the data, the difference between the quadratic and smooth
+derivative needs to be larger or smaller compared to 0 to get a p-value of 0.05. If the variation in
+the data is higher, the standard error is higher, and the derivative of the smooth term must be
+higher to get a p-value of 0.05 or lower.
 
-Depending on the variation/noise in the data, the smooth term derivative needs to be larger or
-smaller compared to 0 to get a p-value of 0.05. If the variation in the data is higher, the standard
-error is higher, and the derivative of the smooth term must be higher to get a p-value of 0.05 or
-lower.
-
-We want to know at which age ranges we have a non-zero slope, so we can either test for each 10 year
-age group or test for each individual age integer with correct pairwise comparison corrections.
-
-A two-tailed p-value can be calculated when we know a z-score, which is calculated as sample mean -
-hypothesized mean divided by the standard error. The hypothesized mean is 0. For a two-tailed
-t-test, we then take `2 * pnorm(abs(z_score), lower.tail = FALSE)`. If we'd want to only know the
-left tail, we'd use `lower.tail = TRUE`.
-
-Because the t-tests are dependent and are likely to be either higher or lower when one is higher
-(because ages are adjacent and the aging rate can be either higher or lower), we should use Holm's
-correction, which will be too strict as pairwise comparisons are not independent, so type II error
-rate is high.
+We want to know at which age ranges we have a non-zero derivative difference (two-tailed test).
+However, rather than perform a t-test and correcting for multiple comparisons, we could use the
+multiplicity-adjusted 95% confidence intervals, which directly uses the bootstrap covariance of the
+whole plot rather than test per age and adjust for multiplicity. If the 95% confidence intervals do
+not include 0, it is equivalent to rejection at family-wise alpha 0.05 for that age. However, it's
+hard to tell just how significant something is. We just get a binary decision saying whether it is
+above or is below the alpha. The upside is that we don't make assumptions about independence and do
+a single test for inference on the whole model. We can report the effect size in the whole model and
+report significance at specific ages.
 
 To identify significant boundaries, check which pairwise comparisons are significant, then check if
 the previous row was significant, then whenever a row is significant but the previous one was,
@@ -919,33 +912,16 @@ to identify boundaries. Only keep the significant stretches.
 ```{r find_sig_ages}
 pwc_age_rate <- pred_age_rate$derivative_smooth %>%
   mutate(
-    z_score = derivative_adj / SE_adj,
-    p = 2 * pnorm(abs(z_score), lower.tail = FALSE),
-    p_adj = p.adjust(p, method = "holm"),
     signif = case_when(
-      p_adj <= 0.001 ~ "***",
-      p_adj <= 0.01 ~ "**",
-      p_adj <= 0.05 ~ "*",
+      ci_lower_adj > 0 ~ "*",
+      ci_upper_adj < 0 ~ "*",
       TRUE ~ "ns"
     )
-  ) %>%
-  select(
-    age,
-    derivative,
-    ci_lower,
-    ci_upper,
-    derivative_adj,
-    ci_lower_adj,
-    ci_upper_adj,
-    z_score,
-    p,
-    p_adj,
-    signif
   )
 
 pwc_age_rate_boundaries <- pwc_age_rate %>%
   mutate(
-    significant = (p_adj < 0.05),
+    significant = (ci_lower_adj > 0 | ci_upper_adj < 0),
     run = cumsum(
       significant != lag(
         significant,
@@ -973,12 +949,22 @@ pwc_age_rate_boundaries %>%
 
 ## Calculate coefficients
 
-We estimate the rate of change in dB/year and acceleration in dB/year² for the quadratic model and
-GAM. For the GAM, we estimate the acceleration by fitting a linear model to the derivative and
-calculating its coefficient.
+We estimate the rate of change in dB/year and (average) acceleration in dB/year² for the quadratic
+model and GAM. For the GAM, we estimate the acceleration by fitting a linear model to the derivative
+and calculating its coefficient.
 
 ```{r calc_coeffs}
 with(pred_age_rate$linear, cov(age, estimate) / var(age))
 with(pred_age_rate$quadratic_derivative, cov(age, derivative) / var(age))
 coef(lm(derivative ~ age, data = pred_age_rate$derivative_smooth))[["age"]]
+```
+
+### Print highest/lowest rates of HL
+
+```{r}
+pred_age_rate$quadratic_derivative %>%
+  filter(age == min(age) | age == max(age))
+
+pred_age_rate$derivative_smooth %>%
+  filter(age == min(age) | age == max(age))
 ```

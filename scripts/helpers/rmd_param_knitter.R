@@ -32,20 +32,6 @@ smart_knitter <- function(inputFile,
   } # Add string of param UI objects depending on input type
 
   paramsUI <- function(id) {
-    ns <- shiny::NS(id) # namespace the ID
-    shiny::tagList(lapply(names(pm), function(n) {
-      p <- pm[[n]]
-      ui <- do.call(getInputFun(p$input), shinyArgs(p, ns))
-      if (!is.null(p$help)) {
-        help <- p$help
-        bslib::tooltip()
-        ui <- bslib::tooltip(ui, p$help, placement = "auto", bs_icon("info-circle"))
-      }
-      ui
-    }))
-  } # Construct params UI
-
-  paramsUI <- function(id) {
     ns <- shiny::NS(id) # Namespace the ID
     shiny::tagList(lapply(names(pm), function(n) { # Apply function below to all parameters
       p <- pm[[n]] # Store individual param

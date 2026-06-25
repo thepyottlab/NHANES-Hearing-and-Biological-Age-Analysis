@@ -11,10 +11,14 @@ editor_options:
 ### Fold-maker function
 
 This function takes the indices of rows each age group, randomizes them, then assigns numbers of
-1-10. We could integrate this into the k-fold cross validation function, but by doing it separately
+1-k. We could integrate this into the k-fold cross validation function, but by doing it separately
 it's easier to inspect any possible issues. We shuffle indices within each age group so that the
-numbers 1-10 will equally be spaced throughout the age group, lncreating even age group
-distributions in each fold.
+numbers 1-k will equally be spaced throughout the age group, creating even age group distributions
+in each fold.
+
+We generate folds per individual, not per PSU within stratum for two reasons: individuals preserves
+age balance well and the prediction target is prediction for held-out individual participants, not
+for entirely unseen PSUs/geographic clusters.
 
 ```{r fun_make_folds}
 make_repeated_folds <- function(data, grouping_variable, k, repeats) {
@@ -46,7 +50,7 @@ make_repeated_folds <- function(data, grouping_variable, k, repeats) {
     # Create an output with the length of the number of observations
     bins <- integer(observations)
 
-    # Using the random order, 1-10 is repeated until we've reached the last observation
+    # Using the random order, 1-k is repeated until we've reached the last observation
     bins[indices] <- rep(1:k, ceiling(observations / k))[1:observations]
 
     # Return shuffled k-folds, which is pasted into a new column in 'data'
@@ -94,11 +98,11 @@ each function. Max degrees of freedom are only computed once per variable and ca
   minus one.
 - `auto_limit_k`: if k exceeds the deg_free for a parameter (e.g., if k \> 25 for albumin), it will
   automatically be limited to the deg_free.
-- `equal_wiggliness`: gives an individual id to each sum-to-zero interaction term when FALSE which
-  ensures they have the same smoothing parameter. Setting to TRUE marginally improves fit but uses
+- `equal_wiggliness`: gives an individual id to each sum-to-zero interaction term when TRUE which
+  ensures they have the same smoothing parameter. Setting to FALSE marginally improves fit but uses
   many degrees of freedom.
 - `stepdown`: additionally creates formulas with age as predictor that each miss one covariate for a
-  nested-CV comparison (i.e., compare, for example, the impact of adding 'gender' to a model that
+  nested-CV comparison (i.e., compare, for example, the impact of adding 'sex' to a model that
   already includes other covariates).
 
 ```{r fun_formula_gen}
@@ -115,7 +119,7 @@ formula_generator <- function(
 ) {
   # Initialize the repeat columns with folds and unique fold numbers in folds
   fold_columns <- grep("^fold_r", names(data), value = TRUE)
-  folds <- seq_along(fold_columns)
+  folds <- 1:params$global_folds
 
   # Initialize a list for compiled formulas
   formula_list <- list()
@@ -407,22 +411,7 @@ if (isFALSE(params$telolength)) {
     equal_wiggliness = TRUE,
     formulas = c(
       "age",
-      if (isTRUE(params$run_biomarker_add_analysis)) "age, phenoage" else NULL,
-      "age, albumin_gL",
-      "age, alp",
-      "age, lncreat",
-      "age, glucose",
-      "age, lncrp",
-      "age, lymph",
-      "age, mcv",
-      "age, rdw",
-      "age, wbc",
-      "age, sbp",
-      "age, bun",
-      "age, totchol",
-      "age, hba1c",
-      "age, uap",
-      if (isTRUE(params$run_biomarker_add_analysis)) "age, lncrp, phenoage" else NULL
+      paste0("age, ", biomarker_vars)
     ),
     covariates = covariate_interactions
   )
@@ -473,8 +462,9 @@ optionally the actual models (uses very large amounts of memory when discrete = 
 does nothing to the fitting but returns names based on nested covariate models instead of the
 regular predictors (which exclude covariates in the label). Model is fitted using normalized weights
 `weights / mean(weights)`. Weights can have large numbers (thousands), which mgcv would recognize as
-frequencies, making model estimates too small. By dividing by the mean we rescale the mean weight to
-1.
+frequencies, making model estimates too small. By dividing by the mean we rescale the mean weight
+to 1. Each fold gets its weights normalized to 1 so that mgcv does not overestimate variance. We can
+correct for different total weight per test sets across folds later.
 
 ```{r fun_CV}
 cross_validation <- function(
@@ -487,7 +477,7 @@ cross_validation <- function(
   threads = 1
 ) {
   # Initialize age groups to stratify by and repeat column names that contain fold specification
-  age_groups <- c("20-30", "30-40", "40-50", "50-60", "60-70", if (isFALSE(params$telolength)) "70-80")
+  age_groups <- c("20–29", "30–39", "40–49", "50–59", "60–69", if (isFALSE(params$telolength)) "70–79")
   repeat_columns <- paste0("fold_r", seq_len(repeats))
 
   # Store predictor column names for prediction dataset
@@ -597,7 +587,7 @@ cross_validation <- function(
       # Use GAM to predict responses in current age group
       pred <- predict(mod, newdata = test_subset, type = "response")
 
-      # Make a tibble with predictions and sample sizes used in the model used for predictions
+      # Make a tibble with predictions and sample sizes  used in the model for predictions (n_train must be constructed by combining across all age groups)
       test_subset %>%
         as_tibble() %>%
         mutate(
@@ -722,7 +712,7 @@ if (isTRUE(params$store_model_results)) {
 
 #### Reverse bioage K-fold CV
 
-```{r bioage_cv, warning=FALSE}
+```{r bioage_cv_reverse, warning=FALSE}
 if (isFALSE(params$telolength)) {
   system.time({
     pred_bioage_reverse <- if (
@@ -747,9 +737,9 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-#### Store bioage modeling results
+#### Store bioage reverse modeling results
 
-```{r store_bioage_res}
+```{r store_bioage_reverse_res}
 if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
   saveRDS(
     object = pred_bioage_reverse,
@@ -855,32 +845,85 @@ problem when assessing the rate of aging. Therefore, we need to have a penalty f
 useless base functions so that they shrink to 0. Default shrinkage solution still permits large
 complexity despite the RMSE improving little over a simpler model.
 
-We can use k.check with a small k to see if its enough. With a k of 10 we already get a k index of
-0.9998, so k = 10 should be sufficient.
+We have three options for constructing the smooth. Option 1 was used in this analysis.
 
-Survey weights are used.
+1.  `pta ~ age + I(age^2) + s(age, m = 3)`: we can create a smooth model with a linear term for age,
+    a quadratic term for age, and a smooth term for age. The smooth term then also contains a
+    penalized quadratic and unpenalized linear component, so the structure is complex and the model
+    is highly concurve (multicolinear). By comparing between the quadratic model and GAM at specific
+    ages, the null hypothesis is: at age $a$, the estimated rate of hearing loss is the same under
+    the GAM and quadratic model. As a better alternative, we could also use `pta ~ s(age, m = 3)`
+    and perform the same analysis but without the double linear and quadratic terms. We can estimate
+    the standard error with bootstrapping. The delta method (using gratia) is used to calculate
+    derivatives.
+2.  `pta ~ age + I(age^2) + s(age, m = c(3,0))`: here we allow there to be a penalty null space in
+    the first and second order polynomials (smooth starts penalizing third or higher-order
+    polynomials) but we exclude the polynomials in the penalty null space from the smooth. This
+    means that the smooth does not contain constants, linear, or quadratic components. The smooth
+    term then represents deviation beyond quadratic. However, we then need to be able to estimate
+    the smooth term on its own. With this model, we can identify the entire age trajectory well, but
+    we cannot identify how much of the shape belongs to the quadratic coefficients and how much
+    belongs to the smooth terms (higher order polynomials) because many of the smooth polynomials
+    resemble the quadratic term (concurvity). So we can be certain that non-quadratic structure
+    improves the model globally, we can estimate the entire derivative of the model, but we cannot
+    estimate a smooth-only derivative for a particular age with any certainty. The uncertainty is
+    thus not about what the model looks like but about whether a shape should be attributed to the
+    quadratic or coefficients or to the smooth basis functions. The null hypothesis is: at age $a$,
+    the rate of hearing loss in the complete GAM does not differ from the rate implied by the
+    quadratic component within that same GAM.
+3.  `pta ~ s(age, m = 3)`: here we have unpenalized linear and quadratic terms (in the null space),
+    so the smooth contains a linear and a quadratic component. Here, if the data does not support a
+    complex shape, the model shrinks towards a quadratic shape without competing with explicit
+    terms. Because the smooth model still contains a quadratic and linear term, we can still use the
+    approximate F-test to compare against a quadratic model and assume it is nested. We can still do
+    pairwise comparisons. If a model is purely quadratic, then the 2nd order derivative is just a
+    constant/intercept and the 3rd derivative is 0. Let's say we want to know whether a change in
+    rate of HL during two years is quadratic. We can then calculate the 1st order derivative for a
+    quadratic function, $f'(a) = \beta_1 + 2\beta_2 a$, in which age is $a$. We can calculate the
+    difference between two years (interval size defined as $h$) as $f'(a) - f'(a - h)$. If the rate
+    of HL in year 1 $a - h$ is 6dB/year and in year 2 is 9dB/year, then the difference is 3dB/year
+    (the rate increased with 3 dB). Now, if the model is indeed quadratic, then the rate of HL
+    increases linearly, so if we'd take a difference for a higher year, e.g. $f'(a + h) - f'(a)$,
+    then the difference would also be 3 dB/year. If we'd take the 2nd difference (the difference
+    between the two differences), we'd get 3 - 3 = 0. So, if the model is indeed quadratic, then the
+    2nd difference of the derivative must equal zero, which we can write as
+    $f'(a-h) - 2f'(a) + f'(a+h) = 0$. The null hypothesis is: around age $a$, the rate of hearing
+    loss changes linearly with age, as required by a quadratic trajectory.
+
+In option 1, we must account for covariance between full models with high multicolinearity.
+Estimating this covariance is hard, but if we bootstrap differences between derivatives for each
+age, then we include covariance. In option 2, we have a nice model structure, but we need to truly
+isolate the smooth component at specific ages, which is not identifiable. In option 3, we have an
+even simpler model structure and instead ask whether the total GAM (which is well-identifiable)
+behaves quadratically at a given age range. Because option 2 is not well-identifiable, it's not
+viable. Option 1 requires bootstrapping to estimate model covariances (computationally intensive).
+Option 3 does not require bootstrapping but does require the coefficient-covariance matrix (vcov),
+which we can compute, to calculate a difference. However, option 1 and option 3 ask fundamentally
+different questions in pairwise comparisons. Option 1 asks whether there are any ages at which the
+GAM derivative is different from the best-fitting quadratic derivative. Option 3 asks whether for
+any age range $2h$, a local quadratic fit could explain the difference, as we're fitting a quadratic
+model just to a 6-year period and seeing if the rate of change for 2 3-year periods is constant. The
+downside of option 3 is that you don't get a true difference between the GAM and a single
+best-fitting quadratic model, and you also manually need to pick the $h$ value. If $h$ is too small,
+then changes in the rate of HL that perpetuate over a longer time may be missed, but if $h$ is too
+big, we may include a linear portion with a nonlinear portion and miss the effect, or the 'binwidth'
+falls just wrong. We can test different $h$ values but that would cause false positives. Moreover,
+pairwise comparisons (albeit through confidence intervals) between a single best-fitting quadratic
+model and a single GAM fits better with the (approximate) F-test. Therefore, option 1 was used.
+
+Probability weights are used.
 
 ```{r aging_models}
 models_age_rate <- list()
 
-model_age_rate <- function(terms, model_type = "gam") {
-  if (model_type == "gam") {
-    gam(
-      reformulate(terms, response = params$hearing_var),
-      data = df,
-      weights = weights / mean(weights),
-      method = "REML",
-      family = gaussian()
-    )
-  } else {
-    bam(
-      reformulate(terms, response = params$hearing_var),
-      data = df,
-      weights = weights / mean(weights),
-      method = "REML",
-      family = gaussian()
-    )
-  }
+model_age_rate <- function(terms) {
+  bam(
+    reformulate(terms, response = params$hearing_var),
+    data = df,
+    weights = weights / mean(weights),
+    method = "REML",
+    family = gaussian()
+  )
 }
 
 models_age_rate <- append(
@@ -888,7 +931,7 @@ models_age_rate <- append(
   list(
     linear = model_age_rate("age"),
     quadratic = model_age_rate(c("age", "I(age^2)")),
-    smooth = model_age_rate(c("age", "I(age^2)", paste0("s(age, k = ", params$age_rate_k, ")")))
+    smooth = model_age_rate(paste0("s(age, k = ", params$age_rate_k, ", m = 3)"))
   )
 )
 
@@ -909,33 +952,29 @@ models_covariates <- list()
 models_covariates <- append(
   models_covariates,
   list(
-    smooth_gender = model_age_rate(
+    smooth_sex = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
-        paste0("s(age, gender, bs = 'sz', k = ", params$global_k, ", id = 1)")
-      ),
-      model_type = "bam"
+        paste0("s(age, sex, bs = 'sz', k = ", params$global_k, ", id = 1)")
+      )
     ),
     smooth_smoking = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
         paste0("s(age, smoking, bs = 'sz', k = ", params$global_k, ", id = 1)")
-      ),
-      model_type = "bam"
+      )
     ),
     smooth_race = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
         paste0("s(age, race, bs = 'sz', k = ", params$global_k, ", id = 1)")
-      ),
-      model_type = "bam"
+      )
     ),
     smooth_education = model_age_rate(
       terms = c(
         paste0("s(age, k = ", params$global_k, ")"),
         paste0("s(age, education, bs = 'sz', k = ", params$global_k, ", id = 1)")
-      ),
-      model_type = "bam"
+      )
     )
   )
 )
@@ -1042,7 +1081,9 @@ if (isTRUE(params$run_optional_chunks)) {
       )
       f2 <- paste0(
         params$hearing_var,
-        " ~ s(age) + s(age, ",
+        " ~ s(age, k = ",
+        k,
+        ") + s(age, ",
         covariate,
         ", bs = 'sz', k = ",
         k,
@@ -1053,13 +1094,15 @@ if (isTRUE(params$run_optional_chunks)) {
         as.formula(f1),
         data = df,
         weights = weights / mean(weights),
-        method = "REML"
+        method = "REML",
+        family = gaussian()
       )
       m2 <- bam(
         as.formula(f2),
         data = df,
         weights = weights / mean(weights),
-        method = "REML"
+        method = "REML",
+        family = gaussian()
       )
 
       aov <- as.data.frame(
@@ -1099,7 +1142,7 @@ so we should use interaction terms instead of intercepts for covariates.**
 ### (Optional) Investigate additional information
 
 First we see if the covariates are correlated (e.g., smoking is more prevalent in males than females
-so gender is partly coded in smoking), to see if all covariates actually contribute.
+so sex is partly coded in smoking), to see if all covariates actually contribute.
 
 ```{r compare_added_info}
 if (isTRUE(params$run_optional_chunks)) {
@@ -1111,38 +1154,41 @@ if (isTRUE(params$run_optional_chunks)) {
       ),
       data = df,
       weights = weights / mean(weights),
-      method = "REML"
+      method = "REML",
+      family = gaussian()
     )
     m1 <- bam(
       reformulate(
         c(
           "s(age, k = k)",
-          "s(age, gender, bs = 'sz', k = k)"
+          "s(age, sex, bs = 'sz', k = k)"
         ),
         response = params$hearing_var
       ),
       data = df,
       weights = weights / mean(weights),
-      method = "REML"
+      method = "REML",
+      family = gaussian()
     )
     m2 <- bam(
       reformulate(
         c(
           "s(age, k = k)",
-          "s(age, gender, bs = 'sz', k = k)",
+          "s(age, sex, bs = 'sz', k = k)",
           "s(age, race, bs = 'sz', k = k)"
         ),
         response = params$hearing_var
       ),
       data = df,
       weights = weights / mean(weights),
-      method = "REML"
+      method = "REML",
+      family = gaussian()
     )
     m3 <- bam(
       reformulate(
         c(
           "s(age, k = k)",
-          "s(age, gender, bs = 'sz', k = k)",
+          "s(age, sex, bs = 'sz', k = k)",
           "s(age, race, bs = 'sz', k = k)",
           "s(age, smoking, bs = 'sz', k = k)"
         ),
@@ -1150,19 +1196,21 @@ if (isTRUE(params$run_optional_chunks)) {
       ),
       data = df,
       weights = weights / mean(weights),
-      method = "REML"
+      method = "REML",
+      family = gaussian()
     )
     m4 <- bam(
       reformulate(c(
         "s(age, k = k)",
-        "s(age, gender, bs = 'sz', k = k)",
+        "s(age, sex, bs = 'sz', k = k)",
         "s(age, race, bs = 'sz', k = k)",
         "s(age, smoking, bs = 'sz', k = k)",
         "s(age, education, bs = 'sz', k = k)"
       ), response = params$hearing_var),
       data = df,
       weights = weights / mean(weights),
-      method = "REML"
+      method = "REML",
+      family = gaussian()
     )
 
     print(
@@ -1213,7 +1261,7 @@ if (isTRUE(params$run_optional_chunks)) {
           params$hearing_var,
           ' ~
       s(age, k = k) +
-      s(age, gender, bs = "sz", k = k, id = 1) +
+      s(age, sex, bs = "sz", k = k, id = 1) +
       s(age, race, bs = "sz", k = k, id = 2) +
       s(age, smoking, bs = "sz", k = k, id = 3) +
       s(age, education, bs = "sz", k = k, id = 4)'
@@ -1222,7 +1270,8 @@ if (isTRUE(params$run_optional_chunks)) {
       data = df,
       weights = weights / mean(weights),
       method = if (isTRUE(discrete)) "fREML" else "REML",
-      discrete = if (isTRUE(discrete)) TRUE else FALSE
+      discrete = if (isTRUE(discrete)) TRUE else FALSE,
+      family = gaussian()
     )
 
     m2 <- bam(
@@ -1232,7 +1281,7 @@ if (isTRUE(params$run_optional_chunks)) {
           ' ~
       s(age, k = k) +
 
-      s(age, gender, bs = "sz", k = k) +
+      s(age, sex, bs = "sz", k = k) +
       s(age, race, bs = "sz", k = k) +
       s(age, smoking, bs = "sz", k = k) +
       s(age, education, bs = "sz", k = k)'
@@ -1241,7 +1290,8 @@ if (isTRUE(params$run_optional_chunks)) {
       data = df,
       weights = weights / mean(weights),
       method = if (isTRUE(discrete)) "fREML" else "REML",
-      discrete = if (isTRUE(discrete)) TRUE else FALSE
+      discrete = if (isTRUE(discrete)) TRUE else FALSE,
+      family = gaussian()
     )
 
     print(
@@ -1274,7 +1324,7 @@ deviance. The improvement in fit is barely significant, so enforce shared smooth
 
 ```{r conf_interactions}
 if (isTRUE(params$run_optional_chunks)) {
-  compare_covariate_interactions <- function(df, k, equal_wiggliness, discrete = FALSE, return_model = FALSE) {
+  compare_covariate_interactions <- function(df, k, discrete = FALSE, return_model = FALSE) {
     # Pull covariates, cross them, keep copy with var1 being first (alphabetical), paste by comma
     terms <- c(
       covariate_vars,
@@ -1284,34 +1334,21 @@ if (isTRUE(params$run_optional_chunks)) {
         pull(pair)
     )
 
-    # Combine an age term with smooth terms with or without a unique ID for each
-    if (isTRUE(equal_wiggliness)) {
-      smooth_terms <- c(
-        paste0("s(age, k = ", k, ")"),
-        paste0(
-          "s(",
-          "age, ",
-          terms,
-          ", bs = 'sz', k = ",
-          k,
-          ", id = ",
-          seq_along(terms),
-          ")"
-        )
+    # Combine an age term with smooth terms with a unique ID for each
+    smooth_terms <- c(
+      paste0("s(age, k = ", k, ")"),
+      paste0(
+        "s(",
+        "age, ",
+        terms,
+        ", bs = 'sz', k = ",
+        k,
+        ", id = ",
+        seq_along(terms),
+        ")"
       )
-    } else {
-      smooth_terms <- c(
-        paste0("s(age, k = ", k, ")"),
-        paste0(
-          "s(",
-          "age, ",
-          terms,
-          ", bs = 'sz', k = ",
-          k,
-          ")"
-        )
-      )
-    }
+    )
+
 
     m0 <- bam(
       as.formula(
@@ -1323,6 +1360,7 @@ if (isTRUE(params$run_optional_chunks)) {
       ),
       data = df,
       weights = weights / mean(weights),
+      family = gaussian(),
       method = if (isTRUE(discrete)) "fREML" else "REML",
       discrete = if (isTRUE(discrete)) TRUE else FALSE
     )
@@ -1338,17 +1376,16 @@ if (isTRUE(params$run_optional_chunks)) {
   system.time({
     compare_covariate_interactions(
       df,
-      k = 5,
-      equal_wiggliness = TRUE,
+      k = params$global_k,
       discrete = params$global_discrete
     )
   })
 }
 ```
 
-We see that `age*gender*race` and `age*education*gender` are a significant three-way interaction but
-it takes 3 times longer to compute. Bam() speeds things up enough over gam() that this processing
-cost is acceptable.
+We see that `age*sex*race` and `age*education*sex` are a significant three-way interaction but it
+takes 3 times longer to compute. Bam() speeds things up enough over gam() that this processing cost
+is acceptable.
 
 ### (Optional) Inspect k-values
 
@@ -1440,12 +1477,20 @@ if (isTRUE(params$run_optional_chunks)) {
 
 ### (Optional) K stability analysis
 
+We observe at which K the model stops improving by fitting models with different K values. The
+largest of the two smallest Ks that is close to the ceiling for the HF-PTA and LF-PTA is used for
+both sets of models.
+
 ```{r assess_k_stability}
 if (isTRUE(params$run_optional_chunks)) {
   assess_stability_k <- function(data, threads = 1) {
     run_k <- function(k) {
       set.seed(1)
-      m <- model_age_rate(c("age", "I(age^2)", paste0("s(age, k = ", k, ")")))
+      m <- model_age_rate(paste0(
+        "s(age, k = ",
+        k,
+        ", m = 3)"
+      ))
       k.check(m) %>%
         as_tibble() %>%
         mutate(k = k)
@@ -1453,7 +1498,7 @@ if (isTRUE(params$run_optional_chunks)) {
 
     plan(multisession, workers = threads)
     k_list <- future_lapply(
-      seq(3, 30, 1),
+      seq(4, 30, 1),
       FUN = run_k,
       future.seed = TRUE,
       future.globals = TRUE,
@@ -1471,7 +1516,8 @@ if (isTRUE(params$run_optional_chunks)) {
       geom_line() +
       geom_point(size = 1.5) +
       scale_x_continuous(breaks = c(3, 5, 10, 15, 20, 25, 30)) +
-      coord_cartesian(ylim = c(0, NA)) +
+      scale_y_continuous(breaks = c(0, 1, 2, 3, 4, 5)) +
+      coord_cartesian(ylim = c(0, 5.2)) +
       labs(x = "K (smooth base dimensions)", y = "Effective degrees of freedom") +
       theme_few() +
       theme(
@@ -1527,41 +1573,5 @@ if (isTRUE(params$run_optional_chunks)) {
       paste0("k stability analysis", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", ".png")
     )
   )
-}
-```
-
-### (Optional) Test k-fold validation
-
-Test k-fold validation on a single formula with specified k.
-
-```{r test_k_fold_val}
-if (isTRUE(params$run_optional_chunks)) {
-  test_cv <- function(run = FALSE, k = params$global_k, discrete = params$global_discrete) {
-    if (isTRUE(run)) {
-      formulas_test <- formula_generator(
-        data = df,
-        k = k,
-        auto_limit_k = TRUE,
-        equal_wiggliness = TRUE,
-        formulas = c("age, phenoage")
-      )
-
-      system.time({
-        output_test <- cross_validation(
-          df,
-          formulas_test,
-          folds = k,
-          repeats = params$global_repeats,
-          discrete = discrete,
-          threads = min(
-            params$n_threads,
-            as.numeric(future::availableCores()) - 1
-          )
-        )
-      })
-    }
-  }
-
-  test_cv(run = FALSE, k = params$global_k, discrete = params$global_discrete)
 }
 ```

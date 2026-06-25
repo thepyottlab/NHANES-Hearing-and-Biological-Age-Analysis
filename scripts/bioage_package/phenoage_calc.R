@@ -11,29 +11,8 @@ surv_form <- function(x) {
 #' @param data A projection dataset.
 #' @param biomarkers A character vector indicating the names of the biomarkers included in the Phenotypic Age algorithm.
 #' @param fit An S3 object for model fit. If the value is NULL, then the parameters to use for training Phenotypic Age are calculated.
-#' @param orig TRUE to compute the origianl Phenotypic Age.
+#' @param orig TRUE to compute the original Phenotypic Age.
 #' @return An object of class "phenoage". This object is a list with two elements (data and fit). The dataset can be drawn by typing 'data'. The model can be drawn by typing 'fit'.
-#' @examples
-#' # Train using the NHANES III
-#' train <- phenoage_calc(NHANES3,
-#'   biomarkers = c(
-#'     "albumin_gL", "lymph", "mcv", "glucose_mmol",
-#'     "rdw", "creat_umol", "lncrp", "alp", "wbc"
-#'   )
-#' )
-#'
-#' # Project into the NHANES IV
-#' phenoage <- phenoage_calc(NHANES4,
-#'   biomarkers = c(
-#'     "albumin_gL", "lymph", "mcv", "glucose_mmol",
-#'     "rdw", "creat_umol", "lncrp", "alp", "wbc"
-#'   ),
-#'   fit = train$fit
-#' )
-#'
-#' # Extract phenoage dataset
-#' data <- phenoage$data
-#'
 #' @export
 #' @import flexsurv
 
@@ -47,7 +26,7 @@ phenoage_calc <- function(data, biomarkers, fit = NULL, orig = FALSE) {
   bm_name <- paste(bm, collapse = "+")
   rm(biomarkers)
 
-  # calculate  modified Levine's method
+  # calculate modified Levine's method
   if (is.null(fit)) {
     gom <- flexsurvreg(surv_form(bm_name), data = dat, dist = "gompertz")
     coef <- as.data.frame(gom$coefficients)
@@ -99,7 +78,7 @@ phenoage_calc <- function(data, biomarkers, fit = NULL, orig = FALSE) {
 
   if (orig == TRUE) {
     xb_orig <- -19.90667 + (-0.03359355 * dat$albumin_gL) + (0.009506491 * dat$creat_umol) + (0.1953192 * dat$glucose_mmol) +
-      (0.09536762 * dat$lncrp) + (-0.01199984 * dat$lymph) + (0.02676401 * dat$mcv) + (0.3306156 * dat$rdw) +
+      (0.09536762 * dat$crp_log) + (-0.01199984 * dat$lymph) + (0.02676401 * dat$mcv) + (0.3306156 * dat$rdw) +
       (0.001868778 * dat$alp) + (0.05542406 * dat$wbc) + (0.08035356 * dat$age)
 
     m_orig <- 1 - (exp((-1.51714 * exp(xb_orig)) / 0.007692696))
