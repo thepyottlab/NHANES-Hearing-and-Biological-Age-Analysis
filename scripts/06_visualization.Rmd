@@ -496,7 +496,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         config = config,
         axis = "x",
         type = "discrete",
-        limits = c(1.4, 5.7),
+        limits = c(1.3, 5.7),
         name = "Age",
         unit = "Years"
       ),
@@ -558,21 +558,21 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         name = "Deviation Rate of HL",
         unit = "dB HL/Year"
       ),
-      dmse_bioage = define_axis(
-        config = config,
-        axis = "y",
-        type = "continuous",
-        breaks = seq(0, 8, 2),
-        limits = c(-2, 10),
-        name = "Additional Predictive Capacity",
-        unit = "ΔMSE (dB HL)<sup>2</sup>"
-      ),
       drmse_pred = define_axis(
         config = config,
         axis = "y",
         type = "continuous",
-        breaks = seq(0, 0.3, 0.1),
-        limits = c(-0.1, 0.35),
+        breaks = seq(0, 3, 0.5),
+        limits = c(0, 3.1),
+        name = "Additional Predictive Capacity",
+        unit = "&Delta;RMSE<span style='color:transparent;'>xi</span>(dB HL)"
+      ),
+      drmse_reverse_pred = define_axis(
+        config = config,
+        axis = "y",
+        type = "continuous",
+        breaks = seq(0, 15, 2.5),
+        limits = c(0, 15.5),
         name = "Additional Predictive Capacity",
         unit = "ΔRMSE (dB HL)"
       ),
@@ -627,6 +627,23 @@ color_scales <- function(color_list_name) {
         "age, kdm" = if (isFALSE(params$telolength)) "Age + KDM" else NULL,
         "age, phenoage" = if (isFALSE(params$telolength)) "Age + PhenoAge" else NULL,
         "age, telolength_log" = if (isTRUE(params$telolength)) "Age + Telomere Length" else NULL
+      )
+    ),
+    bioage_reverse = build_color_scale(
+      colors = c(
+        "hd_log, age" = color("highcontrast")(3)[1],
+        "kdm, age" = color("highcontrast")(3)[2],
+        "phenoage, age" = color("highcontrast")(3)[3]
+      ),
+      fill_colors = c(
+        "hd_log, age" = color("highcontrast")(3)[1],
+        "kdm, age" = color("highcontrast")(3)[2],
+        "phenoage, age" = color("highcontrast")(3)[3]
+      ),
+      labels = c(
+        "hd_log, age" = "HD + Age",
+        "kdm, age" = "KDM + Age",
+        "phenoage, age" = "PhenoAge + Age"
       )
     ),
     covariates = build_color_scale(
@@ -1119,9 +1136,9 @@ sameplot(
 )
 ```
 
-#### Additional plots
+### Covariates
 
-##### Plot aging GAM with covariates (supplementary)
+#### Plot aging GAM with covariates (paper)
 
 ```{r plot_covariate_model_fits_means}
 if (isFALSE(params$telolength)) {
@@ -1360,14 +1377,175 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-### Bioage
+#### covariates predictive capacity plot (supplementary)
 
-#### Bioage RMSE plot (paper)
-
-```{r plot_bioage_rmse}
+```{r plot_covariates, warning=FALSE}
 update_geom_defaults("point", set_geom_theme("mse_point"))
 update_geom_defaults("line", set_geom_theme("mse_line"))
-p <- summary_bioage %>%
+
+if (isFALSE(params$telolength)) {
+  p <- summary_covariates %>%
+    filter(!predictors %in% c("age, sex, smoking, race, education")) %>%
+    ggplot(
+      aes(
+        x = age_group,
+        y = delta_rmse_w
+      )
+    ) +
+    geom_hline(
+      yintercept = 0
+    ) +
+    geom_ribbon(
+      aes(
+        fill = predictors,
+        group = predictors,
+        ymin = ci_low_delta_rmse,
+        ymax = ci_high_delta_rmse
+      ),
+      show.legend = FALSE
+    ) +
+    geom_line(
+      aes(
+        color = predictors,
+        group = predictors
+      ),
+      show.legend = TRUE
+    ) +
+    geom_point(
+      aes(
+        color = predictors
+      ),
+      show.legend = TRUE
+    ) +
+    geom_text(
+      data = . %>%
+        filter(signif != "ns"),
+      aes(
+        x = age_group,
+        y = ci_high_delta_rmse,
+        label = signif,
+        color = predictors
+      ),
+      size = plot_config("signif_size") / (14 / 5)
+    ) +
+    axes(
+      x = "age_group",
+      y = "drmse_conf"
+    ) +
+    color_scales("covariates") +
+    plot_theme()
+
+  sameplot(
+    p,
+    file = here(plot_config("figure_dir"), "covariate_panel.png"),
+    width = params$single_column_width,
+    height = 2.15,
+    res = 600,
+    save = params$save_figures
+  )
+}
+```
+
+#### covariates predictive capacity overall plot
+
+```{r plot_covariates_overall, warning=FALSE}
+if (isFALSE(params$telolength)) {
+  p <- summary_covariates_overall %>%
+    filter(!predictors %in% c("age, sex, smoking, race, education")) %>%
+    mutate(predictors = factor(
+      predictors,
+      levels = c(
+        "age, smoking, race, education",
+        "age, sex, smoking, education",
+        "age, sex, smoking, race",
+        "age, sex, race, education"
+      ),
+      labels = c(
+        "Sex",
+        "Race",
+        "Education",
+        "Smoking"
+      )
+    )) %>%
+    ggplot(
+      aes(
+        x = predictors,
+        y = delta_rmse_w
+      )
+    ) +
+    geom_hline(
+      yintercept = 0
+    ) +
+    geom_ribbon(
+      aes(
+        fill = predictors,
+        group = predictors,
+        ymin = ci_low_delta_rmse,
+        ymax = ci_high_delta_rmse
+      ),
+      show.legend = FALSE
+    ) +
+    geom_line(
+      aes(
+        color = predictors,
+        group = predictors
+      ),
+      show.legend = FALSE
+    ) +
+    geom_linerange(
+      aes(
+        color = predictors,
+        ymin = ci_low_delta_rmse,
+        ymax = ci_high_delta_rmse
+      ),
+      position = position_dodge(0.8),
+      lineend = "round",
+      show.legend = FALSE
+    ) +
+    geom_point(
+      aes(
+        color = predictors
+      ),
+      show.legend = FALSE
+    ) +
+    geom_text(
+      data = . %>%
+        filter(signif != "ns"),
+      aes(
+        x = predictors,
+        y = ci_high_delta_rmse,
+        label = signif,
+        color = predictors
+      ),
+      size = plot_config("signif_size") / (14 / 5),
+      show.legend = FALSE
+    ) +
+    axes(
+      y = "drmse_conf"
+    ) +
+    color_scales("covariates_overall") +
+    plot_theme() +
+    theme(
+      axis.title.x = element_blank()
+    )
+
+  sameplot(
+    p,
+    file = here(plot_config("figure_dir"), "covariate_panel_overall.png"),
+    width = params$single_column_width,
+    height = 2.15,
+    res = 600,
+    save = params$save_figures
+  )
+}
+```
+
+### Bioage
+
+#### Bioage delta RMSE plot
+
+```{r plot_bioage_rmse}
+p1 <- summary_bioage %>%
   {
     if (isTRUE(params$telolength)) filter(., !predictors %in% c("age, phenoage", "age, kdm", "age, hd_log")) else .
   } %>%
@@ -1415,8 +1593,8 @@ p <- summary_bioage %>%
   plot_theme()
 
 sameplot(
-  p,
-  file = here(plot_config("figure_dir"), "bioage_panel.png"),
+  p1,
+  file = here(plot_config("figure_dir"), "bioage_panel_A.png"),
   width = params$single_column_width,
   height = 2.15,
   res = 600,
@@ -1424,9 +1602,98 @@ sameplot(
 )
 ```
 
-#### Additional Plots
+#### Age delta RMSE plot
 
-##### Advance bioage plot (supplementary)
+```{r plot_bioage_reverse_rmse}
+if (isFALSE(params$telolength)) {
+  p2 <- summary_bioage_reverse %>%
+    filter(!predictors %in% c("phenoage", "kdm", "hd_log")) %>%
+    mutate(predictors = factor(predictors, levels = c("phenoage, age", "kdm, age", "hd_log, age"))) %>%
+    ggplot(
+      aes(
+        x = age_group, y = delta_rmse_w
+      )
+    ) +
+    geom_hline(yintercept = 0) +
+    geom_ribbon(
+      aes(
+        fill = predictors,
+        group = predictors,
+        ymin = ci_low_delta_rmse,
+        ymax = ci_high_delta_rmse
+      ),
+      alpha = 0.1,
+      show.legend = FALSE
+    ) +
+    geom_line(
+      aes(color = predictors, group = predictors),
+      show.legend = TRUE
+    ) +
+    geom_point(
+      aes(color = predictors),
+      show.legend = TRUE
+    ) +
+    geom_text(
+      data = . %>%
+        filter(signif != "ns"),
+      aes(
+        x = age_group,
+        y = ci_high_delta_rmse + 0.01,
+        label = signif,
+        color = predictors
+      ),
+      size = plot_config("signif_size") / (14 / 5)
+    ) +
+    axes(
+      x = "age_group",
+      y = "drmse_reverse_pred"
+    ) +
+    color_scales("bioage_reverse") +
+    plot_theme() +
+    theme(
+      axis.title.y = element_blank()
+    )
+
+  sameplot(
+    p2,
+    file = here(plot_config("figure_dir"), "bioage_panel_B_reverse.png"),
+    width = params$single_column_width,
+    height = 2.15,
+    res = 600,
+    save = params$save_figures
+  )
+}
+```
+
+#### Composite plot (paper)
+
+```{r composite_bioage_plot}
+p <-
+  ggarrange(
+    p1,
+    NULL,
+    p2,
+    nrow = 1,
+    widths = c(1, 0, 1),
+    labels = c("A", "", "B"),
+    label.x = 0.03,
+    label.y = 1.01,
+    align = "v"
+  )
+
+sameplot(
+  p,
+  file = here(plot_config("figure_dir"), "bioage_panel.png"),
+  width = params$double_column_width,
+  height = 2.15,
+  res = 600,
+  save = params$save_figures
+)
+```
+
+### Additional Plots
+
+#### Advance bioage plot (supplementary)
 
 ```{r plot_bioage_advance}
 p1 <- df %>%
@@ -1521,167 +1788,7 @@ sameplot(
 )
 ```
 
-##### covariates predictive capacity plot
-
-```{r plot_covariates, warning=FALSE}
-if (isFALSE(params$telolength)) {
-  p <- summary_covariates %>%
-    filter(!predictors %in% c("age, sex, smoking, race, education")) %>%
-    ggplot(
-      aes(
-        x = age_group,
-        y = delta_rmse_w
-      )
-    ) +
-    geom_hline(
-      yintercept = 0
-    ) +
-    geom_ribbon(
-      aes(
-        fill = predictors,
-        group = predictors,
-        ymin = ci_low_delta_rmse,
-        ymax = ci_high_delta_rmse
-      ),
-      show.legend = FALSE
-    ) +
-    geom_line(
-      aes(
-        color = predictors,
-        group = predictors
-      ),
-      show.legend = TRUE
-    ) +
-    geom_point(
-      aes(
-        color = predictors
-      ),
-      show.legend = TRUE
-    ) +
-    geom_text(
-      data = . %>%
-        filter(signif != "ns"),
-      aes(
-        x = age_group,
-        y = ci_high_delta_rmse,
-        label = signif,
-        color = predictors
-      ),
-      size = plot_config("signif_size") / (14 / 5)
-    ) +
-    axes(
-      x = "age_group",
-      y = "drmse_conf"
-    ) +
-    color_scales("covariates") +
-    plot_theme()
-
-  sameplot(
-    p,
-    file = here(plot_config("figure_dir"), "covariate_panel.png"),
-    width = params$single_column_width,
-    height = 2.15,
-    res = 600,
-    save = params$save_figures
-  )
-}
-```
-
-##### covariates predictive capacity overall plot
-
-```{r plot_covariates_overall, warning=FALSE}
-if (isFALSE(params$telolength)) {
-  p <- summary_covariates_overall %>%
-    filter(!predictors %in% c("age, sex, smoking, race, education")) %>%
-    mutate(predictors = factor(
-      predictors,
-      levels = c(
-        "age, smoking, race, education",
-        "age, sex, smoking, education",
-        "age, sex, smoking, race",
-        "age, sex, race, education"
-      ),
-      labels = c(
-        "Sex",
-        "Race",
-        "Education",
-        "Smoking"
-      )
-    )) %>%
-    ggplot(
-      aes(
-        x = predictors,
-        y = delta_rmse_w
-      )
-    ) +
-    geom_hline(
-      yintercept = 0
-    ) +
-    geom_ribbon(
-      aes(
-        fill = predictors,
-        group = predictors,
-        ymin = ci_low_delta_rmse,
-        ymax = ci_high_delta_rmse
-      ),
-      show.legend = FALSE
-    ) +
-    geom_line(
-      aes(
-        color = predictors,
-        group = predictors
-      ),
-      show.legend = FALSE
-    ) +
-    geom_linerange(
-      aes(
-        color = predictors,
-        ymin = ci_low_delta_rmse,
-        ymax = ci_high_delta_rmse
-      ),
-      position = position_dodge(0.8),
-      lineend = "round",
-      show.legend = FALSE
-    ) +
-    geom_point(
-      aes(
-        color = predictors
-      ),
-      show.legend = FALSE
-    ) +
-    geom_text(
-      data = . %>%
-        filter(signif != "ns"),
-      aes(
-        x = predictors,
-        y = ci_high_delta_rmse,
-        label = signif,
-        color = predictors
-      ),
-      size = plot_config("signif_size") / (14 / 5),
-      show.legend = FALSE
-    ) +
-    axes(
-      y = "drmse_conf"
-    ) +
-    color_scales("covariates_overall") +
-    plot_theme() +
-    theme(
-      axis.title.x = element_blank()
-    )
-
-  sameplot(
-    p,
-    file = here(plot_config("figure_dir"), "covariate_panel_overall.png"),
-    width = params$single_column_width,
-    height = 2.15,
-    res = 600,
-    save = params$save_figures
-  )
-}
-```
-
-##### Biomarkers supplemental plots
+#### Biomarkers (supplementary)
 
 ```{r plot_biomarker_all, warning=FALSE}
 if (isFALSE(params$telolength)) {

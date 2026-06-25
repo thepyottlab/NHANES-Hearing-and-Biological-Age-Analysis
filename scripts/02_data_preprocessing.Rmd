@@ -1007,7 +1007,7 @@ plot_bioage_correlations <- function(design, predictors, labels, predictors_adva
     mutate(
       across(
         all_of(predictors_advance),
-        ~ .x / sd(.x)
+        ~ .x / sd(.x, na.rm = TRUE)
       )
     )
 
@@ -1021,14 +1021,30 @@ plot_bioage_correlations <- function(design, predictors, labels, predictors_adva
         paste(covariates, collapse = " + ")
       )
     )
-    fit <- survival::coxph(form, data = dplyr::filter(data, !is.na(time), !is.na(status)))
+    test_set <- data %>%
+      filter(
+        !is.na(time),
+        !is.na(status),
+        p != "telolength_log" | !is.na(telolength_log)
+      ) %>%
+      mutate(
+        "{p}" := if (p == "telolength_log") {
+          -.data[[p]]
+        } else {
+          .data[[p]]
+        }
+      )
+
+    message(p, " test set size = ", nrow(test_set))
+
+    fit <- survival::coxph(form, data = test_set)
     setNames(exp(c(coef(fit)[p], confint(fit)[p, ])), c("HR", "ci_low", "ci_high"))
   }
   hazard_ratios <- vapply(predictors_advance, cox_hr, numeric(3))
 
   labs <- setNames(
     sprintf(
-      "<b>%s</b><br><i>r</i> = %.2f<br>HR = %.2f, 95%% CI [%.2f, %.2f]",
+      "<b>%s</b><br><i>r</i> = %.2f<br>HR = %.2f<br>HR 95%% CI [%.2f, %.2f]",
       labels,
       correlations,
       hazard_ratios["HR", ],
@@ -1044,7 +1060,7 @@ plot_bioage_correlations <- function(design, predictors, labels, predictors_adva
     ggplot(aes(x = age, y = value)) +
     geom_point(aes(color = sex, alpha = 0.04 * weights / mean(weights)), shape = 20) +
     geom_smooth(method = "lm", se = TRUE, color = "black", formula = y ~ x) +
-    facet_wrap(~metric, scales = "free_y", labeller = as_labeller(labs)) +
+    facet_wrap(~metric, scales = "free_y", labeller = as_labeller(labs), nrow = 1) +
     scale_alpha_identity() +
     scale_color_manual(
       values = c("1" = color("sunset")(2)[1], "2" = color("sunset")(2)[2]),
@@ -1059,7 +1075,7 @@ plot_bioage_correlations <- function(design, predictors, labels, predictors_adva
       ),
       axis.text.y = element_markdown(
         "sans",
-        size = 8
+        size = 9
       ),
       strip.text.x = element_markdown(
         "sans",
@@ -1106,7 +1122,11 @@ plot_bioage_correlations <- function(design, predictors, labels, predictors_adva
 
 
 sameplot(
-  plot_bioage_correlations(design, predictors = c("kdm", "phenoage", "hd_log"), labels = c("KDM", "PhenoAge", "HD (Log)"), predictors_advance = c("kdm_advance", "phenoage_advance", "hd_log")),
+  plot_bioage_correlations(design,
+    predictors = c("kdm", "phenoage", "hd_log", "telolength_log"),
+    labels = c("KDM", "PhenoAge", "HD (Log)", "Telomere Length (Log)"),
+    predictors_advance = c("kdm_advance", "phenoage_advance", "hd_log", "telolength_log")
+  ),
   width = params$double_column_width,
   height = 4,
   res = 600,
@@ -1410,7 +1430,7 @@ descriptive_summary_table <- bind_rows(
     )
   ) %>%
   row_spec(
-    c(3, 10, 15:21),
+    if (isFALSE(params$telolength)) c(3, 10, 15:21) else c(3, 9, 14:20),
     extra_css = paste0(
       "border-bottom:1px solid black;",
       "padding:0;",

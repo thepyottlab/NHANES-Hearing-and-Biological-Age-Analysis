@@ -570,8 +570,7 @@ cross_validation <- function(
       weights = weights / mean(weights),
       method = if (isTRUE(discrete)) "fREML" else "REML",
       discrete = if (isTRUE(discrete)) TRUE else FALSE,
-      nthreads = 1,
-      select = TRUE
+      nthreads = 1
     )
 
     map(age_groups, function(age_group_val) {
@@ -1095,13 +1094,15 @@ if (isTRUE(params$run_optional_chunks)) {
         as.formula(f1),
         data = df,
         weights = weights / mean(weights),
-        method = "REML"
+        method = "REML",
+        family = gaussian()
       )
       m2 <- bam(
         as.formula(f2),
         data = df,
         weights = weights / mean(weights),
-        method = "REML"
+        method = "REML",
+        family = gaussian()
       )
 
       aov <- as.data.frame(
@@ -1153,7 +1154,8 @@ if (isTRUE(params$run_optional_chunks)) {
       ),
       data = df,
       weights = weights / mean(weights),
-      method = "REML"
+      method = "REML",
+      family = gaussian()
     )
     m1 <- bam(
       reformulate(
@@ -1165,7 +1167,8 @@ if (isTRUE(params$run_optional_chunks)) {
       ),
       data = df,
       weights = weights / mean(weights),
-      method = "REML"
+      method = "REML",
+      family = gaussian()
     )
     m2 <- bam(
       reformulate(
@@ -1178,7 +1181,8 @@ if (isTRUE(params$run_optional_chunks)) {
       ),
       data = df,
       weights = weights / mean(weights),
-      method = "REML"
+      method = "REML",
+      family = gaussian()
     )
     m3 <- bam(
       reformulate(
@@ -1192,7 +1196,8 @@ if (isTRUE(params$run_optional_chunks)) {
       ),
       data = df,
       weights = weights / mean(weights),
-      method = "REML"
+      method = "REML",
+      family = gaussian()
     )
     m4 <- bam(
       reformulate(c(
@@ -1204,7 +1209,8 @@ if (isTRUE(params$run_optional_chunks)) {
       ), response = params$hearing_var),
       data = df,
       weights = weights / mean(weights),
-      method = "REML"
+      method = "REML",
+      family = gaussian()
     )
 
     print(
@@ -1264,7 +1270,8 @@ if (isTRUE(params$run_optional_chunks)) {
       data = df,
       weights = weights / mean(weights),
       method = if (isTRUE(discrete)) "fREML" else "REML",
-      discrete = if (isTRUE(discrete)) TRUE else FALSE
+      discrete = if (isTRUE(discrete)) TRUE else FALSE,
+      family = gaussian()
     )
 
     m2 <- bam(
@@ -1283,7 +1290,8 @@ if (isTRUE(params$run_optional_chunks)) {
       data = df,
       weights = weights / mean(weights),
       method = if (isTRUE(discrete)) "fREML" else "REML",
-      discrete = if (isTRUE(discrete)) TRUE else FALSE
+      discrete = if (isTRUE(discrete)) TRUE else FALSE,
+      family = gaussian()
     )
 
     print(
@@ -1316,7 +1324,7 @@ deviance. The improvement in fit is barely significant, so enforce shared smooth
 
 ```{r conf_interactions}
 if (isTRUE(params$run_optional_chunks)) {
-  compare_covariate_interactions <- function(df, k, equal_wiggliness, discrete = FALSE, return_model = FALSE) {
+  compare_covariate_interactions <- function(df, k, discrete = FALSE, return_model = FALSE) {
     # Pull covariates, cross them, keep copy with var1 being first (alphabetical), paste by comma
     terms <- c(
       covariate_vars,
@@ -1326,34 +1334,21 @@ if (isTRUE(params$run_optional_chunks)) {
         pull(pair)
     )
 
-    # Combine an age term with smooth terms with or without a unique ID for each
-    if (isTRUE(equal_wiggliness)) {
-      smooth_terms <- c(
-        paste0("s(age, k = ", k, ")"),
-        paste0(
-          "s(",
-          "age, ",
-          terms,
-          ", bs = 'sz', k = ",
-          k,
-          ", id = ",
-          seq_along(terms),
-          ")"
-        )
+    # Combine an age term with smooth terms with a unique ID for each
+    smooth_terms <- c(
+      paste0("s(age, k = ", k, ")"),
+      paste0(
+        "s(",
+        "age, ",
+        terms,
+        ", bs = 'sz', k = ",
+        k,
+        ", id = ",
+        seq_along(terms),
+        ")"
       )
-    } else {
-      smooth_terms <- c(
-        paste0("s(age, k = ", k, ")"),
-        paste0(
-          "s(",
-          "age, ",
-          terms,
-          ", bs = 'sz', k = ",
-          k,
-          ")"
-        )
-      )
-    }
+    )
+
 
     m0 <- bam(
       as.formula(
@@ -1365,6 +1360,7 @@ if (isTRUE(params$run_optional_chunks)) {
       ),
       data = df,
       weights = weights / mean(weights),
+      family = gaussian(),
       method = if (isTRUE(discrete)) "fREML" else "REML",
       discrete = if (isTRUE(discrete)) TRUE else FALSE
     )
@@ -1380,8 +1376,7 @@ if (isTRUE(params$run_optional_chunks)) {
   system.time({
     compare_covariate_interactions(
       df,
-      k = 5,
-      equal_wiggliness = TRUE,
+      k = params$global_k,
       discrete = params$global_discrete
     )
   })
@@ -1521,7 +1516,8 @@ if (isTRUE(params$run_optional_chunks)) {
       geom_line() +
       geom_point(size = 1.5) +
       scale_x_continuous(breaks = c(3, 5, 10, 15, 20, 25, 30)) +
-      coord_cartesian(ylim = c(0, NA)) +
+      scale_y_continuous(breaks = c(0, 1, 2, 3, 4, 5)) +
+      coord_cartesian(ylim = c(0, 5.2)) +
       labs(x = "K (smooth base dimensions)", y = "Effective degrees of freedom") +
       theme_few() +
       theme(

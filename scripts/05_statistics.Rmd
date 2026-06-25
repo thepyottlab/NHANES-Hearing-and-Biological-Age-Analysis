@@ -584,7 +584,7 @@ summary_bioage_overall <- nb_corrected_repeated_t_test(
 
 summary_bioage <- nb_corrected_repeated_t_test(
   summary_bioage,
-  exceptions = c("age, phenoage", "age, kdm", if (params$hearing_var == "pta_lf") c("age, hd_log") else NULL),
+  exceptions = c("age, phenoage", "age, kdm"),
   exception_include_exclude = "include",
   adjust_method = "holm"
 )
@@ -957,4 +957,14 @@ and calculating its coefficient.
 with(pred_age_rate$linear, cov(age, estimate) / var(age))
 with(pred_age_rate$quadratic_derivative, cov(age, derivative) / var(age))
 coef(lm(derivative ~ age, data = pred_age_rate$derivative_smooth))[["age"]]
+```
+
+### Print highest/lowest rates of HL
+
+```{r}
+pred_age_rate$quadratic_derivative %>%
+  filter(age == min(age) | age == max(age))
+
+pred_age_rate$derivative_smooth %>%
+  filter(age == min(age) | age == max(age))
 ```
