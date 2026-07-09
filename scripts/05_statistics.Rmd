@@ -577,7 +577,12 @@ nb_corrected_repeated_t_test <- function(summary,
 
 summary_bioage_overall <- nb_corrected_repeated_t_test(
   summary_bioage_overall,
-  exceptions = "age",
+  exceptions = c(
+    "age",
+    if (isTRUE(params$telolength)) "age, phenoage" else NULL,
+    if (isTRUE(params$telolength)) "age, kdm" else NULL,
+    if (isTRUE(params$telolength)) "age, hd" else NULL
+  ),
   exception_include_exclude = "exclude",
   adjust_method = "holm"
 )
@@ -616,9 +621,9 @@ if (isFALSE(params$telolength)) {
   summary_biomarkers <- nb_corrected_repeated_t_test(
     summary_biomarkers,
     exceptions = c(
-      "age"
+      "crp"
     ),
-    exception_include_exclude = "exclude",
+    exception_include_exclude = "include",
     adjust_method = "holm"
   )
 
@@ -633,7 +638,12 @@ if (isFALSE(params$telolength)) {
 
   summary_covariates <- nb_corrected_repeated_t_test(
     summary_covariates,
-    exceptions = c("age, sex, smoking, race, education"),
+    exceptions = c(
+      "age, sex, smoking, race, education",
+      "age, sex, race, education",
+      if (isTRUE(params$telolength)) "age, sex, smoking, education" else NULL,
+      if (isTRUE(params$telolength)) "age, smoking, race, education" else NULL
+    ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
   )

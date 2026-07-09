@@ -63,6 +63,23 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
+#### Merge tables
+
+```{r merge_tables}
+merge_tables <- function(per_age_table, overall_table) {
+  per_age_table %>%
+    bind_rows(
+      overall_table %>% mutate(
+        age_group = "Overall"
+      )
+    ) %>%
+    mutate(
+      age_group = factor(age_group, levels = c("Overall", unique(per_age_table$age_group)))
+    ) %>%
+    arrange(predictors, age_group)
+}
+```
+
 #### Order, filter, and rename tables
 
 ```{r order_table}
@@ -84,6 +101,29 @@ rename_bioage_table <- function(bioage_table) {
         } else {
           c("Age", "Age + HD", "Age + KDM", "Age + PhenoAge")
         }
+      )
+    ) %>%
+    arrange(predictors)
+
+  bioage_table
+}
+
+rename_bioage_reverse_table <- function(bioage_table) {
+  bioage_table <- bioage_table %>%
+    mutate(
+      predictors = case_when(
+        predictors == "phenoage" ~ "PhenoAge",
+        predictors == "kdm" ~ "KDM",
+        predictors == "hd_log" ~ "HD",
+        predictors == "phenoage, age" ~ "PhenoAge + Age",
+        predictors == "kdm, age" ~ "KDM + Age",
+        predictors == "hd_log, age" ~ "HD + Age",
+        TRUE ~ predictors
+      ),
+      predictors = factor(
+        predictors,
+        levels = 
+          c("PhenoAge", "PhenoAge + Age", "KDM", "KDM + Age", "HD", "HD + Age")
       )
     ) %>%
     arrange(predictors)
@@ -136,14 +176,16 @@ rename_covariate_table <- function(covariates_table) {
 Round R² and delta RMSE, rename variables, set p values to 'below 0.001' when very small.
 
 ```{r format_table}
-format_table <- function(summary_data, per_age_group = FALSE) {
+format_table <- function(summary_data) {
   table <- summary_data %>%
     mutate(
       r2 = round(r2_w, 3),
-      delta_rmse = round(delta_rmse_w, 2)
+      delta_rmse = round(delta_rmse_w, 2),
+      additional_variance_pct = round(additional_variance_pct, 2),
+      p_adj = round(p_adj, 3)
     ) %>%
     mutate(
-      p_adj = as.character(round(p_adj, 3)),
+      p_adj = as.character(p_adj),
       p_adj = case_when(
         signif == "***" ~ cell_spec("< 0.001", "html", bold = TRUE),
         suppressWarnings(as.numeric(p_adj) < 0.05) ~ cell_spec(p_adj, "html", bold = TRUE),
@@ -152,64 +194,59 @@ format_table <- function(summary_data, per_age_group = FALSE) {
       ),
       delta_rmse = as.character(delta_rmse),
       delta_rmse = case_when(
-        predictors == "age" ~ "",
+        predictors %in% c("Age", "PhenoAge", "KDM", "HD") ~ "",
         TRUE ~ delta_rmse
+      ),
+      additional_variance_pct = as.character(additional_variance_pct),
+      additional_variance_pct = case_when(
+        predictors %in% c("Age", "PhenoAge", "KDM", "HD") ~ "",
+        TRUE ~ additional_variance_pct
       )
     ) %>%
     rename(
+      "Age" = age_group,
       "Predictors" = predictors,
       "∆RMSE (dB HL)*" = delta_rmse,
       "<i>n</i>" = n,
       "<i>R²<i>" = r2,
-      "<i>p</i> value" = p_adj
-    )
+      "∆MSE (%)*" = additional_variance_pct,
+      "<i>p</i> value*" = p_adj
+    ) %>%
+      select(Predictors, Age, `<i>n</i>`, `<i>R²<i>`, `∆MSE (%)*`, `∆RMSE (dB HL)*`, `<i>p</i> value*`)
 
-  if (isTRUE(per_age_group)) {
-    table <- table %>%
-      rename("Age" = age_group) %>%
-      select(Predictors, Age, `<i>n</i>`, `<i>R²<i>`, `∆RMSE (dB HL)*`, `<i>p</i> value`)
-  } else {
-    table <- table %>%
-      select(Predictors, `<i>n</i>`, `<i>R²<i>`, `∆RMSE (dB HL)*`, `<i>p</i> value`)
-  }
-
-  table
 }
 ```
 
 #### Run table formatting pipeline
 
 ```{r table_format_pipe}
-table_bioage <- summary_bioage %>%
+if (isTRUE(params$telolength)) {
+  table_bioage <- summary_bioage_overall %>%
+    mutate(age_group = "Overall") %>%
+    filter(predictors %in% c("age", "age, telolength_log")) %>%
   rename_bioage_table() %>%
   format_table(
-    per_age_group = TRUE
   )
-
-table_bioage_overall <- summary_bioage_overall %>%
+} else {
+  table_bioage <- merge_tables(summary_bioage, summary_bioage_overall) %>%
   rename_bioage_table() %>%
-  format_table()
-
-if (isFALSE(params$telolength)) {
-  table_biomarkers <- summary_biomarkers %>%
+  format_table(
+  )
+  
+  table_bioage_reverse <- merge_tables(summary_bioage_reverse, summary_bioage_reverse_overall) %>%
+  rename_bioage_reverse_table() %>%
+  format_table(
+  )
+  
+  table_biomarkers <- merge_tables(summary_biomarkers, summary_biomarkers_overall) %>%
     rename_biomarker_table() %>%
     format_table(
-      per_age_group = TRUE
     )
 
-  table_biomarkers_overall <- summary_biomarkers_overall %>%
-    rename_biomarker_table() %>%
-    format_table()
-
-  table_covariates <- summary_covariates %>%
+  table_covariates <- merge_tables(summary_covariates, summary_covariates_overall) %>%
     rename_covariate_table() %>%
     format_table(
-      per_age_group = TRUE
     )
-
-  table_covariates_overall <- summary_covariates_overall %>%
-    rename_covariate_table() %>%
-    format_table()
 }
 ```
 
@@ -223,23 +260,32 @@ render_and_save_table <- function(table, path, covariate = FALSE) {
     column_names[1:2] <- c("&nbsp;", "&nbsp;")
   }
 
-  html_table <- table %>%
-    kable(
-      format = "html",
-      col.names = column_names,
-      align = rep("c", ncol(table)),
-      escape = FALSE,
-      table.attr = paste0(
-        'border="1" cellspacing="0" cellpadding="0" ',
-        'style="width:159mm; table-layout:fixed; border-collapse:collapse; ',
-        "font-family:'Times New Roman', Times, serif; ",
-        'font-size:10pt; color:black;"'
-      )
-    ) %>%
-    collapse_rows(
-      columns = 1,
-      valign = "middle"
+html_table <- table %>%
+  kable(
+    format = "html",
+    col.names = column_names,
+    align = rep("c", ncol(table)),
+    escape = FALSE,
+    table.attr = paste0(
+      'border="1" cellspacing="0" cellpadding="0" ',
+      'style="width:159mm; table-layout:fixed; border-collapse:collapse; ',
+      "font-family:'Times New Roman', Times, serif; ",
+      'font-size:10pt; color:black;"'
     )
+  ) %>%
+  row_spec(
+    0,
+    color = "black",
+    extra_css = "height:5.29mm; padding:0; vertical-align:middle;"
+  ) %>%
+  row_spec(
+    1:nrow(table),
+    extra_css = "height:5.29mm; padding:0; vertical-align:middle;"
+  ) %>%
+  collapse_rows(
+    columns = 1,
+    valign = "middle"
+  )
 
   if (isTRUE(params$save_figures)) {
     save_kable(html_table, path)
@@ -262,42 +308,24 @@ render_and_save_table(
   )
 )
 
-render_and_save_table(
-  table = table_bioage_overall,
-  path = here(
-    "output",
-    "figures",
-    if (isTRUE(params$telolength)) {
-      paste0(params$hearing_var, "_telolength_log")
-    } else {
-      params$hearing_var
-    },
-    "table_bioage_overall.html"
-  )
-)
-
 if (isFALSE(params$telolength)) {
   render_and_save_table(
     table = table_biomarkers,
     path = here("output", "figures", params$hearing_var, "table_biomarkers.html")
   ) %>%
     scroll_box(width = "100%", height = "400px")
-
+  
   render_and_save_table(
-    table = table_biomarkers_overall,
-    path = here("output", "figures", params$hearing_var, "table_biomarkers_overall.html")
-  )
-
+    table = table_bioage_reverse,
+    path = here("output", "figures", params$hearing_var, "table_bioage_reverse.html")
+  ) %>%
+    scroll_box(width = "100%", height = "400px")
+  
   render_and_save_table(
     table = table_covariates,
     path = here("output", "figures", params$hearing_var, "table_covariates.html")
   ) %>%
     scroll_box(width = "100%", height = "400px")
-
-  render_and_save_table(
-    table = table_covariates_overall,
-    path = here("output", "figures", params$hearing_var, "table_covariates_overall.html")
-  )
 }
 ```
 
@@ -314,7 +342,7 @@ if (isFALSE(params$telolength)) {
       age_group != "Overall"
     ) %>%
     mutate(
-      stat = sprintf("%.2f (%.2f)", .data[[paste0("mean_w_", params$hearing_var)]], .data[[paste0("sd_w_", params$hearing_var)]]),
+      stat = sprintf("%.1f (%.1f)", .data[[paste0("mean_w_", params$hearing_var)]], .data[[paste0("sd_w_", params$hearing_var)]]),
       category = case_when(
         category == "Overall" ~ "All",
         TRUE ~ category
