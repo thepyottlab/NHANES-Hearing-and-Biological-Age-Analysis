@@ -246,14 +246,14 @@ calculate_statistics_across_folds <- function(summary, predictions, data, per_ag
     summary %>%
       mutate(
         delta_rmse_w = rmse_w_ref - rmse_w,
-        additional_variance_pct = (mse_w_ref - mse_w) / mse_w_ref * 100
+        r2p = (mse_w_ref - mse_w) / mse_w_ref
       ) %>%
       select(-mse_w_ref, -rmse_w_ref)
   } else {
     summary %>%
       mutate(
         delta_rmse_w = rmse_w - rmse_w_ref,
-        additional_variance_pct = (mse_w - mse_w_ref) / mse_w * 100
+        r2p = (mse_w - mse_w_ref) / mse_w
       ) %>%
       select(-mse_w_ref, -rmse_w_ref)
   }
@@ -641,8 +641,8 @@ if (isFALSE(params$telolength)) {
     exceptions = c(
       "age, sex, smoking, race, education",
       "age, sex, race, education",
-      if (isTRUE(params$telolength)) "age, sex, smoking, education" else NULL,
-      if (isTRUE(params$telolength)) "age, smoking, race, education" else NULL
+      if (params$hearing_var == "pta_lf") "age, sex, smoking, education" else NULL,
+      if (params$hearing_var == "pta_lf") "age, smoking, race, education" else NULL
     ),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
@@ -652,11 +652,27 @@ if (isFALSE(params$telolength)) {
 
 ### Display summary tables
 
+#### Make rounding function
+
+We round to a max of 3 decimals (0.001) but scale it to the size, so 9.12312 becomes 9.12, 91.1231
+becomes 91.1, 912.123123 becomes 912, and anything larger than or equal to 1000 gets rounded to an
+integer (so that 12345 doesn't become 12300).
+
+```{r round_function}
+clean_rounding <- function(x, max_decimals = 3) {
+  ifelse(
+    abs(x) >= 10^max_decimals,
+    round(x),
+    round(signif(x, max_decimals), max_decimals)
+  )
+}
+```
+
 #### Bioage overall
 
 ```{r pwc_bioage_overall}
 summary_bioage_overall %>%
-  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+  mutate(across(where(is.numeric), ~ clean_rounding(.x))) %>%
   construct_table(
     title = "Overall Bioage Pairwise Comparisons"
   )
@@ -666,7 +682,7 @@ summary_bioage_overall %>%
 
 ```{r pwc_bioage}
 summary_bioage %>%
-  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+  mutate(across(where(is.numeric), ~ clean_rounding(.x))) %>%
   construct_table(
     title = "Per-Age Group Bioage Pairwise Comparisons"
   )
@@ -677,7 +693,7 @@ summary_bioage %>%
 ```{r pwc_bioage_reverse_overall}
 if (isFALSE(params$telolength)) {
   summary_bioage_reverse_overall %>%
-    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    mutate(across(where(is.numeric), ~ clean_rounding(.x))) %>%
     construct_table(
       title = "Overall Bioage Reverse Analysis Pairwise Comparisons"
     )
@@ -689,7 +705,7 @@ if (isFALSE(params$telolength)) {
 ```{r pwc_bioage_reverse}
 if (isFALSE(params$telolength)) {
   summary_bioage_reverse %>%
-    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    mutate(across(where(is.numeric), ~ clean_rounding(.x))) %>%
     construct_table(
       title = "Per-Age Group Bioage Reverse Analysis Pairwise Comparisons"
     )
@@ -701,7 +717,7 @@ if (isFALSE(params$telolength)) {
 ```{r pwc_biomarkers_overall}
 if (isFALSE(params$telolength)) {
   summary_biomarkers_overall %>%
-    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    mutate(across(where(is.numeric), ~ clean_rounding(.x))) %>%
     construct_table(
       title = "Overall Biomarker Pairwise Comparisons"
     )
@@ -713,7 +729,7 @@ if (isFALSE(params$telolength)) {
 ```{r pwc_biomarkers}
 if (isFALSE(params$telolength)) {
   summary_biomarkers %>%
-    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    mutate(across(where(is.numeric), ~ clean_rounding(.x))) %>%
     construct_table(
       title = "Per-Age Group Biomarker Pairwise Comparisons"
     )
@@ -725,7 +741,7 @@ if (isFALSE(params$telolength)) {
 ```{r pwc_covariates_overall}
 if (isFALSE(params$telolength)) {
   summary_covariates_overall %>%
-    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    mutate(across(where(is.numeric), ~ clean_rounding(.x))) %>%
     construct_table(
       title = "Overall Covariate Pairwise Comparisons"
     )
@@ -737,7 +753,7 @@ if (isFALSE(params$telolength)) {
 ```{r pwc_covariates}
 if (isFALSE(params$telolength)) {
   summary_covariates %>%
-    mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+    mutate(across(where(is.numeric), ~ clean_rounding(.x))) %>%
     construct_table(
       title = "Per-Age Group Covariate Pairwise Comparisons"
     )
@@ -778,6 +794,16 @@ summary_bioage_overall <- summary_bioage_overall %>%
   )
 
 if (isFALSE(params$telolength)) {
+  summary_bioage_reverse <- summary_bioage_reverse %>%
+  add_n_age_groups(
+    data = df,
+    per_age_group = TRUE
+  )
+summary_bioage_reverse_overall <- summary_bioage_reverse_overall %>%
+  add_n_age_groups(
+    data = df
+  )
+
   summary_biomarkers <- summary_biomarkers %>%
     add_n_age_groups(
       data = df,

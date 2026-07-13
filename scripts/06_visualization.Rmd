@@ -122,7 +122,7 @@ rename_bioage_reverse_table <- function(bioage_table) {
       ),
       predictors = factor(
         predictors,
-        levels = 
+        levels =
           c("PhenoAge", "PhenoAge + Age", "KDM", "KDM + Age", "HD", "HD + Age")
       )
     ) %>%
@@ -181,7 +181,7 @@ format_table <- function(summary_data) {
     mutate(
       r2 = round(r2_w, 3),
       delta_rmse = round(delta_rmse_w, 2),
-      additional_variance_pct = round(additional_variance_pct, 2),
+      r2p = round(r2p, 2),
       p_adj = round(p_adj, 3)
     ) %>%
     mutate(
@@ -197,10 +197,10 @@ format_table <- function(summary_data) {
         predictors %in% c("Age", "PhenoAge", "KDM", "HD") ~ "",
         TRUE ~ delta_rmse
       ),
-      additional_variance_pct = as.character(additional_variance_pct),
-      additional_variance_pct = case_when(
+      r2p = as.character(r2p),
+      r2p = case_when(
         predictors %in% c("Age", "PhenoAge", "KDM", "HD") ~ "",
-        TRUE ~ additional_variance_pct
+        TRUE ~ r2p
       )
     ) %>%
     rename(
@@ -208,12 +208,11 @@ format_table <- function(summary_data) {
       "Predictors" = predictors,
       "∆RMSE (dB HL)*" = delta_rmse,
       "<i>n</i>" = n,
-      "<i>R²<i>" = r2,
-      "∆MSE (%)*" = additional_variance_pct,
+      "<i>R</i>²<i><sub>CV</sub></i>" = r2,
+      "<i>R</i>²<i><sub>p,CV</sub></i>*" = r2p,
       "<i>p</i> value*" = p_adj
     ) %>%
-      select(Predictors, Age, `<i>n</i>`, `<i>R²<i>`, `∆MSE (%)*`, `∆RMSE (dB HL)*`, `<i>p</i> value*`)
-
+    select(Predictors, Age, `<i>n</i>`, `<i>R</i>²<i><sub>CV</sub></i>`, `<i>R</i>²<i><sub>p,CV</sub></i>*`, `∆RMSE (dB HL)*`, `<i>p</i> value*`)
 }
 ```
 
@@ -224,29 +223,27 @@ if (isTRUE(params$telolength)) {
   table_bioage <- summary_bioage_overall %>%
     mutate(age_group = "Overall") %>%
     filter(predictors %in% c("age", "age, telolength_log")) %>%
-  rename_bioage_table() %>%
-  format_table(
-  )
+    rename_bioage_table() %>%
+    format_table()
 } else {
   table_bioage <- merge_tables(summary_bioage, summary_bioage_overall) %>%
-  rename_bioage_table() %>%
-  format_table(
-  )
-  
+    rename_bioage_table() %>%
+    format_table()
+
   table_bioage_reverse <- merge_tables(summary_bioage_reverse, summary_bioage_reverse_overall) %>%
-  rename_bioage_reverse_table() %>%
-  format_table(
-  )
-  
+    rename_bioage_reverse_table() %>%
+    format_table()
+
   table_biomarkers <- merge_tables(summary_biomarkers, summary_biomarkers_overall) %>%
     rename_biomarker_table() %>%
-    format_table(
+    format_table() %>%
+    filter(
+      Age == "Overall"
     )
 
   table_covariates <- merge_tables(summary_covariates, summary_covariates_overall) %>%
     rename_covariate_table() %>%
-    format_table(
-    )
+    format_table()
 }
 ```
 
@@ -260,32 +257,36 @@ render_and_save_table <- function(table, path, covariate = FALSE) {
     column_names[1:2] <- c("&nbsp;", "&nbsp;")
   }
 
-html_table <- table %>%
-  kable(
-    format = "html",
-    col.names = column_names,
-    align = rep("c", ncol(table)),
-    escape = FALSE,
-    table.attr = paste0(
-      'border="1" cellspacing="0" cellpadding="0" ',
-      'style="width:159mm; table-layout:fixed; border-collapse:collapse; ',
-      "font-family:'Times New Roman', Times, serif; ",
-      'font-size:10pt; color:black;"'
+  html_table <- table %>%
+    kable(
+      format = "html",
+      col.names = column_names,
+      align = rep("c", ncol(table)),
+      escape = FALSE,
+      table.attr = paste0(
+        'border="1" cellspacing="0" cellpadding="0" ',
+        'style="width:159mm; table-layout:fixed; border-collapse:collapse; ',
+        "font-family:'Times New Roman', Times, serif; ",
+        'font-size:10pt; color:black;"'
+      )
+    ) %>%
+    column_spec(
+      1,
+      bold = TRUE
+    ) %>%
+    row_spec(
+      0,
+      color = "black",
+      extra_css = "height:5.29mm; padding:0; vertical-align:middle;"
+    ) %>%
+    row_spec(
+      1:nrow(table),
+      extra_css = "height:5.29mm; padding:0; vertical-align:middle;"
+    ) %>%
+    collapse_rows(
+      columns = 1,
+      valign = "middle"
     )
-  ) %>%
-  row_spec(
-    0,
-    color = "black",
-    extra_css = "height:5.29mm; padding:0; vertical-align:middle;"
-  ) %>%
-  row_spec(
-    1:nrow(table),
-    extra_css = "height:5.29mm; padding:0; vertical-align:middle;"
-  ) %>%
-  collapse_rows(
-    columns = 1,
-    valign = "middle"
-  )
 
   if (isTRUE(params$save_figures)) {
     save_kable(html_table, path)
@@ -314,13 +315,13 @@ if (isFALSE(params$telolength)) {
     path = here("output", "figures", params$hearing_var, "table_biomarkers.html")
   ) %>%
     scroll_box(width = "100%", height = "400px")
-  
+
   render_and_save_table(
     table = table_bioage_reverse,
     path = here("output", "figures", params$hearing_var, "table_bioage_reverse.html")
   ) %>%
     scroll_box(width = "100%", height = "400px")
-  
+
   render_and_save_table(
     table = table_covariates,
     path = here("output", "figures", params$hearing_var, "table_covariates.html")
@@ -592,7 +593,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         type = "continuous",
         breaks = seq(0, 3, 0.5),
         limits = c(0, 3.1),
-        name = "Additional Predictive Capacity",
+        name = "Additional Predictive Performance",
         unit = "&Delta;RMSE<span style='color:transparent;'>xi</span>(dB HL)"
       ),
       drmse_reverse_pred = define_axis(
@@ -601,7 +602,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         type = "continuous",
         breaks = seq(0, 15, 2.5),
         limits = c(0, 15.5),
-        name = "Additional Predictive Capacity",
+        name = "Additional Predictive Performance",
         unit = "ΔRMSE (dB HL)"
       ),
       drmse_biomark = define_axis(
@@ -610,7 +611,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         type = "continuous",
         breaks = seq(0, 0.1, 0.05),
         limits = c(-0.025, 0.1),
-        name = "Additional Predictive Capacity",
+        name = "Additional Predictive Performance",
         unit = "ΔRMSE (dB HL)"
       ),
       drmse_conf = define_axis(
@@ -619,7 +620,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         type = "continuous",
         breaks = seq(0, 2, 0.5),
         limits = c(-0.05, 2.3),
-        name = "Additional Predictive Capacity",
+        name = "Additional Predictive Performance",
         unit = "ΔRMSE (dB HL)"
       )
     )
