@@ -992,7 +992,7 @@ insert_bioage <- function(design, train_data, train_data_hd) {
 design <- insert_bioage(design, train_data = df_train, train_data_hd = df_train_hd)
 ```
 
-### Validate biological age calculations
+### Validate biological age calculations (supplementary)
 
 We check the correlations between chronological and biological age and calculate Cox hazard ratios
 on the differences/advances (corrected for age, sex, race, education, and smoking) and normalize to
@@ -1139,7 +1139,6 @@ sameplot(
     } else {
       params$hearing_var
     },
-    "Extras",
     "Correlations.png"
   )
 )

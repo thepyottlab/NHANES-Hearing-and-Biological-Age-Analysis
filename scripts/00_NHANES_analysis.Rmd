@@ -115,12 +115,12 @@ params:
     help: "Set to store figures and overwrite old figures"
   single_column_width:
     label: "Single column figure width"
-    value: 3.19
+    value: 3.33
     input: numeric
     help: "Set single column figure width in inches"
   double_column_width:
     label: "Double column figure width"
-    value: 6.96
+    value: 6.99
     input: numeric   
     help: "Set double column figure width in inches"
   plot_output_type:

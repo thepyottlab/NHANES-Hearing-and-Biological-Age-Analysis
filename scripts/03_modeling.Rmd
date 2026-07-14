@@ -1512,13 +1512,14 @@ if (isTRUE(params$run_optional_chunks)) {
 
     k_df <- bind_rows(k_list)
 
-    ggplot(k_df, aes(x = k, y = edf)) +
+    p <- ggplot(k_df, aes(x = k, y = edf)) +
       geom_line() +
       geom_point(size = 1.5) +
+      geom_point(data = k_df %>% filter(k == params$age_rate_k), color = "red", shape = 1, size = 3) +
       scale_x_continuous(breaks = c(3, 5, 10, 15, 20, 25, 30)) +
       scale_y_continuous(breaks = c(0, 1, 2, 3, 4, 5)) +
       coord_cartesian(ylim = c(0, 5.2)) +
-      labs(x = "K (smooth base dimensions)", y = "Effective degrees of freedom") +
+      labs(x = "K (Smooth Basis Dimensions)", y = "Effective degrees of freedom") +
       theme_few() +
       theme(
         panel.grid.major.x = element_line(linewidth = 0.1, color = "grey50"),
@@ -1544,8 +1545,26 @@ if (isTRUE(params$run_optional_chunks)) {
         axis.title.y = element_markdown(
           "sans",
           size = 9,
-          lineheight = 1.1
+          lineheight = 1.1,
+          color = if (params$hearing_var == "pta_lf") "white" else "black"
         )
+      )
+
+    p <- ggarrange(
+      p,
+      labels = if (params$hearing_var == "pta_hf") "A" else "B",
+      label.x = -0.02,
+      label.y = 1.01
+    )
+
+    p +
+      draw_label(
+        if (params$hearing_var == "pta_hf") "PTA-HF" else "PTA-LF",
+        x = 0.5,
+        y = 0.99,
+        hjust = 0.5,
+        vjust = 1,
+        size = 9
       )
   }
 
@@ -1569,7 +1588,6 @@ if (isTRUE(params$run_optional_chunks)) {
       } else {
         params$hearing_var
       },
-      "Extras",
       paste0("k stability analysis", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", ".png")
     )
   )

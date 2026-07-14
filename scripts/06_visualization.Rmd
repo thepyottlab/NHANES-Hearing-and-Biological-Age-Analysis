@@ -591,8 +591,8 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         config = config,
         axis = "y",
         type = "continuous",
-        breaks = seq(0, 3, 0.5),
-        limits = c(0, 3.1),
+        breaks = seq(0, 1.5, 0.25),
+        limits = c(0, 1.545),
         name = "Additional Predictive Performance",
         unit = "&Delta;RMSE<span style='color:transparent;'>xi</span>(dB HL)"
       ),
@@ -601,7 +601,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         axis = "y",
         type = "continuous",
         breaks = seq(0, 15, 2.5),
-        limits = c(0, 15.5),
+        limits = c(0, 15.45),
         name = "Additional Predictive Performance",
         unit = "ΔRMSE (dB HL)"
       ),
@@ -610,7 +610,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         axis = "y",
         type = "continuous",
         breaks = seq(0, 0.1, 0.05),
-        limits = c(-0.025, 0.1),
+        limits = c(-0.025, 0.1015),
         name = "Additional Predictive Performance",
         unit = "ΔRMSE (dB HL)"
       ),
@@ -1397,7 +1397,7 @@ if (isFALSE(params$telolength)) {
 
   sameplot(
     p,
-    file = here(plot_config("figure_dir"), "Extras", "covariate_strata_panel.png"),
+    file = here(plot_config("figure_dir"), "age_rate_covariate_panel.png"),
     width = params$double_column_width,
     height = 4,
     res = 600,
@@ -1406,7 +1406,7 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-#### covariates predictive capacity plot (supplementary)
+#### covariates predictive capacity plot (paper)
 
 ```{r plot_covariates, warning=FALSE}
 update_geom_defaults("point", set_geom_theme("mse_point"))
@@ -1468,101 +1468,7 @@ if (isFALSE(params$telolength)) {
     p,
     file = here(plot_config("figure_dir"), "covariate_panel.png"),
     width = params$single_column_width,
-    height = 2.15,
-    res = 600,
-    save = params$save_figures
-  )
-}
-```
-
-#### covariates predictive capacity overall plot
-
-```{r plot_covariates_overall, warning=FALSE}
-if (isFALSE(params$telolength)) {
-  p <- summary_covariates_overall %>%
-    filter(!predictors %in% c("age, sex, smoking, race, education")) %>%
-    mutate(predictors = factor(
-      predictors,
-      levels = c(
-        "age, smoking, race, education",
-        "age, sex, smoking, education",
-        "age, sex, smoking, race",
-        "age, sex, race, education"
-      ),
-      labels = c(
-        "Sex",
-        "Race",
-        "Education",
-        "Smoking"
-      )
-    )) %>%
-    ggplot(
-      aes(
-        x = predictors,
-        y = delta_rmse_w
-      )
-    ) +
-    geom_hline(
-      yintercept = 0
-    ) +
-    geom_ribbon(
-      aes(
-        fill = predictors,
-        group = predictors,
-        ymin = ci_low_delta_rmse,
-        ymax = ci_high_delta_rmse
-      ),
-      show.legend = FALSE
-    ) +
-    geom_line(
-      aes(
-        color = predictors,
-        group = predictors
-      ),
-      show.legend = FALSE
-    ) +
-    geom_linerange(
-      aes(
-        color = predictors,
-        ymin = ci_low_delta_rmse,
-        ymax = ci_high_delta_rmse
-      ),
-      position = position_dodge(0.8),
-      lineend = "round",
-      show.legend = FALSE
-    ) +
-    geom_point(
-      aes(
-        color = predictors
-      ),
-      show.legend = FALSE
-    ) +
-    geom_text(
-      data = . %>%
-        filter(signif != "ns"),
-      aes(
-        x = predictors,
-        y = ci_high_delta_rmse,
-        label = signif,
-        color = predictors
-      ),
-      size = plot_config("signif_size") / (14 / 5),
-      show.legend = FALSE
-    ) +
-    axes(
-      y = "drmse_conf"
-    ) +
-    color_scales("covariates_overall") +
-    plot_theme() +
-    theme(
-      axis.title.x = element_blank()
-    )
-
-  sameplot(
-    p,
-    file = here(plot_config("figure_dir"), "covariate_panel_overall.png"),
-    width = params$single_column_width,
-    height = 2.15,
+    height = 2.35,
     res = 600,
     save = params$save_figures
   )
@@ -1571,7 +1477,7 @@ if (isFALSE(params$telolength)) {
 
 ### Bioage
 
-#### Bioage delta RMSE plot
+#### Bioage delta RMSE plot (supplementary)
 
 ```{r plot_bioage_rmse}
 p1 <- summary_bioage %>%
@@ -1623,12 +1529,46 @@ p1 <- summary_bioage %>%
 
 sameplot(
   p1,
-  file = here(plot_config("figure_dir"), "bioage_panel_A.png"),
   width = params$single_column_width,
-  height = 2.15,
-  res = 600,
-  save = params$save_figures
+  height = 2.35,
+  res = 600
 )
+
+if (isTRUE(params$telolength)) {
+  if (params$hearing_var == "pta_lf") {
+    p1 <- p1 + theme(axis.title.y = element_markdown(
+      "sans",
+      size = 9,
+      lineheight = 1.1,
+      color = "white"
+    ))
+  }
+  p1 <- ggarrange(
+    p1,
+    labels = if (params$hearing_var == "pta_hf") "A" else "B",
+    label.x = 0.025,
+    label.y = 1.01
+  )
+
+  p1 <- p1 +
+    draw_label(
+      if (params$hearing_var == "pta_hf") "PTA-HF" else "PTA-LF",
+      x = 0.99,
+      y = 0.99,
+      hjust = 1,
+      vjust = 1,
+      size = 9
+    )
+
+  sameplot(
+    p1,
+    file = here(plot_config("figure_dir"), "bioage_panel_A.png"),
+    width = params$single_column_width,
+    height = 2.35,
+    res = 600,
+    save = params$save_figures
+  )
+}
 ```
 
 #### Age delta RMSE plot
@@ -1687,9 +1627,9 @@ if (isFALSE(params$telolength)) {
     p2,
     file = here(plot_config("figure_dir"), "bioage_panel_B_reverse.png"),
     width = params$single_column_width,
-    height = 2.15,
+    height = 2.35,
     res = 600,
-    save = params$save_figures
+    save = FALSE
   )
 }
 ```
@@ -1697,27 +1637,29 @@ if (isFALSE(params$telolength)) {
 #### Composite plot (paper)
 
 ```{r composite_bioage_plot}
-p <-
-  ggarrange(
-    p1,
-    NULL,
-    p2,
-    nrow = 1,
-    widths = c(1, 0, 1),
-    labels = c("A", "", "B"),
-    label.x = 0.03,
-    label.y = 1.01,
-    align = "v"
-  )
+if (isFALSE(params$telolength)) {
+  p <-
+    ggarrange(
+      p1,
+      NULL,
+      p2,
+      nrow = 1,
+      widths = c(1, 0, 1),
+      labels = c("A", "", "B"),
+      label.x = 0.03,
+      label.y = 1.01,
+      align = "v"
+    )
 
-sameplot(
-  p,
-  file = here(plot_config("figure_dir"), "bioage_panel.png"),
-  width = params$double_column_width,
-  height = 2.15,
-  res = 600,
-  save = params$save_figures
-)
+  sameplot(
+    p,
+    file = here(plot_config("figure_dir"), "bioage_panel.png"),
+    width = params$double_column_width,
+    height = 2.35,
+    res = 600,
+    save = params$save_figures
+  )
+}
 ```
 
 ### Additional Plots
@@ -1809,7 +1751,7 @@ p <- ggarrange(
 
 sameplot(
   p,
-  file = here(plot_config("figure_dir"), "Extras", "age_acceleration.png"),
+  file = here(plot_config("figure_dir"), "age_acceleration.png"),
   width = params$double_column_width,
   height = 3,
   res = 600,
@@ -1887,11 +1829,28 @@ if (isFALSE(params$telolength)) {
       axis.title.x = element_blank()
     )
 
+  p <- ggarrange(
+    p,
+    labels = if (params$hearing_var == "pta_hf") "A" else "B",
+    label.x = 0.015,
+    label.y = 1.01
+  )
+
+  p <- p +
+    draw_label(
+      if (params$hearing_var == "pta_hf") "PTA-HF" else "PTA-LF",
+      x = 0.5,
+      y = 0.99,
+      hjust = 0.5,
+      vjust = 1,
+      size = 9
+    )
+
   sameplot(
     p,
     file = here(plot_config("figure_dir"), "biomarkers_panel.png"),
     width = params$double_column_width,
-    height = 2.15,
+    height = 2.35,
     res = 600,
     save = params$save_figures
   )

@@ -795,14 +795,14 @@ summary_bioage_overall <- summary_bioage_overall %>%
 
 if (isFALSE(params$telolength)) {
   summary_bioage_reverse <- summary_bioage_reverse %>%
-  add_n_age_groups(
-    data = df,
-    per_age_group = TRUE
-  )
-summary_bioage_reverse_overall <- summary_bioage_reverse_overall %>%
-  add_n_age_groups(
-    data = df
-  )
+    add_n_age_groups(
+      data = df,
+      per_age_group = TRUE
+    )
+  summary_bioage_reverse_overall <- summary_bioage_reverse_overall %>%
+    add_n_age_groups(
+      data = df
+    )
 
   summary_biomarkers <- summary_biomarkers %>%
     add_n_age_groups(
