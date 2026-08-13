@@ -791,7 +791,7 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 6,
-  res = 600,
+  res = 1200,
   save = params$save_figures,
   file = here(
     "output",
@@ -802,7 +802,7 @@ sameplot(
       params$hearing_var
     },
     "Extras",
-    "biomarker_distributions_NHANES4.png"
+    "biomarker_distributions_NHANES4.tif"
   )
 )
 
@@ -813,7 +813,7 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 6,
-  res = 600,
+  res = 1200,
   save = params$save_figures,
   file = here(
     "output",
@@ -824,7 +824,7 @@ sameplot(
       params$hearing_var
     },
     "Extras",
-    "biomarker_distributions_NHANES3.png"
+    "biomarker_distributions_NHANES3.tif"
   )
 )
 ```
@@ -1129,7 +1129,7 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 4,
-  res = 600,
+  res = 1200,
   save = params$save_figures,
   file = here(
     "output",
@@ -1139,7 +1139,7 @@ sameplot(
     } else {
       params$hearing_var
     },
-    "Correlations.png"
+    "Correlations.tif"
   )
 )
 ```
@@ -1511,7 +1511,7 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 6,
-  res = 600,
+  res = 1200,
   save = params$save_figures,
   file = here(
     "output",
@@ -1522,7 +1522,7 @@ sameplot(
       params$hearing_var
     },
     "Extras",
-    "Weighted unfiltered strata proportions.png"
+    "Weighted unfiltered strata proportions.tif"
   )
 )
 
@@ -1534,7 +1534,7 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 6,
-  res = 600,
+  res = 1200,
   save = params$save_figures,
   file = here(
     "output",
@@ -1545,7 +1545,7 @@ sameplot(
       params$hearing_var
     },
     "Extras",
-    "Weighted filtered strata proportions.png"
+    "Weighted filtered strata proportions.tif"
   )
 )
 
@@ -1557,7 +1557,7 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 6,
-  res = 600,
+  res = 1200,
   save = params$save_figures,
   file = here(
     "output",
@@ -1568,7 +1568,7 @@ sameplot(
       params$hearing_var
     },
     "Extras",
-    "Unweighted unfiltered strata proportions.png"
+    "Unweighted unfiltered strata proportions.tif"
   )
 )
 
@@ -1580,7 +1580,7 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 6,
-  res = 600,
+  res = 1200,
   save = params$save_figures,
   file = here(
     "output",
@@ -1591,7 +1591,7 @@ sameplot(
       params$hearing_var
     },
     "Extras",
-    "Unweighted filtered strata proportions.png"
+    "Unweighted filtered strata proportions.tif"
   )
 )
 ```
@@ -1635,7 +1635,7 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 8,
-  res = 600,
+  res = 1200,
   save = params$save_figures,
   file = here(
     "output",
@@ -1646,7 +1646,7 @@ sameplot(
       params$hearing_var
     },
     "Extras",
-    paste0("Weighted unfiltered strata ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", ".png")
+    paste0("Weighted unfiltered strata ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", ".tif")
   )
 )
 
@@ -1657,7 +1657,7 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 8,
-  res = 600,
+  res = 1200,
   save = params$save_figures,
   file = here(
     "output",
@@ -1668,7 +1668,7 @@ sameplot(
       params$hearing_var
     },
     "Extras",
-    paste0("Weighted filtered strata ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", ".png")
+    paste0("Weighted filtered strata ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", ".tif")
   )
 )
 ```
@@ -1703,7 +1703,7 @@ sameplot(
   ),
   width = params$double_column_width,
   height = 4,
-  res = 600
+  res = 1200
 )
 ```
 
