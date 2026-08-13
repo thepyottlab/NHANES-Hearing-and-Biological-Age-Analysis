@@ -612,7 +612,7 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         breaks = seq(0, 0.1, 0.05),
         limits = c(-0.025, 0.1015),
         name = "Additional Predictive Performance",
-        unit = "ΔRMSE (dB HL)"
+        unit = "&Delta;RMSE<span style='color:transparent;'>xi</span>(dB HL)"
       ),
       drmse_conf = define_axis(
         config = config,
