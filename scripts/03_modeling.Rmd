@@ -1366,7 +1366,6 @@ if (isTRUE(params$run_optional_chunks)) {
     )
 
     print(summary(m0))
-    plot(m0)
 
     if (return_model) {
       m0
@@ -1387,12 +1386,147 @@ We see that `age*sex*race` and `age*education*sex` are a significant three-way i
 takes 3 times longer to compute. Bam() speeds things up enough over gam() that this processing cost
 is acceptable.
 
+### (Optional) Check three-way interactions in all 100 folds
+
+```{r check_signif_interactions_per_fold}
+if (isTRUE(params$run_optional_chunks)) {
+  check_terms <- function(
+    data,
+    covariate_interactions,
+    k,
+    folds,
+    repeats,
+    discrete = FALSE,
+    return_model = FALSE,
+    threads = 1,
+    skip = FALSE
+  ) {
+    if (isFALSE(skip)) {
+      smooth_terms <- c(
+        paste0("s(age, k = ", k, ")"),
+        paste0(
+          "s(",
+          "age, ",
+          covariate_interactions,
+          ", bs = 'sz', k = ",
+          k,
+          ", id = ",
+          seq_along(covariate_interactions),
+          ")"
+        )
+      )
+
+      formula <- as.formula(
+        paste0(
+          params$hearing_var,
+          " ~ ",
+          paste(smooth_terms, collapse = " + ")
+        )
+      )
+
+      repeat_columns <- paste0("fold_r", seq_len(repeats))
+
+      included_vars <- c("age", params$hearing_var, covariate_vars, "weights")
+
+      splits <- expand.grid(
+        repeat_column = repeat_columns,
+        fold = seq_len(folds)
+      ) %>% mutate(
+        fold_n = seq_len(folds * repeats)
+      )
+
+      run_split <- function(split) {
+        repeat_column <- split[["repeat_column"]]
+        fold <- split[["fold"]]
+
+        repeat_value <- as.numeric(
+          sub(".*fold_r(\\d+).*", "\\1", repeat_column)
+        )
+
+        train <- data %>%
+          filter(
+            .data[[repeat_column]] != as.integer(fold)
+          ) %>%
+          select(
+            all_of(included_vars)
+          )
+
+        mod <- bam(
+          formula,
+          data = train,
+          weights = weights / mean(weights),
+          family = gaussian(),
+          method = if (isTRUE(discrete)) "fREML" else "REML",
+          discrete = if (isTRUE(discrete)) TRUE else FALSE
+        )
+
+        summary_table <- as.data.frame(summary(mod)$s.table)
+        summary_table[["predictor"]] <- rownames(summary_table)
+        summary_table[["fold"]] <- as.integer(split[["fold_n"]])
+
+        summary_table
+      }
+
+      plan(multisession, workers = threads)
+      cv_output <- future_apply(
+        splits,
+        MARGIN = 1,
+        FUN = run_split,
+        future.seed = TRUE,
+        future.globals = list(
+          data = data,
+          discrete = discrete,
+          included_vars = included_vars,
+          formula = formula
+        ),
+        future.packages = c(
+          "mgcv",
+          "tidyverse",
+          "tidytable"
+        )
+      )
+      plan(sequential)
+
+      output_summary <- bind_rows(cv_output) %>%
+        filter(`p-value` <= 0.05) %>%
+        group_by(fold) %>%
+        summarize(n = n())
+
+      if (all(output_summary$n == 7)) {
+        message("All folds have equal numbers of significant variables")
+      } else {
+        message("Folds have unequal numbers of significant variables")
+        print(bind_rows(cv_output) %>%
+          filter(`p-value` > 0.05))
+      }
+    }
+  }
+
+  system.time({
+    check_terms(
+      data = df,
+      covariate_interactions = unlist(covariate_interactions),
+      k = params$global_k,
+      folds = params$global_folds,
+      repeats = params$global_repeats,
+      discrete = params$global_discrete,
+      threads = min(
+        params$n_threads,
+        as.numeric(future::availableCores()) - 1
+      ),
+      skip = TRUE
+    )
+  })
+}
+```
+
+**One fold does not have smoking as a significant term, so there is minor information leakage**.
+
 ### (Optional) Validate excluded terms
 
 ```{r check_signif_excluded_terms}
 if (isTRUE(params$run_optional_chunks)) {
   verify_covariate_interactions <- function(df, k, discrete = FALSE, return_model = FALSE, covariate_interactions) {
-
     # Combine an age term with smooth terms with a unique ID for each
     smooth_terms <- c(
       paste0("s(age, k = ", k, ")"),
@@ -1407,7 +1541,7 @@ if (isTRUE(params$run_optional_chunks)) {
         ")"
       )
     )
-    
+
     m0 <- bam(
       as.formula(
         paste0(
@@ -1422,15 +1556,15 @@ if (isTRUE(params$run_optional_chunks)) {
       method = if (isTRUE(discrete)) "fREML" else "REML",
       discrete = if (isTRUE(discrete)) TRUE else FALSE
     )
-    
+
     print(summary(m0))
     plot(m0)
-    
+
     if (return_model) {
       m0
     }
   }
-  
+
   system.time({
     verify_covariate_interactions(
       df,
