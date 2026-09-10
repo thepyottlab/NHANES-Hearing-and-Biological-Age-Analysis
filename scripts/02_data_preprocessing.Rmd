@@ -837,13 +837,7 @@ df_train_hd <- bioage_results$train_data_hd
 
 ### Create dataframe
 
-We can discard the survey design from this point onward. Further analyses are a nested F-test
-between models (in-sample) that share the same design, so inflation of variance due to PSU/strata
-should be fairly symmetrical and not of high impact. Weights are still used for model fitting. For
-cross-validation, we estimate prediction error differences between models that share the same
-design, not a population estimate. Moreover, gam() doesn't support PSU and strata uncertainty
-adjustment/complex survey design. We will use PSUs within strata to select bootstrapping samples
-later on, but we don't need the survey object for this.
+We create a df from the Survey design for subsequent steps outside of the Survey package.
 
 ```{r extract_df}
 df <- design$variables
