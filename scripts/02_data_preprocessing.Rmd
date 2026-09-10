@@ -525,7 +525,8 @@ df_no_missing <- df_unfiltered %>% filter_data()
 
 ### Create survey design
 
-We use the Survey package to account for the full survey design (weights, strata, PSUs)
+We use the Survey package to account for the full survey design (weights, strata, PSUs). We turn it
+into a repetition design object.
 
 ```{r create_design}
 design_no_missing <- svydesign(
@@ -534,7 +535,11 @@ design_no_missing <- svydesign(
   weights = ~weights,
   data    = df_no_missing,
   nest    = TRUE
-)
+) %>%
+  as.svrepdesign(
+    type = "JKn",
+    mse = TRUE
+  )
 ```
 
 ## Data filtering
