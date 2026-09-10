@@ -10,72 +10,43 @@ editor_options:
 
 ### Fold-maker function
 
-This function takes the indices of rows each age group, randomizes them, then assigns numbers of
-1-k. We could integrate this into the k-fold cross validation function, but by doing it separately
-it's easier to inspect any possible issues. We shuffle indices within each age group so that the
-numbers 1-k will equally be spaced throughout the age group, creating even age group distributions
-in each fold.
-
-We generate folds per individual, not per PSU within stratum for two reasons: individuals preserves
-age balance well and the prediction target is prediction for held-out individual participants, not
-for entirely unseen PSUs/geographic clusters.
-
-```{r fun_make_folds}
-make_repeated_folds <- function(data, grouping_variable, k, repeats) {
-  # Helper to create random k-fold indices for one repeat
-  kfold_split_stratified <- function(k, grouping_variable = NULL) {
-    # Convert factor of age_group to number
-    grouping_variable <- as.integer(
-      as.factor(grouping_variable)
-    )
-
-    # Check number of age groups and observations
-    group_len <- length(
-      unique(grouping_variable)
-    )
-    observations <- length(grouping_variable)
-
-    # Empty vector to add fold numbers to
-    indices <- numeric()
-
-    # Run loop for each age group
-    for (l in 1:group_len) {
-      # Find which rows have the age group
-      indices_grouping_variable <- which(grouping_variable == l)
-
-      # Shuffle indices within each age group and append
-      indices <- c(indices, sample(indices_grouping_variable))
-    }
-
-    # Create an output with the length of the number of observations
-    bins <- integer(observations)
-
-    # Using the random order, 1-k is repeated until we've reached the last observation
-    bins[indices] <- rep(1:k, ceiling(observations / k))[1:observations]
-
-    # Return shuffled k-folds, which is pasted into a new column in 'data'
-    bins
-  }
-
-  # Per repeat, make shuffled k-folds of indices in a new column
-  for (i in 1:repeats) {
-    data[[paste0("fold_r", i)]] <- kfold_split_stratified(
-      k = k,
-      grouping_variable = data[[grouping_variable]]
-    )
-  }
-
-  data
-}
-```
-
-### Make folds per age group
+We sort by PSU and stratum for reproducability. Then for each repeat, we assign fold labels to the
+PSUs (the `mutate()` statement). In theses assignments, we assign labels to PSUs within each
+stratum, assigning as many labels as there are PSUs within that stratum, so that each PSU gets one
+fold label per repeat. The numbers that the PSUs can get are determined by the number of folds
+(e.g., 1 or 2 for 2-fold or 1-5 for 5-fold). We sample without replacement so that we distribute all
+PSUs across folds. E.g., with 2-fold 2-repeat CV, for a stratum with 3 PSUs, we could get 1, 2, 1
+for repeat 1 and 2, 1, 1 for repeat 2 (indicating the fold number for the 3 PSUs). For a 5-fold
+2-repeat CV for a stratum with 2 PSUs, we could get 5, 2 for repeat 1 and 3, 4 for repeat 2. Then
+when fold 1 is the testing fold, no PSUs from this stratum are tested. This is the tradeoff. With
+2-fold CV we have smaller training datasets, but with 5-fold or 10-fold CV we may get more variation
+if performance per fold depends on which stratum is included. However, within each repeat, every
+participant is still tested exactly once.
 
 ```{r make_folds}
+make_repeated_folds <- function(data, k, repeats) {
+  psus <- data %>%
+    distinct(stratum, psu) %>%
+    arrange(stratum, psu)
+
+  for (i in seq_len(repeats)) {
+    psus <- psus %>%
+      mutate(
+        !!paste0("fold_r", i) := sample(
+          rep(sample.int(k), length.out = n())
+        ),
+        .by = stratum
+      )
+  }
+
+  data %>%
+    select(-starts_with("fold_r")) %>%
+    left_join(psus, by = c("stratum", "psu"))
+}
+
 set.seed(2)
 df <- make_repeated_folds(
   data = df,
-  grouping_variable = "age_group",
   k = params$global_folds,
   repeats = params$global_repeats
 )
@@ -1053,6 +1024,85 @@ Fold numbers are consistent between groups and correctly split upon multiple rep
 number has the same (within 1) frequency, so there are no imbalances between folds and repeats. Plot
 shows no non-random changes in intensity over the X dimension and random dissimilarities between
 bands in the Y dimension (indicating repeats have different samples).
+
+### (Optional) Compare training support for two and five PSU folds
+
+Check whether observed age-group and covariate combinations remain represented in every training
+split. Compare training counts, distinct ages, and age-range coverage without fitting models or
+examining outcomes.
+
+```{r compare_psu_fold_support}
+if (isTRUE(params$run_optional_chunks)) {
+  compare_fold_support <- function(data, psus, repeats) {
+    map_dfr(c(2, 5, 10), function(folds) {
+      set.seed(2)
+      fold_data <- make_repeated_folds(
+        data = data,
+        k = folds,
+        repeats = repeats
+      )
+
+      map_dfr(unlist(covariate_interactions), function(term) {
+        cells <- fold_data %>%
+          unite(
+            "cell",
+            all_of(trimws(strsplit(term, ",")[[1]])),
+            sep = " / "
+          )
+
+        reference <- cells %>%
+          summarize(
+            age_min = min(age),
+            age_max = max(age),
+            .by = c(age_group, cell)
+          )
+
+        map_dfr(seq_len(repeats), function(r) {
+          map_dfr(seq_len(folds), function(fold) {
+            training <- cells %>%
+              filter(.data[[paste0("fold_r", r)]] != fold) %>%
+              summarize(
+                n_train = n(),
+                unique_ages = n_distinct(age),
+                train_age_min = min(age),
+                train_age_max = max(age),
+                .by = c(age_group, cell)
+              )
+
+            reference %>%
+              left_join(training, by = c("age_group", "cell")) %>%
+              mutate(
+                folds = folds,
+                term = term,
+                r = r,
+                fold = fold,
+                n_train = replace_na(n_train, 0L),
+                unique_ages = replace_na(unique_ages, 0L),
+                lower_age_loss = train_age_min - age_min,
+                upper_age_loss = age_max - train_age_max
+              )
+          })
+        })
+      })
+    })
+  }
+
+  compare_fold_support(
+    data = df,
+    repeats = params$global_repeats
+  ) %>%
+    summarize(
+      min_train_n = min(n_train),
+      min_unique_ages = min(unique_ages),
+      missing_cell_splits = sum(n_train == 0),
+      max_lower_age_loss = max(c(0, lower_age_loss), na.rm = TRUE),
+      max_upper_age_loss = max(c(0, upper_age_loss), na.rm = TRUE),
+      .by = c(folds, term, age_group)
+    ) %>%
+    arrange(term, age_group) %>%
+    construct_table(title = "Two versus five vs ten PSU folds: training support")
+}
+```
 
 ### (Optional) Check covariate two-way interactions vs offsets
 
