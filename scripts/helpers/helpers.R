@@ -152,3 +152,19 @@ build_color_scale <- function(
 
   color_scales
 }
+
+construct_table <- function(input, title) {
+  input %>%
+    kable(
+      "html",
+      caption = title
+    ) %>%
+    kable_styling(
+      bootstrap_options = c("striped", "hover"),
+      full_width = FALSE,
+      position = "left",
+      font_size = 12,
+      fixed_thead = TRUE
+    ) %>%
+    scroll_box(width = "100%", height = "400px")
+}
