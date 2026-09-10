@@ -1044,15 +1044,30 @@ There is some kurtosis for several variables in NHANES3, but that should not be 
 
 ```{r}
 if (isTRUE(params$run_optional_chunks)) {
-  design$variables %>%
-    distinct(stratum, psu) %>%
-    count(stratum, name = "psu_n") %>%
-    count(psu_n, name = "stratum_n") %>%
-    construct_table(title = "Number of PSUs within strata")
+  bind_rows(
+    design_no_missing$variables %>%
+      distinct(stratum, psu) %>%
+      count(stratum, name = "psu_n") %>%
+      count(psu_n, name = "stratum_n") %>%
+      mutate(stage = "Before filtering"),
+    
+    design$variables %>%
+      distinct(stratum, psu) %>%
+      count(stratum, name = "psu_n") %>%
+      count(psu_n, name = "stratum_n") %>%
+      mutate(stage = "After filtering")
+  ) %>%
+    pivot_wider(
+      names_from = stage,
+      values_from = stratum_n,
+      values_fill = 0
+    ) %>%
+    arrange(psu_n) %>%
+    construct_table(title = "Number of PSUs within strata before and after filtering")
 }
 ```
 
-**One stratum only has one PSU after filtering, so we can't estimate variance within it.**
+**We retain the same number of PSUs before and after filtering**
 
 ## Clean up environment
 
