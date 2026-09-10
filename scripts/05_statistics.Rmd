@@ -6,6 +6,158 @@ editor_options:
 
 # Statistics
 
+## Calculate descriptive statistics
+
+We use the full survey design to generate a descriptive statistics table on the filtered and
+unfiltered audiometry samples across cycles. We calculate both weighted and unweighted proportions
+and check n per stratum. We only include the strata in the unfiltered dataset that's in the filtered
+dataset and remove NA values. Bioage descriptive statistics are also optionally calculated.
+
+```{r calc_descriptives}
+calculate_descriptive_statistics <- function(design, audiometry_cols, incl_bioage = FALSE) {
+  design <- update(
+    design,
+    sex = dplyr::recode(
+      sex,
+      "1" = "Male",
+      "2" = "Female",
+      .default = NA_character_
+    ),
+    smoking = dplyr::recode(
+      smoking,
+      "1" = "Smoker",
+      "2" = "Non-smoker",
+      .default = NA_character_
+    ),
+    race = dplyr::recode(
+      race,
+      "1" = "Hispanic",
+      "3" = "White",
+      "4" = "Black",
+      "5" = "Other",
+      .default = NA_character_
+    ),
+    education = dplyr::recode(education,
+      "1" = "< 9th grade",
+      "2" = "9-11th grade",
+      "3" = "High school",
+      "4" = "Some college or AA degree",
+      "5" = "College graduate or higher",
+      .default = NA_character_
+    )
+  )
+
+  groups <- c(Sex = "sex", Race = "race", Smoking = "smoking", Education = "education")
+  age_groups <- factor(c("Overall", "20–29", "30–39", "40–49", "50–59", "60–69", if (isFALSE(params$telolength)) "70–79" else NULL))
+  results <- list()
+
+  design <- design %>%
+    subset(
+      design$variables %>%
+        mutate(keep = !if_any(all_of(audiometry_cols), ~ . == 888 | . == 666 | is.na(.))) %>%
+        pull(keep) &
+        age_group %in% age_groups &
+        !is.na(sex) &
+        !is.na(smoking) &
+        !is.na(race) &
+        !is.na(education)
+    )
+
+
+  for (age_group_val in age_groups) {
+    design_subset <- if (age_group_val == "Overall") design else subset(design, age_group == age_group_val)
+
+    if (age_group_val == "Overall") {
+      proportion_w <- 1
+    } else {
+      proportion_w <- as.vector(
+        coef(svymean(~age_group, design))[paste0("age_group", age_group_val)]
+      )
+    }
+
+    rows <- bind_rows(
+      data.frame(
+        age_group = age_group_val,
+        group = "Overall",
+        category = "Overall",
+        n = nrow(design_subset),
+        proportion = nrow(design_subset) / nrow(design),
+        proportion_w = proportion_w,
+        mean_w_pta_hf = coef(svymean(~pta_hf, design_subset)),
+        sd_w_pta_hf = sqrt(coef(svyvar(~pta_hf, design_subset))),
+        mean_w_pta_lf = coef(svymean(~pta_lf, design_subset)),
+        sd_w_pta_lf = sqrt(coef(svyvar(~pta_lf, design_subset))),
+        mean_w_age = coef(svymean(~age, design_subset)),
+        sd_w_age = sqrt(coef(svyvar(~age, design_subset)))
+      ) %>%
+        {
+          if (isTRUE(incl_bioage)) {
+            mutate(.,
+              mean_w_kdm = coef(svymean(~kdm, design_subset)),
+              mean_w_phenoage = coef(svymean(~phenoage, design_subset)),
+              mean_w_hd_log = coef(svymean(~hd_log, design_subset)),
+              mean_w_telolength_log = coef(svymean(~telolength_log, design_subset, na.rm = TRUE)),
+              sd_w_kdm = sqrt(coef(svyvar(~kdm, design_subset))),
+              sd_w_phenoage = sqrt(coef(svyvar(~phenoage, design_subset))),
+              sd_w_hd_log = sqrt(coef(svyvar(~hd_log, design_subset))),
+              sd_w_telolength_log = sqrt(coef(svyvar(~telolength_log, design_subset, na.rm = TRUE))),
+            )
+          } else {
+            .
+          }
+        },
+      lapply(names(groups), function(group) {
+        grouping_variable <- as.formula(paste0("~", groups[[group]]))
+        proportions_w <- coef(svymean(grouping_variable, design_subset))
+        counts <- table(design_subset$variables[[groups[[group]]]])
+
+        data.frame(
+          age_group = age_group_val,
+          group = group,
+          category = svyby(~pta_hf, grouping_variable, design_subset, svymean)[[groups[[group]]]],
+          n = as.vector(counts),
+          proportion = as.vector(counts) / nrow(design_subset),
+          proportion_w = as.vector(proportions_w),
+          mean_w_pta_hf = svyby(~pta_hf, grouping_variable, design_subset, svymean)[["pta_hf"]],
+          sd_w_pta_hf = sqrt(svyby(~pta_hf, grouping_variable, design_subset, svyvar)[["pta_hf"]]),
+          mean_w_pta_lf = svyby(~pta_lf, grouping_variable, design_subset, svymean)[["pta_lf"]],
+          sd_w_pta_lf = sqrt(svyby(~pta_lf, grouping_variable, design_subset, svyvar)[["pta_lf"]]),
+          mean_w_age = svyby(~age, grouping_variable, design_subset, svymean)[["age"]],
+          sd_w_age = sqrt(svyby(~age, grouping_variable, design_subset, svyvar)[["age"]])
+        ) %>%
+          {
+            if (isTRUE(incl_bioage)) {
+              mutate(.,
+                mean_w_kdm = svyby(~kdm, grouping_variable, design_subset, svymean)$kdm,
+                mean_w_phenoage = svyby(~phenoage, grouping_variable, design_subset, svymean)$phenoage,
+                mean_w_hd_log = svyby(~hd_log, grouping_variable, design_subset, svymean)$hd_log,
+                mean_w_telolength_log = svyby(~telolength_log, grouping_variable, design_subset, svymean, na.rm = TRUE)$telolength_log,
+                sd_w_kdm = sqrt(svyby(~kdm, grouping_variable, design_subset, svyvar)$kdm),
+                sd_w_phenoage = sqrt(svyby(~phenoage, grouping_variable, design_subset, svyvar)$phenoage),
+                sd_w_hd_log = sqrt(svyby(~hd_log, grouping_variable, design_subset, svyvar)$hd_log),
+                sd_w_telolength_log = sqrt(svyby(~telolength_log, grouping_variable, design_subset, svyvar, na.rm = TRUE)$telolength_log)
+              )
+            } else {
+              .
+            }
+          }
+      })
+    )
+
+    results[[age_group_val]] <- rows
+  }
+
+  bind_rows(results) %>%
+    mutate(
+      group = factor(group, levels = c("Overall", "Sex", "Race", "Smoking", "Education")),
+      age_group = factor(age_group, levels = c("Overall", "20–29", "30–39", "40–49", "50–59", "60–69", if (isFALSE(params$telolength)) "70–79" else NULL))
+    )
+}
+
+descriptives_unfiltered <- calculate_descriptive_statistics(design_no_missing, audiometry_cols = audiometry_cols)
+descriptives <- calculate_descriptive_statistics(design, audiometry_cols = audiometry_cols, incl_bioage = TRUE)
+```
+
 ## Calculate (delta) MSE per fold
 
 Sample sizes are first computed, either per age group or overall.

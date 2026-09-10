@@ -11,7 +11,7 @@ This section contains the main results and figures. Note that some supplementary
 
 ## Tables
 
-#### Descriptives table
+### Cross-validation tables
 
 #### Store biomarker labels
 
@@ -392,6 +392,185 @@ if (isFALSE(params$telolength)) {
     )
   )
 }
+```
+
+## Descriptive tables
+
+### Show descriptives tables
+
+```{r show_descr_table}
+descriptives_unfiltered %>%
+  construct_table(
+    title = "Descriptive statistics (before filtering)"
+  )
+
+descriptives %>%
+  construct_table(
+    title = "Descriptive statistics (after filtering)"
+  )
+```
+
+### Show summary descriptives table
+
+```{r summary_descr_table}
+descriptive_summary_table <- bind_rows(
+  descriptives %>%
+    filter(age_group == "Overall", group == "Sex") %>%
+    arrange(match(category, c("Male", "Female"))) %>%
+    transmute(
+      Characteristic = as.character(category),
+      Value = sprintf(
+        "%.1f%% (<i>n</i> = %s)",
+        100 * proportion_w,
+        format(n, big.mark = ",")
+      )
+    ) %>%
+    add_row(Characteristic = "<b>Sex</b>", Value = "", .before = 1),
+  descriptives %>%
+    filter(group == "Overall", category == "Overall") %>%
+    transmute(
+      Characteristic = if_else(
+        age_group == "Overall",
+        "<b>Chronological Age (years)</b>",
+        as.character(age_group)
+      ),
+      Value = if_else(
+        age_group == "Overall",
+        sprintf("%.1f ± %.1f", mean_w_age, sd_w_age),
+        sprintf(
+          "%.1f%% (<i>n</i> = %s)",
+          100 * proportion_w,
+          format(n, big.mark = ",")
+        )
+      )
+    ),
+  descriptives %>%
+    filter(age_group == "Overall", group == "Race") %>%
+    arrange(match(category, c("White", "Black", "Hispanic", "Other"))) %>%
+    transmute(
+      Characteristic = recode(
+        as.character(category),
+        White = "White, non-Hispanic",
+        Black = "Black, non-Hispanic"
+      ),
+      Value = sprintf(
+        "%.1f%% (<i>n</i> = %s)",
+        100 * proportion_w,
+        format(n, big.mark = ",")
+      )
+    ) %>%
+    add_row(
+      Characteristic = "<b>Race/Ethnicity</b>",
+      Value = "",
+      .before = 1
+    ),
+  descriptives %>%
+    filter(
+      age_group == "Overall",
+      group == "Overall",
+      category == "Overall"
+    ) %>%
+    transmute(
+      Characteristic = list(sprintf("<b>%s</b>", c(
+        "HF-PTA (dB HL)",
+        "LF-PTA (dB HL)",
+        "KDM",
+        "PhenoAge",
+        "HD (log)",
+        "Telomere Mean Length (log)"
+      ))),
+      Value = list(c(
+        sprintf("%.1f ± %.1f", mean_w_pta_hf, sd_w_pta_hf),
+        sprintf("%.1f ± %.1f", mean_w_pta_lf, sd_w_pta_lf),
+        sprintf("%.1f ± %.1f", mean_w_kdm, sd_w_kdm),
+        sprintf("%.1f ± %.1f", mean_w_phenoage, sd_w_phenoage),
+        sprintf("%.1f ± %.1f", mean_w_hd_log, sd_w_hd_log),
+        sprintf(
+          "%.2f ± %.2f (<i>n</i> = %s)",
+          mean_w_telolength_log,
+          sd_w_telolength_log,
+          format(
+            design$variables %>%
+              filter(!is.na(telolength_log)) %>%
+              nrow(),
+            big.mark = ","
+          )
+        )
+      ))
+    ) %>%
+    unnest(c(Characteristic, Value))
+) %>%
+  kable(
+    format = "html",
+    col.names = c(
+      "Characteristic",
+      "Percentage or<br>Mean ± Standard Deviation"
+    ),
+    align = c("c", "c"),
+    escape = FALSE,
+    table.attr = paste0(
+      'cellspacing="0" cellpadding="0" ',
+      'style="width:159mm; table-layout:fixed; border-collapse:collapse; ',
+      "border:1px solid black; margin-left:auto; margin-right:auto; ",
+      "font-family:'Times New Roman', Times, serif; ",
+      'font-size:10pt; color:black;"'
+    )
+  ) %>%
+  row_spec(
+    0,
+    extra_css = paste0(
+      "border-bottom:1px solid black;",
+      "padding:0;",
+      "font-family:'Times New Roman', Times, serif;",
+      "font-size:10pt;",
+      "color:black;"
+    )
+  ) %>%
+  row_spec(
+    if (isFALSE(params$telolength)) c(3, 10, 15:21) else c(3, 9, 14:20),
+    extra_css = paste0(
+      "border-bottom:1px solid black;",
+      "padding:0;",
+      "font-family:'Times New Roman', Times, serif;",
+      "font-size:10pt;",
+      "color:black;"
+    )
+  ) %>%
+  column_spec(
+    1,
+    include_thead = TRUE,
+    extra_css = paste0(
+      "border-right:1px solid black;",
+      "padding:0;",
+      "font-family:'Times New Roman', Times, serif;",
+      "font-size:10pt;",
+      "color:black;"
+    )
+  ) %>%
+  column_spec(
+    2,
+    extra_css = paste0(
+      "padding:0;",
+      "font-family:'Times New Roman', Times, serif;",
+      "font-size:10pt;",
+      "color:black;"
+    )
+  )
+
+if (isTRUE(params$save_figures)) {
+  save_kable(descriptive_summary_table, here(
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "descriptive_summary.html"
+  ))
+}
+
+descriptive_summary_table
 ```
 
 ## Figures
@@ -1856,3 +2035,388 @@ if (isFALSE(params$telolength)) {
   )
 }
 ```
+
+#### Biological age correlations (supplementary)
+
+We check the correlations between chronological and biological age and calculate Cox hazard ratios
+on the differences/advances (corrected for age, sex, race, education, and smoking) and normalize to
+the standard deviation so that 1 unit away means 1 standard deviation. The hazard ratios are
+expressed as hazard per standard deviation away. The hazard ratios are unweighted.
+
+```{r plot_aging_measures}
+plot_bioage_correlations <- function(design, predictors, labels, predictors_advance, covariates = c("age", "sex", "race", "education", "smoking")) {
+  data <- design$variables
+
+  data <- data %>%
+    mutate(
+      across(
+        all_of(predictors_advance),
+        ~ .x / sd(.x, na.rm = TRUE)
+      )
+    )
+
+  correlate <- function(p) cor(data$age, data[[p]], use = "complete.obs")
+  correlations <- vapply(predictors, correlate, numeric(1))
+
+  cox_hr <- function(p) {
+    form <- as.formula(
+      paste0(
+        "survival::Surv(time, status) ~ ", p, " + ",
+        paste(covariates, collapse = " + ")
+      )
+    )
+    test_set <- data %>%
+      filter(
+        !is.na(time),
+        !is.na(status),
+        p != "telolength_log" | !is.na(telolength_log)
+      ) %>%
+      mutate(
+        "{p}" := if (p == "telolength_log") {
+          -.data[[p]]
+        } else {
+          .data[[p]]
+        }
+      )
+
+    message(p, " test set size = ", nrow(test_set))
+
+    fit <- survival::coxph(form, data = test_set)
+    setNames(exp(c(coef(fit)[p], confint(fit)[p, ])), c("HR", "ci_low", "ci_high"))
+  }
+  hazard_ratios <- vapply(predictors_advance, cox_hr, numeric(3))
+
+  labs <- setNames(
+    sprintf(
+      "<b>%s</b><br><i>r</i> = %.2f<br>HR = %.2f<br>HR 95%% CI [%.2f, %.2f]",
+      labels,
+      correlations,
+      hazard_ratios["HR", ],
+      hazard_ratios["ci_low", ],
+      hazard_ratios["ci_high", ]
+    ),
+    predictors
+  )
+
+  data %>%
+    pivot_longer(all_of(predictors), names_to = "metric", values_to = "value") %>%
+    mutate(sex = factor(sex)) %>%
+    ggplot(aes(x = age, y = value)) +
+    geom_point(aes(color = sex, alpha = 0.04 * weights / mean(weights)), shape = 20) +
+    geom_smooth(method = "lm", se = TRUE, color = "black", formula = y ~ x) +
+    facet_wrap(~metric, scales = "free_y", labeller = as_labeller(labs), nrow = 1) +
+    scale_alpha_identity() +
+    scale_color_manual(
+      values = c("1" = color("sunset")(2)[1], "2" = color("sunset")(2)[2]),
+      labels = c("1" = "Male", "2" = "Female")
+    ) +
+    labs(y = "Biological Age", x = "Age (Years)") +
+    theme_few() +
+    theme(
+      axis.text.x = element_markdown(
+        "sans",
+        size = 8
+      ),
+      axis.text.y = element_markdown(
+        "sans",
+        size = 9
+      ),
+      strip.text.x = element_markdown(
+        "sans",
+        size = 9,
+        lineheight = 1.1
+      ),
+      axis.title.x = element_markdown(
+        "sans",
+        size = 9,
+        lineheight = 1.1
+      ),
+      axis.title.y = element_markdown(
+        "sans",
+        size = 9,
+        lineheight = 1.1
+      ),
+      legend.title = element_blank(),
+      legend.background = element_rect(fill = "transparent", color = NA),
+      legend.box.background = element_rect(fill = "transparent", color = NA),
+      legend.key = element_rect(fill = "transparent"),
+      legend.position = "inside",
+      legend.justification.inside = c(0, 1),
+      legend.key.spacing.y = unit(1, "pt"),
+      panel.border = element_part_rect(
+        colour = "grey30",
+        side = "lb",
+        linewidth = 0.5
+      ),
+      plot.margin = margin(1, 1, 0, 1, unit = "pt")
+    ) +
+    guides(
+      colour = guide_legend(
+        override.aes = list(size = 1.25),
+        keywidth = unit(0.3, "cm"),
+        keyheight = unit(0.3, "cm"),
+        label.theme = element_markdown(
+          "sans",
+          size = 9,
+          margin = margin(l = 3, t = 1.5, unit = "pt")
+        )
+      )
+    )
+}
+
+sameplot(
+  plot_bioage_correlations(design,
+    predictors = c("kdm", "phenoage", "hd_log", "telolength_log"),
+    labels = c("KDM", "PhenoAge", "HD (Log)", "Telomere Length (Log)"),
+    predictors_advance = c("kdm_advance", "phenoage_advance", "hd_log", "telolength_log")
+  ),
+  width = params$double_column_width,
+  height = 4,
+  res = 1200,
+  save = params$save_figures,
+  file = here(
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Correlations.tif"
+  )
+)
+```
+
+#### Survey proportion representation
+
+```{r plot_props}
+plot_proportions <- function(data, y_variable, title) {
+  ggplot(
+    data,
+    aes(x = category, y = .data[[y_variable]], group = group)
+  ) +
+    geom_col(aes(fill = category, color = category)) +
+    geom_text(
+      aes(y = .data[[y_variable]] / 2, label = signif(.data[[y_variable]], 2)),
+      size = 2
+    ) +
+    facet_grid(age_group ~ group, scales = "free_x", space = "free_x") +
+    labs(
+      title = title,
+      y = "Proportion"
+    ) +
+    theme_few() +
+    scale_y_continuous(breaks = seq(0, 1, 0.5), labels = c("0", "0.5", "1")) +
+    coord_cartesian(ylim = c(0, 1)) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "none",
+      axis.title.x = element_blank()
+    )
+}
+
+sameplot(
+  plot_proportions(
+    data = descriptives_unfiltered,
+    y_variable = "proportion_w",
+    title = "Weighted unfiltered strata proportions"
+  ),
+  width = params$double_column_width,
+  height = 6,
+  res = 1200,
+  save = params$save_figures,
+  file = here(
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Extras",
+    "Weighted unfiltered strata proportions.tif"
+  )
+)
+
+sameplot(
+  plot_proportions(
+    data = descriptives,
+    y_variable = "proportion_w",
+    title = "Weighted filtered strata proportions"
+  ),
+  width = params$double_column_width,
+  height = 6,
+  res = 1200,
+  save = params$save_figures,
+  file = here(
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Extras",
+    "Weighted filtered strata proportions.tif"
+  )
+)
+
+sameplot(
+  plot_proportions(
+    data = descriptives_unfiltered,
+    y_variable = "proportion",
+    title = "Unweighted unfiltered strata proportions"
+  ),
+  width = params$double_column_width,
+  height = 6,
+  res = 1200,
+  save = params$save_figures,
+  file = here(
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Extras",
+    "Unweighted unfiltered strata proportions.tif"
+  )
+)
+
+sameplot(
+  plot_proportions(
+    data = descriptives,
+    y_variable = "proportion",
+    title = "Unweighted filtered strata proportions"
+  ),
+  width = params$double_column_width,
+  height = 6,
+  res = 1200,
+  save = params$save_figures,
+  file = here(
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Extras",
+    "Unweighted filtered strata proportions.tif"
+  )
+)
+```
+
+**Proportions remain roughly the same before and after filtering. Gender skews slightly towards men
+after filtering due to excluding pregnant women. Relative black people drops by \~12% after
+filtering but absolute change is under 3% for any stratum.**
+
+#### Descriptive statistics before and after filtering
+
+We plot survey design-adjusted hearing means and variances per-stratum of covariates in the full and
+filtered dataset to assess whether the filtered dataset is representative of the general population.
+
+```{r survey_balance_check}
+plot_descriptives <- function(data, title) {
+  paste0("mean_w_", params$hearing_var)
+  ggplot(
+    data,
+    aes(x = category, y = .data[[paste0("mean_w_", params$hearing_var)]], group = group)
+  ) +
+    geom_col(aes(fill = category, color = category)) +
+    geom_errorbar(aes(ymin = .data[[paste0("mean_w_", params$hearing_var)]] - .data[[paste0("sd_w_", params$hearing_var)]], ymax = .data[[paste0("mean_w_", params$hearing_var)]] + .data[[paste0("sd_w_", params$hearing_var)]]), width = 0.2) +
+    facet_grid(age_group ~ group, scales = "free_x", space = "free_x") +
+    labs(
+      title = title,
+      y = paste0(if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", "\n (dB HL)")
+    ) +
+    theme_few() +
+    coord_cartesian(ylim = c(0, 80)) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "none",
+      axis.title.x = element_blank()
+    )
+}
+
+sameplot(
+  plot_descriptives(
+    data = descriptives_unfiltered,
+    title = paste0("Mean Weighted Unfiltered ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA")
+  ),
+  width = params$double_column_width,
+  height = 8,
+  res = 1200,
+  save = params$save_figures,
+  file = here(
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Extras",
+    paste0("Weighted unfiltered strata ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", ".tif")
+  )
+)
+
+sameplot(
+  plot_descriptives(
+    data = descriptives,
+    title = paste0("Mean Weighted Filtered ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA")
+  ),
+  width = params$double_column_width,
+  height = 8,
+  res = 1200,
+  save = params$save_figures,
+  file = here(
+    "output",
+    "figures",
+    if (isTRUE(params$telolength)) {
+      paste0(params$hearing_var, "_telolength_log")
+    } else {
+      params$hearing_var
+    },
+    "Extras",
+    paste0("Weighted filtered strata ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", ".tif")
+  )
+)
+```
+
+#### Assessment of selection bias
+
+```{r check_selection_bias}
+plot_selection_bias <- function(ref, test) {
+  ref <- ref %>% filter(group == "Overall")
+  test <- test %>% filter(group == "Overall")
+
+  diff <- ref[[paste0("mean_w_", params$hearing_var)]] - test[[paste0("mean_w_", params$hearing_var)]]
+
+  ref %>%
+    mutate(
+      delta = diff
+    ) %>%
+    filter(
+      age_group != "Overall"
+    ) %>%
+    ggplot(aes(x = age_group, y = delta)) +
+    geom_point(aes(color = age_group), size = 4, show.legend = FALSE) +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+    theme_few() +
+    labs(x = "Age (Years)", y = paste0("Underestimation ", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", "", "\n(dB HL)"))
+}
+
+sameplot(
+  plot_selection_bias(
+    ref = descriptives_unfiltered,
+    test = descriptives
+  ),
+  width = params$double_column_width,
+  height = 4,
+  res = 1200
+)
+```
+
+**Selection bias is minimal in both LF-PTA and HF-PTA.**
