@@ -8,13 +8,24 @@ editor_options:
 
 ## Calculate descriptive statistics
 
-We use the full survey design to generate a descriptive statistics table on the filtered and
-unfiltered audiometry samples across cycles. We calculate both weighted and unweighted proportions
-and check n per stratum. We only include the strata in the unfiltered dataset that's in the filtered
-dataset and remove NA values. Bioage descriptive statistics are also optionally calculated.
+We turn our repaeted design object back into a regular Survey object for calculating population
+means. Because no PSUs are filtered out, we can reconstruct the object from the filtered dataset. We
+use the full survey design to generate a descriptive statistics table on the filtered and unfiltered
+audiometry samples across cycles. We calculate both weighted and unweighted proportions and check n
+per stratum. We only include the strata in the unfiltered dataset that's in the filtered dataset and
+remove NA values. Bioage descriptive statistics are also optionally calculated. Variance estimates
+are calculated with Taylor linearization.
 
 ```{r calc_descriptives}
 calculate_descriptive_statistics <- function(design, audiometry_cols, incl_bioage = FALSE) {
+  design <- svydesign(
+    ids = ~psu,
+    strata = ~stratum,
+    weights = ~weights,
+    data = design$variables,
+    nest = TRUE
+  )
+    
   design <- update(
     design,
     sex = dplyr::recode(
@@ -1156,3 +1167,4 @@ pred_age_rate$quadratic_derivative %>%
 pred_age_rate$derivative_smooth %>%
   filter(age == min(age) | age == max(age))
 ```
+
