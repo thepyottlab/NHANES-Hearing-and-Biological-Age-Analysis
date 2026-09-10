@@ -421,7 +421,7 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-## Repeated k-fold modeling
+## Jackknife repeated cross-validation
 
 ### Repeated k-fold validation function per age group
 
@@ -532,13 +532,21 @@ cross_validation <- function(
         -starts_with("fold"),
         -all_of(setdiff(predictor_columns, predictors))
       )
+    
+    # We keep the original mean of weights
+    weight_mean <- mean(train$weights)
+    
+    # Deleted PSUs have weight 0 and contribute neither to fitting nor evaluation, so we filter
+    train <- train %>% filter(weights > 0)
+    test <- test %>% filter(weights > 0)
+    
 
-    # Fit GAM
+    # Fit GAM and normalize weights to the mean weight
     mod <- bam(
       as.formula(formula),
       data = train,
       family = gaussian(),
-      weights = weights / mean(weights),
+      weights = weights / weight_mean,
       method = if (isTRUE(discrete)) "fREML" else "REML",
       discrete = if (isTRUE(discrete)) TRUE else FALSE,
       nthreads = 1
@@ -609,6 +617,91 @@ cross_validation <- function(
 }
 ```
 
+### Jackknife cross-validation
+
+The repeated cross-validation contains identical folds if we run it multiple times. We now do a
+jackknife outer-loop in which we set the weights of one PSU to 0, then in the inner cross-validation
+loop we rescale the weights by the mean to make the other weights slightly higher and filter out
+that excluded PSU. By pooling predictions across folds and repeats, we average out the uncertainty
+from the same participants/PSUs belonging to different folds (we check that this is stable), since
+this is Monte Carlo noise and can be addressed by averaging as long as we have enough repetitions.
+The uncertainty from NHANES sampling these particular participants and PSUs (sampling uncertainty)
+is captured by variation in the results from the jackknife cross validation.
+
+We first ensure participants are in the same order in the dataframe and in the design object. We
+then store the weights for each run of the jackknife CV in a separate column, with the first one
+being the full, original weights. We then loop over each column and overwrite the weights of the
+dataframe with the weights for that run and run the cross validation. Predictions of the first run
+with full weights are stored separately.
+
+We then pool all predictions from that repeated cross-validation inner loop and calculate the
+weighted MSE and RMSE per age group and overall. We average each participant's error across
+repetitions and take the weighted mean of those averages to give a single MSE/RMSE per age
+group/overall. This is the same as weighing different folds according to total weight size.
+
+```{r jkn_cv}
+jackknife_cross_validation <- function(data, design, formulas, ...) {
+  # Make sure the design object has the same participants in order as the dataframe
+  stopifnot(identical(as.character(df$SEQN), as.character(design$variables$SEQN)))
+
+  # Extract the original weights ("sampling") and matrix of jackknife weights for each run ("analysis")
+  cv_weights <- cbind(
+    weights(design, type = "sampling"),
+    weights(design, type = "analysis")
+  )
+  
+  # Prepare to store statistics per run and the predictions from the run with original weights
+  estimates <- vector("list", ncol(cv_weights))
+  predictions <- NULL
+  
+  for (j in seq_len(ncol(cv_weights))) {
+    data$weights <- cv_weights[, j]
+    
+    pred <- cross_validation(
+      data = data,
+      formulas = formulas,
+      ...
+    )
+    
+    # Only keep the predictions from the first run stored in predictions
+    if (j == 1L) {
+      predictions <- pred
+    }
+    
+    # Pool held-out losses across folds and repeats
+    estimates[[j]] <- bind_rows(
+      pred %>%
+        summarize(
+          mse = weighted.mean(
+            (.data[[params$hearing_var]] - predicted)^2,
+            weights
+          ),
+          .by = c(predictors, age_group)
+        ) %>%
+        mutate(age_group = as.character(age_group)),
+      pred %>%
+        summarize(
+          mse = weighted.mean(
+            (.data[[params$hearing_var]] - predicted)^2,
+            weights
+          ),
+          .by = predictors
+        ) %>%
+        mutate(age_group = "Overall")
+    ) %>%
+      mutate(
+        replicate = j - 1L,
+        rmse = sqrt(mse)
+      )
+  }
+  
+  list(
+    predictions = predictions,
+    estimates = bind_rows(estimates)
+  )
+}
+```
+
 ### Generate model path function
 
 ```{r fun_gen_m_paths}
@@ -654,16 +747,14 @@ system.time({
   ) {
     readRDS(generate_model_path("bioage_predictions"))
   } else {
-    cross_validation(
+    jackknife_cross_validation(
       df,
-      formulas_bioage,
+      design = design,
+      formulas = formulas_bioage,
       folds = params$global_folds,
       repeats = params$global_repeats,
       discrete = params$global_discrete,
-      threads = min(
-        params$n_threads,
-        as.numeric(future::availableCores()) - 1
-      )
+      threads = max(1, min(params$n_threads, availableCores() - 1))
     )
   }
 })
@@ -692,16 +783,14 @@ if (isFALSE(params$telolength)) {
     ) {
       readRDS(generate_model_path("bioage_reverse_predictions"))
     } else {
-      cross_validation(
+      jackknife_cross_validation(
         df,
-        formulas_bioage_reverse,
+        design = design,
+        formulas = formulas_bioage_reverse,
         folds = params$global_folds,
         repeats = params$global_repeats,
         discrete = params$global_discrete,
-        threads = min(
-          params$n_threads,
-          as.numeric(future::availableCores()) - 1
-        )
+        threads = max(1, min(params$n_threads, availableCores() - 1))
       )
     }
   })
@@ -733,16 +822,14 @@ if (isFALSE(params$telolength)) {
     ) {
       readRDS(generate_model_path("biomarkers_predictions"))
     } else {
-      cross_validation(
+      jackknife_cross_validation(
         df,
-        formulas_biomarkers,
+        design = design,
+        formulas = formulas_biomarkers,
         folds = params$global_folds,
         repeats = params$global_repeats,
         discrete = params$global_discrete,
-        threads = min(
-          params$n_threads,
-          as.numeric(future::availableCores()) - 1
-        )
+        threads = max(1, min(params$n_threads, availableCores() - 1))
       )
     }
   })
@@ -774,17 +861,15 @@ if (isFALSE(params$telolength)) {
     ) {
       readRDS(generate_model_path("covariates_predictions"))
     } else {
-      cross_validation(
+      jackknife_cross_validation(
         df,
-        formulas_covariates,
+        design = design,
+        formulas = formulas_covariates,
         folds = params$global_folds,
         repeats = params$global_repeats,
         discrete = params$global_discrete,
         covariate_analysis = TRUE,
-        threads = min(
-          params$n_threads,
-          as.numeric(future::availableCores()) - 1
-        )
+        threads = max(1, min(params$n_threads, availableCores() - 1))
       )
     }
   })
@@ -1560,10 +1645,7 @@ if (isTRUE(params$run_optional_chunks)) {
       folds = params$global_folds,
       repeats = params$global_repeats,
       discrete = params$global_discrete,
-      threads = min(
-        params$n_threads,
-        as.numeric(future::availableCores()) - 1
-      ),
+      threads = max(1, min(params$n_threads, availableCores() - 1)),
       skip = TRUE
     )
   })
@@ -1704,10 +1786,7 @@ if (isTRUE(params$run_optional_chunks)) {
     inspect_k_values(df,
       formulas_biomarkers,
       discrete = params$global_discrete,
-      threads = min(
-        params$n_threads,
-        as.numeric(future::availableCores()) - 1
-      )
+      threads = max(1, min(params$n_threads, availableCores() - 1))
     ) %>%
       construct_table(title = "Inspect K Biomarkers")
   }
@@ -1810,10 +1889,7 @@ if (isTRUE(params$run_optional_chunks)) {
   sameplot(
     assess_stability_k(
       data = df,
-      threads = min(
-        params$n_threads,
-        as.numeric(future::availableCores()) - 1
-      )
+      threads = max(1, min(params$n_threads, availableCores() - 1))
     ),
     width = params$single_column_width,
     height = 3,
