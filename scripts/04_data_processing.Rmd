@@ -178,6 +178,13 @@ less influence' instead of 'what if these isolated people had more or less influ
 'what if NHANES had sampled different PSUs' instead of 'what if NHANES had picked different people
 from the same PSUs', which is less generalizable.
 
+We correct the variance at the end, taking into account the number of PSUs per stratum. We then
+correct the variance with $\frac{n}{(n-1)}$. This is needed because we sample with replacement, if
+we have PSU A and B in a strata, we have 50% chance to draw AA or BB and 50% to draw AB or BA (the
+original mean). The mean contribution is then about half the true sampling variance. If each stratum
+had 2 PSUs, we could've multiplied by $\sqrt2$, but since some strata have 3 PSUs, we need to
+calculate the harmonic mean.
+
 ```{r diff_smooth_boot}
 nonparametric_difference_bootstrap <- function(df, n_boot = 2000, threads = 1) {
   ages <- seq(
@@ -262,7 +269,11 @@ nonparametric_difference_bootstrap <- function(df, n_boot = 2000, threads = 1) {
     0.95
   ))
 
-  cbind(SE_adj, t_crit_max_t)
+
+  cbind(
+    SE_adj = SE_adj / sqrt(1 - mean(1 / lengths(stratum_psus))),
+    t_crit_max_t
+  )
 }
 
 system.time(
