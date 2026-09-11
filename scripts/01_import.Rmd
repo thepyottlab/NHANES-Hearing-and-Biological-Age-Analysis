@@ -26,7 +26,7 @@ library(kableExtra) # for pretty tables
 library(khroma) # for Paul Tol color schemes
 library(ggthemes) # for theme_few()
 library(ggtext) # for element_markdown()
-library(ggh4x) # for element_rect()
+library(ggh4x) # for element_rect() and facetted_pos_scales()
 library(ggridges) # for geom_density_ridges()
 library(ggpubr) # for ggarrange()
 library(cowplot) # for combined plots

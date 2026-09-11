@@ -1050,7 +1050,6 @@ if (isTRUE(params$run_optional_chunks)) {
       count(stratum, name = "psu_n") %>%
       count(psu_n, name = "stratum_n") %>%
       mutate(stage = "Before filtering"),
-    
     design$variables %>%
       distinct(stratum, psu) %>%
       count(stratum, name = "psu_n") %>%
