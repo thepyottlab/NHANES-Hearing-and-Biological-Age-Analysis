@@ -938,4 +938,3 @@ pred_age_rate$quadratic_derivative %>%
 pred_age_rate$derivative_smooth %>%
   filter(age == min(age) | age == max(age))
 ```
-
