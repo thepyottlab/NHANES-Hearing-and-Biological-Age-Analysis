@@ -532,14 +532,14 @@ cross_validation <- function(
         -starts_with("fold"),
         -all_of(setdiff(predictor_columns, predictors))
       )
-    
+
     # We keep the original mean of weights
     weight_mean <- mean(train$weights)
-    
+
     # Deleted PSUs have weight 0 and contribute neither to fitting nor evaluation, so we filter
     train <- train %>% filter(weights > 0)
     test <- test %>% filter(weights > 0)
-    
+
 
     # Fit GAM and normalize weights to the mean weight
     mod <- bam(
@@ -640,36 +640,34 @@ repetitions and take the weighted mean of those averages to give a single MSE/RM
 group/overall. This is the same as weighing different folds according to total weight size.
 
 ```{r jkn_cv}
-jackknife_cross_validation <- function(data, design, formulas, ...) {
+jackknife_cross_validation <- function(data, design, formulas, threads, ...) {
   # Make sure the design object has the same participants in order as the dataframe
-  stopifnot(identical(as.character(df$SEQN), as.character(design$variables$SEQN)))
+  stopifnot(identical(as.character(data$SEQN), as.character(design$variables$SEQN)))
 
   # Extract the original weights ("sampling") and matrix of jackknife weights for each run ("analysis")
   cv_weights <- cbind(
     weights(design, type = "sampling"),
     weights(design, type = "analysis")
   )
-  
+
   # Prepare to store statistics per run and the predictions from the run with original weights
-  estimates <- vector("list", ncol(cv_weights))
-  predictions <- NULL
-  
-  for (j in seq_len(ncol(cv_weights))) {
+  run_replicate <- function(j, ...) {
     data$weights <- cv_weights[, j]
-    
+
     pred <- cross_validation(
       data = data,
       formulas = formulas,
       ...
     )
-    
+
     # Only keep the predictions from the first run stored in predictions
+    predictions <- NULL
     if (j == 1L) {
       predictions <- pred
     }
-    
+
     # Pool held-out losses across folds and repeats
-    estimates[[j]] <- bind_rows(
+    estimates <- bind_rows(
       pred %>%
         summarize(
           mse = weighted.mean(
@@ -693,11 +691,35 @@ jackknife_cross_validation <- function(data, design, formulas, ...) {
         replicate = j - 1L,
         rmse = sqrt(mse)
       )
+
+    list(
+      predictions = predictions,
+      estimates = estimates
+    )
   }
-  
+
+  plan(multisession, workers = threads)
+
+  cv_output <- future_lapply(
+    seq_len(ncol(cv_weights)),
+    FUN = run_replicate,
+    ...,
+    future.seed = TRUE,
+    future.globals = TRUE,
+    future.packages = c(
+      "mgcv",
+      "tidyverse",
+      "tidytable",
+      "future",
+      "future.apply"
+    )
+  )
+
+  plan(sequential)
+
   list(
-    predictions = predictions,
-    estimates = bind_rows(estimates)
+    predictions = cv_output[[1]]$predictions,
+    estimates = bind_rows(lapply(cv_output, function(x) x$estimates))
   )
 }
 ```
@@ -715,6 +737,10 @@ generate_model_path <- function(output_type) {
     output_type,
     "_k=",
     params$global_k,
+    "_r=",
+    params$global_repeats,
+    "_folds=",
+    params$global_folds,
     "_discrete=",
     params$global_discrete,
     ".RDS"
@@ -1906,5 +1932,239 @@ if (isTRUE(params$run_optional_chunks)) {
       paste0("k stability analysis", if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA", ".tif")
     )
   )
+}
+```
+
+### (Optional) Cross-validation repeat stability analysis
+
+If the errors are higher, then the training dataset isn't performing as well and we may need more
+folds. If the uncertainty is larger, we need more repeats.
+
+```{r cv_stability}
+if (isTRUE(params$run_optional_chunks)) {
+  test_cross_validation_stability <- function(
+    data, ref_formula, test_formula, folds, repeats,
+    discrete = TRUE, threads = 1
+  ) {
+    ref_label <- paste(extract_predictors(ref_formula), collapse = ", ")
+
+    results <- map_dfr(folds, function(n_folds) {
+      set.seed(2)
+      cv_time <- system.time({
+        mse_repeats <- data %>%
+          make_repeated_folds(k = n_folds, repeats = max(repeats)) %>%
+          cross_validation(
+            formulas = c(ref_formula, test_formula),
+            folds = n_folds,
+            repeats = max(repeats),
+            discrete = discrete,
+            threads = threads
+          ) %>%
+          summarize(
+            mse = weighted.mean(
+              (.data[[params$hearing_var]] - predicted)^2,
+              weights
+            ),
+            .by = c(predictors, r)
+          ) %>%
+          mutate(
+            model = if_else(predictors == ref_label, "reference", "test")
+          ) %>%
+          select(r, model, mse) %>%
+          pivot_wider(names_from = model, values_from = mse) %>%
+          transmute(
+            r,
+            test_mse = test,
+            delta_mse = reference - test
+          ) %>%
+          pivot_longer(
+            cols = c(test_mse, delta_mse),
+            names_to = "metric",
+            values_to = "mse"
+          )
+      })
+
+      map_dfr(sort(unique(repeats)), function(n_repeats) {
+        mse_repeats %>%
+          filter(r <= n_repeats) %>%
+          summarize(
+            mean_mse = mean(mse),
+            margin = if (n_repeats > 1) {
+              qt(0.975, df = n_repeats - 1) *
+                sd(mse) / sqrt(n_repeats)
+            } else {
+              NA_real_
+            },
+            .by = metric
+          ) %>%
+          bind_rows(
+            tibble(
+              metric = "time_per_repeat",
+              mean_mse = unname(cv_time["elapsed"]) / max(repeats) / 60,
+              margin = NA_real_
+            )
+          ) %>%
+          mutate(folds = n_folds, repeats = n_repeats)
+      })
+    })
+
+    results %>%
+      filter(repeats >= 3) %>%
+      mutate(
+        metric = factor(
+          metric,
+          levels = c("test_mse", "delta_mse", "time_per_repeat"),
+          labels = c(
+            "Test model MSE",
+            "Delta MSE: reference - test",
+            "Time per repeat (minutes)"
+          )
+        )
+      ) %>%
+      ggplot(aes(
+        x = repeats, y = mean_mse,
+        colour = factor(folds), fill = factor(folds)
+      )) +
+      geom_ribbon(
+        aes(ymin = mean_mse - margin, ymax = mean_mse + margin),
+        alpha = 0.15, na.rm = TRUE, color = NA
+      ) +
+      geom_line() +
+      geom_point(
+        size = 1.25,
+        shape = 16,
+        stroke = 0.5
+      ) +
+      facet_wrap(. ~ metric, nrow = 1, scales = "free_y") +
+      scale_x_continuous(breaks = sort(unique(repeats[repeats >= 3]))) +
+      facetted_pos_scales(
+        y = list(
+          scale_y_continuous(
+            limits = c(199, 210),
+            breaks = seq(199, 210, 5),
+            expand = expansion(mult = 0)
+          ),
+          scale_y_continuous(
+            limits = c(0, 2.5),
+            breaks = seq(0, 2.5, 0.5),
+            expand = expansion(mult = 0)
+          ),
+          scale_y_continuous(
+            limits = c(0, 0.06),
+            breaks = seq(0, 0.06, 0.02),
+            expand = expansion(mult = 0)
+          )
+        )
+      ) +
+      labs(
+        x = "Number of repeats",
+        y = "Mean across repeats",
+        colour = "Folds", fill = "Folds",
+        caption = "Pointwise 95% Monte Carlo CIs"
+      ) +
+      theme_few() +
+      theme(
+        panel.grid.major.x = element_line(linewidth = 0.1, color = "grey50"),
+        panel.border = element_part_rect(
+          colour = "grey30",
+          side = "lb",
+          linewidth = 0.5
+        ),
+        plot.margin = margin(1, 1, 0, 1, unit = "pt"),
+        axis.text.x = element_markdown(
+          "sans",
+          size = 8
+        ),
+        axis.text.y = element_markdown(
+          "sans",
+          size = 8
+        ),
+        axis.title.x = element_markdown(
+          "sans",
+          size = 9,
+          lineheight = 1.1
+        ),
+        axis.title.y = element_markdown(
+          "sans",
+          size = 9,
+          lineheight = 1.1,
+          color = if (params$hearing_var == "pta_lf") "white" else "black"
+        ),
+        legend.title = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = NA),
+        legend.box.background = element_rect(fill = "transparent", color = NA),
+        legend.key = element_rect(fill = "transparent"),
+        legend.position = "inside",
+        legend.justification.inside = c(0, 1),
+        legend.key.spacing.y = unit(1, "pt")
+      )
+  }
+
+  sameplot(
+    test_cross_validation_stability(
+      data = df,
+      ref_formula = formulas_bioage[[1]],
+      test_formula = formulas_bioage[[2]],
+      folds = 5,
+      repeats = seq(3:15),
+      discrete = TRUE,
+      threads = max(1, min(params$n_threads, availableCores() - 1))
+    ),
+    width = params$double_column_width,
+    height = 3,
+    res = 200,
+    save = params$save_figures,
+    file = here(
+      "output",
+      "figures",
+      if (isTRUE(params$telolength)) {
+        paste0(params$hearing_var, "_telolength_log")
+      } else {
+        params$hearing_var
+      },
+      "Extras",
+      "CV_stability_analysis.tif"
+    )
+  )
+}
+```
+
+### (Optional) Test CV duration
+
+```{r test_CV_duration}
+if (isTRUE(params$run_optional_chunks)) {
+  time_cross_validation <- function(data, design, formulas, ...) {
+    cv_time <- system.time({
+      cross_validation(
+        data = data,
+        formulas = formulas,
+        ...
+      )
+    })
+
+    tibble(
+      n_formulas = length(formulas),
+      inner_cv_minutes = unname(cv_time["elapsed"]) / 60,
+      cv_runs = ncol(cbind(
+        weights(design, type = "sampling"),
+        weights(design, type = "analysis")
+      ))
+    ) %>%
+      mutate(
+        minutes_per_formula = inner_cv_minutes / n_formulas,
+        estimated_total_hours = inner_cv_minutes * cv_runs / 60
+      )
+  }
+
+  time_cross_validation(
+    data = df,
+    design = design,
+    formulas = c(formulas_bioage, formulas_bioage_reverse, formulas_biomarkers, formulas_covariates),
+    folds = params$global_folds,
+    repeats = params$global_repeats,
+    discrete = params$global_discrete,
+    threads = max(1, min(params$n_threads, availableCores() - 1))
+  ) %>%
+    print()
 }
 ```
