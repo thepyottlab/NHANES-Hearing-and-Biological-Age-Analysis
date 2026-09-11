@@ -8,7 +8,7 @@ editor_options:
 
 ## Calculate descriptive statistics
 
-We turn our repaeted design object back into a regular Survey object for calculating population
+We turn our repeated design object back into a regular Survey object for calculating population
 means. Because no PSUs are filtered out, we can reconstruct the object from the filtered dataset. We
 use the full survey design to generate a descriptive statistics table on the filtered and unfiltered
 audiometry samples across cycles. We calculate both weighted and unweighted proportions and check n
@@ -25,7 +25,7 @@ calculate_descriptive_statistics <- function(design, audiometry_cols, incl_bioag
     data = design$variables,
     nest = TRUE
   )
-    
+
   design <- update(
     design,
     sex = dplyr::recode(
@@ -169,35 +169,21 @@ descriptives_unfiltered <- calculate_descriptive_statistics(design_no_missing, a
 descriptives <- calculate_descriptive_statistics(design, audiometry_cols = audiometry_cols, incl_bioage = TRUE)
 ```
 
-## Calculate (delta) MSE per fold
+## Calculate (delta) MSE
 
-Sample sizes are first computed, either per age group or overall.
+We set the age group and rename mse and rmse to `mse_w` and `rmse_w`. We then take all the results
+with the reference predictor and add the reference group by the replicate and calculate delta MSE,
+delta RMSE and partial R2².
 
-Squared residuals are calculated from predicted vs true values, weighted MSEs are calculated and
-training and testing sample sizes are stored. Then if there is only one reference, select the
-reference column and insert reference mse_w. Use `map_dfr()` to filter predictors to contain
-reference, then insert reference in the right spot. We cannot use the filter for the covariate
-analysis because it has a full model as reference, so the grepl would fail, therefore we bypass the
-filter with the covariate_analysis boolean. There is only one reference variable in this case so we
-don't need to filter the dataset first. We calculate `delta_mse_w` by subtracting MSE of the full
-model from the MSE of the reduced model, where a positive number means a reduction in MSE over the
-reference model (i.e., improvement in error). Because covariate_analysis contains both models that
-are larger or smaller than the reference, we set the direction based on case_when.
-
-```{r calculate_per_fold_mse}
-calculate_mse_per_fold <- function(predictions, reference, per_age_group = FALSE, covariate_analysis = FALSE) {
-  results <- predictions %>%
+```{r}
+calculate_mse_per_replicate <- function(estimates, reference, covariate_analysis = FALSE) {
+  results <- estimates %>%
     mutate(
-      squared_residuals = (.data[[params$hearing_var]] - predicted)^2,
-      age_group = if (isTRUE(per_age_group)) age_group else "overall"
+      age_group = if_else(age_group == "Overall", "overall", age_group)
     ) %>%
-    group_by(
-      age_group, predictors, r, k
-    ) %>%
-    summarize(
-      sum_weights = sum(weights),
-      mse_w = sum(weights * squared_residuals) / sum(weights),
-      .groups = "drop"
+    rename(
+      mse_w = mse,
+      rmse_w = rmse
     )
 
   results <- map_dfr(reference, \(ref) {
@@ -208,91 +194,50 @@ calculate_mse_per_fold <- function(predictions, reference, per_age_group = FALSE
           filter(predictors == ref) %>%
           mutate(
             mse_w_ref = mse_w,
+            rmse_w_ref = rmse_w,
             reference = ref
           ) %>%
-          select(reference, age_group, r, k, mse_w_ref),
-        by = c("age_group", "r", "k")
+          select(reference, age_group, replicate, mse_w_ref, rmse_w_ref),
+        by = c("age_group", "replicate")
       )
   })
 
   if (isFALSE(covariate_analysis)) {
-    results <- results %>%
+    results %>%
       mutate(
-        delta_mse_w = mse_w_ref - mse_w
+        delta_mse_w = mse_w_ref - mse_w,
+        delta_rmse_w = rmse_w_ref - rmse_w,
+        r2p = delta_mse_w / mse_w_ref
       )
   } else {
-    results <- results %>%
+    results %>%
       mutate(
-        delta_mse_w = mse_w - mse_w_ref
+        delta_mse_w = mse_w - mse_w_ref,
+        delta_rmse_w = rmse_w - rmse_w_ref,
+        r2p = delta_mse_w / mse_w
       )
   }
-  sample_sizes <- predictions %>%
-    group_by(age_group, predictors, r, k) %>%
-    summarize(
-      n_train = first(n_train),
-      n_test = first(n_test),
-      .groups = "drop"
-    )
-
-  if (isFALSE(per_age_group)) {
-    sample_sizes <- sample_sizes %>%
-      group_by(predictors, r, k) %>%
-      summarize(
-        n_train = sum(n_train),
-        n_test = sum(n_test),
-        .groups = "drop"
-      ) %>%
-      mutate(
-        age_group = "overall"
-      )
-  }
-  results %>%
-    left_join(
-      sample_sizes,
-      by = c("predictors", "age_group", "r", "k")
-    )
 }
 
-results_bioage_overall <- pred_bioage %>%
-  calculate_mse_per_fold(
+results_bioage <- pred_bioage$estimates %>%
+  calculate_mse_per_replicate(
     reference = "age"
-  )
-results_bioage <- pred_bioage %>%
-  calculate_mse_per_fold(
-    reference = "age",
-    per_age_group = TRUE
   )
 
 if (isFALSE(params$telolength)) {
-  results_bioage_reverse_overall <- pred_bioage_reverse %>%
-    calculate_mse_per_fold(
+  results_bioage_reverse <- pred_bioage_reverse$estimates %>%
+    calculate_mse_per_replicate(
       reference = c("phenoage", "kdm", "hd_log")
     )
-  results_bioage_reverse <- pred_bioage_reverse %>%
-    calculate_mse_per_fold(
-      reference = c("phenoage", "kdm", "hd_log"),
-      per_age_group = TRUE
-    )
 
-  results_biomarkers_overall <- pred_biomarkers %>%
-    calculate_mse_per_fold(
+  results_biomarkers <- pred_biomarkers$estimates %>%
+    calculate_mse_per_replicate(
       reference = "age"
     )
-  results_biomarkers <- pred_biomarkers %>%
-    calculate_mse_per_fold(
-      reference = "age",
-      per_age_group = TRUE
-    )
 
-  results_covariates_overall <- pred_covariates %>%
-    calculate_mse_per_fold(
+  results_covariates <- pred_covariates$estimates %>%
+    calculate_mse_per_replicate(
       reference = "age, sex, smoking, race, education",
-      covariate_analysis = TRUE
-    )
-  results_covariates <- pred_covariates %>%
-    calculate_mse_per_fold(
-      reference = "age, sex, smoking, race, education",
-      per_age_group = TRUE,
       covariate_analysis = TRUE
     )
 }
@@ -300,67 +245,19 @@ if (isFALSE(params$telolength)) {
 
 ## Calculate summary statistics
 
-### Calculate mean MSE and MSE variance across folds
-
-The Nadeau Bengio corrected t-test estimates variance using the training and testing dataset sizes,
-which is needed because cross validations are not independent, violating the assumption of a paired
-t-test, inflating type 1 errors (false positives). MSE per fold is calculated using the weighted
-mean of prediction errors. Average MSE across folds is calculated by weighting folds by the sum of
-the participants' probability weights.
-
-In <https://www.jmlr.org/papers/volume6/markatou05a/markatou05a.pdf>, Analysis of Variance of
-Cross-Validation Estimators of the Generalization Error, the authors also report the variance
-estimate as $S² * (1/J + n2/n1)$, where $S2$ is the variance (squared standard deviation), `J` is
-the total number of folds, $n2$ is the validation/test set and $n1$ is the training set size. They
-also show that when $J$ is appropriate ($10*10$), it provides a good variance estimate.
-
-```{r calc_pooled_mse}
-calculate_pooled_mse <- function(results) {
-  results %>%
-    group_by(age_group, predictors) %>%
-    mutate(
-      mse_w_mean = sum(sum_weights * mse_w) / sum(sum_weights),
-      delta_mse_w_mean = sum(sum_weights * delta_mse_w) / sum(sum_weights)
-    ) %>%
-    summarize(
-      reference = first(reference),
-      mse_w_ref = sum(sum_weights * mse_w_ref) / sum(sum_weights),
-      n = length(unique(r)) * length(unique(k)),
-      sum_n_train = sum(n_train),
-      sum_n_test = sum(n_test),
-      mse_w = sum(sum_weights * mse_w) / sum(sum_weights),
-      delta_mse_w = sum(sum_weights * delta_mse_w) / sum(sum_weights),
-      s2_mse_w = (sum(sum_weights) / (sum(sum_weights)^2 - sum(sum_weights^2))) * sum(sum_weights * (mse_w - mse_w_mean)^2),
-      delta_s2_mse_w = (sum(sum_weights) / (sum(sum_weights)^2 - sum(sum_weights^2))) * sum(sum_weights * (delta_mse_w - delta_mse_w_mean)^2),
-      .groups = "drop"
-    ) %>%
-    mutate(
-      se_delta_mse_w_nb = sqrt(
-        delta_s2_mse_w * (1 / n + sum_n_test / sum_n_train)
-      ),
-      se_mse_w_nb = sqrt(
-        s2_mse_w * (1 / n + sum_n_test / sum_n_train)
-      ),
-      n_train = sum_n_train / n,
-      n_test = sum_n_test / n
-    )
-}
-```
-
-### Calculate RMSE, R2, and additionally explained variance across folds
-
-In the previous chunk, `mse_w` was calculated by calculating MSE per fold, and calculating a mean
-MSE by weighing the per-fold MSEs by the sum of the weights within that fold. This ensures that
-folds with subjects with higher weight actually weigh more, rather than just adjusting for
-differences in number of subjects per fold. The identical value can be obtained using
-`mse_w = sum(weights * squared_residuals) / sum(weights)`, but we cannot derive a variance across
-folds directly from residuals this way, so the mean weighted MSE is calculated from per-fold MSEs.
-Because the `mse_w` that's computed across folds is already weighted, we can calculate RMSE directly
-from it.
-
-We import the weighted mean PTA from the dataframe. This is used as a reference for the R².
-Thereafter, we group over the 100 (10x10) folds per model to calculate the R² (using MSE but we
-could use also use sum of squares) and RMSE with survey weights taken into account.
+The `calculate_variance()` function computes the jackknife variance. `x` is the variable of
+interest, `replicate` is the replicate number. We group by age group, predictors, and the reference.
+Therefore, `calculate_variance()` receives a matrix with only the variable of interest from one age
+group and predictor with all replicates. `thetas` is the argument that takes this matrix (the
+dataset). We ignore replicate 0 since this is the full dataset. `scale` turns how much the MSE moved
+from the original dataset across jackknife results into a variation, `rscales` adjusts each
+individual replicate since some jackknife repeats deleted one PSU from a stratum with 2 and in
+another from a stratum with 3 PSUs, meaning the perturbations have different sizes and must be
+scaled accordingly. `mse` is a boolean value that we defined in the asrepdesign object and says we
+compare MSE values from the jackknife replicates with the original rather than with the average
+across jackknife replicates. These are all computed by the Survey package. `coef` uses the variable
+of interest from the reference dataset to compare to. `na.action` tells Survey to fail if any
+replicate is missing.
 
 **Total sum of squares calculation when binning R² per age group**: It's imperative that for the age
 group stratified descriptives, the global mean is used. Otherwise it's as if the total sum of
@@ -370,305 +267,152 @@ predictive effect on age, so the total sum of squares should be calculated by ta
 from each PTA within an age group to the global mean. Of course, the models are trained on the whole
 dataset, not just one age group. We're just assessing performance per age group.
 
-Sample sizes, R², and RMSE are inserted into the summary dataframe, and delta RMSEs are calculated
-relative to one or multiple reference variables across all ages or within age groups.
+Point estimates are calculated using the reference dataset. We convert variances to standard errors.
 
-```{r calc_stats}
-calculate_statistics_across_folds <- function(summary, predictions, data, per_age_group = FALSE, covariate_analysis = FALSE) {
-  weighted_mean <- data %>%
-    summarize(
-      y = sum(weights * .data[[params$hearing_var]]) / sum(weights)
-    ) %>%
-    pull(y)
-
-  sst <- predictions %>%
-    mutate(
-      squared_residuals = (.data[[params$hearing_var]] - predicted)^2,
-      age_group = if (isTRUE(per_age_group)) age_group else "overall"
-    ) %>%
-    group_by(
-      age_group, predictors
-    ) %>%
-    summarize(
-      sst_w = sum(weights * (.data[[params$hearing_var]] - weighted_mean)^2) / sum(weights),
-      .groups = "drop"
+```{r calc_pooled_mse}
+calculate_pooled_statistics <- function(results, design, data) {
+  calculate_variance <- function(x, replicate) {
+    as.numeric(
+      svrVar(
+        thetas = x[replicate > 0],
+        scale = design$scale,
+        rscales = design$rscales,
+        mse = design$mse,
+        coef = x[replicate == 0],
+        na.action = "na.fail"
+      )
     )
+  }
 
-  summary <- summary %>%
+  critical_value <- qt(
+    0.975,
+    df = degf(design)
+  )
+
+  # Make a matrix of weights to align with replicates
+  cv_weights <- cbind(
+    weights(design, type = "sampling"),
+    weights(design, type = "analysis")
+  )
+
+  # Iterate over each replicate to calculate sum of squares per age group and overall
+  sst <- map_dfr(seq_len(ncol(cv_weights)), \(j) {
+    data <- data %>%
+      mutate(weights = cv_weights[, j])
+
+    weighted_mean <- sum(
+      data$weights * data[[params$hearing_var]]
+    ) / sum(data$weights)
+
+    bind_rows(
+      data %>%
+        summarize(
+          sst_w = sum(weights * (.data[[params$hearing_var]] - weighted_mean)^2) / sum(weights),
+          .by = age_group
+        ) %>%
+        mutate(age_group = as.character(age_group)),
+      data %>%
+        summarize(
+          sst_w = sum(weights * (.data[[params$hearing_var]] - weighted_mean)^2) / sum(weights)
+        ) %>%
+        mutate(age_group = "overall")
+    ) %>%
+      mutate(replicate = j - 1L)
+  })
+
+  results %>%
     left_join(
       sst,
-      by = c("age_group", "predictors")
+      by = c("age_group", "replicate")
     ) %>%
     mutate(
-      r2_w = 1 - (mse_w / sst_w),
-      rmse_w = sqrt(mse_w),
-      rmse_w_ref = sqrt(mse_w_ref)
-    )
-
-  if (isFALSE(covariate_analysis)) {
-    summary %>%
-      mutate(
-        delta_rmse_w = rmse_w_ref - rmse_w,
-        r2p = (mse_w_ref - mse_w) / mse_w_ref
-      ) %>%
-      select(-mse_w_ref, -rmse_w_ref)
-  } else {
-    summary %>%
-      mutate(
-        delta_rmse_w = rmse_w - rmse_w_ref,
-        r2p = (mse_w - mse_w_ref) / mse_w
-      ) %>%
-      select(-mse_w_ref, -rmse_w_ref)
-  }
-}
-```
-
-### Calculate RMSE confidence intervals
-
-Calculates squared residuals (error) to be used for RMSE calculations and takes mean MSE per subject
-over the 10 repeats. Takes reference variable to be the full model or age model. Then for each
-predictor (and optionally each age group) subsets the data to a dataframe with the reference
-variable and with the target variable. These are equal length. Then takes random samples from the
-dataset with number of samples equal to the length of the subset (i.e., age group). The indices of
-each random sample is stored in a separate column, creating a matrix. The indices are then applied
-to the vector with squared residuals. The column mean is then calculated for each column (i.e.,
-bootstrap sample) within the matrix. The square root is then taken from each mean to get the RMSE
-per sample. 2.5% and 97.5% quantiles are then computed to obtain 95% confidence intervals for both
-raw RMSEs and delta RMSEs. The selected rows are always the same for target and reference variables.
-Indices are calculated once for each age group and stored in a cache so that the next predictor uses
-the same indices as the other predictor per age group. Each bootstrap run creates a different sample
-of the data because observations are selected at random without requirement to be unique, so some
-observations are taken twice and others are omitted (set by `replace = TRUE`). If
-`per_age_group = TRUE`, iterate over each age group and subset df per age group. If
-`per_age_group = FALSE`, only iterate over the single "all" item that is not used (that is, run the
-code once and don't filter per age group). Compile into a dataframe (tidytable) at the end and
-insert values into the summary dataframes.
-
-We flip the sign and order of upper and lower CIs of covariates. Probability weights are applied to
-calculate weighted column means. We do not need to use PSUs for sampling because we want to know the
-uncertainty over observed individuals' prediction errors, not estimating model coefficient
-uncertainty. We are bootstrapping based on already-computed prediction errors, not refitting GAMs
-inside each bootstrap.
-
-```{r calc_RMSE_CI}
-compute_rmse_ci <- function(
-  summary,
-  predictions,
-  n_boot,
-  per_age_group = FALSE,
-  covariate_analysis = FALSE
-) {
-  predictor_list <- unique(predictions$predictors)
-  age_bins <- if (isTRUE(per_age_group)) unique(predictions$age_group) else "overall"
-
-  predictor_ref_map <- summary %>%
-    select(predictors, reference) %>%
-    distinct()
-
-  ci_list <- list()
-  index_ci_list <- 1L
-  index_cache <- list()
-
-  predictions <- predictions %>%
-    mutate(squared_residuals = (.data[[params$hearing_var]] - predicted)^2) %>%
-    group_by(predictors, age_group, SEQN) %>%
+      r2_w = 1 - (mse_w / sst_w)
+    ) %>%
+    arrange(replicate) %>%
     summarize(
-      squared_residuals = mean(squared_residuals),
-      weights = first(weights),
-      .groups = "drop"
+      s2_mse_w = calculate_variance(mse_w, replicate),
+      delta_s2_mse_w = calculate_variance(delta_mse_w, replicate),
+      s2_rmse_w = calculate_variance(rmse_w, replicate),
+      delta_s2_rmse_w = calculate_variance(delta_rmse_w, replicate),
+      s2_r2_w = calculate_variance(r2_w, replicate),
+      s2_r2p = calculate_variance(r2p, replicate),
+      mse_w_ref = mse_w_ref[replicate == 0],
+      rmse_w_ref = rmse_w_ref[replicate == 0],
+      mse_w = mse_w[replicate == 0],
+      delta_mse_w = delta_mse_w[replicate == 0],
+      rmse_w = rmse_w[replicate == 0],
+      delta_rmse_w = delta_rmse_w[replicate == 0],
+      sst_w = sst_w[replicate == 0],
+      r2_w = r2_w[replicate == 0],
+      r2p = r2p[replicate == 0],
+      .by = c(age_group, predictors, reference)
+    ) %>%
+    mutate(
+      se_mse_w = sqrt(s2_mse_w),
+      se_delta_mse_w = sqrt(delta_s2_mse_w),
+      se_rmse_w = sqrt(s2_rmse_w),
+      se_delta_rmse_w = sqrt(delta_s2_rmse_w),
+      se_r2_w = sqrt(s2_r2_w),
+      se_r2p = sqrt(s2_r2p),
+      ci_low_mse = mse_w - critical_value * se_mse_w,
+      ci_high_mse = mse_w + critical_value * se_mse_w,
+      ci_low_delta_mse = delta_mse_w - critical_value * se_delta_mse_w,
+      ci_high_delta_mse = delta_mse_w + critical_value * se_delta_mse_w,
+      ci_low_rmse = rmse_w - critical_value * se_rmse_w,
+      ci_high_rmse = rmse_w + critical_value * se_rmse_w,
+      ci_low_delta_rmse = delta_rmse_w - critical_value * se_delta_rmse_w,
+      ci_high_delta_rmse = delta_rmse_w + critical_value * se_delta_rmse_w,
+      ci_low_r2 = r2_w - critical_value * se_r2_w,
+      ci_high_r2 = r2_w + critical_value * se_r2_w,
+      ci_low_r2p = r2p - critical_value * se_r2p,
+      ci_high_r2p = r2p + critical_value * se_r2p
     )
-
-  set.seed(43)
-
-  for (predictor in predictor_list) {
-    ref_var <- predictor_ref_map %>%
-      filter(predictors == predictor) %>%
-      pull(reference)
-    for (age_bin in age_bins) {
-      error_ref <- predictions %>%
-        filter(
-          predictors == ref_var,
-          if (isTRUE(per_age_group)) age_group == age_bin else TRUE
-        ) %>%
-        pull(squared_residuals)
-      w_ref <- predictions %>%
-        filter(
-          predictors == ref_var,
-          if (isTRUE(per_age_group)) age_group == age_bin else TRUE
-        ) %>%
-        pull(weights)
-      w_ref <- w_ref / mean(w_ref)
-
-      error_target <- predictions %>%
-        filter(
-          predictors == predictor,
-          if (isTRUE(per_age_group)) age_group == age_bin else TRUE
-        ) %>%
-        pull(squared_residuals)
-      w_target <- predictions %>%
-        filter(
-          predictors == predictor,
-          if (isTRUE(per_age_group)) age_group == age_bin else TRUE
-        ) %>%
-        pull(weights)
-      w_target <- w_target / mean(w_target)
-
-      if (length(error_ref) != length(error_target)) {
-        stop("Length of target and reference predictor subsets are not equal")
-      }
-      if (any(w_target != w_ref)) {
-        stop("Target and reference weights are different, SEQN likely not matching")
-      }
-
-      if (!age_bin %in% names(index_cache)) {
-        index_cache[[age_bin]] <- matrix(
-          sample(
-            length(error_ref),
-            length(error_ref) * n_boot,
-            replace = TRUE
-          ),
-          length(error_ref)
-        )
-      }
-
-      idx <- index_cache[[age_bin]]
-
-      rmse_target <- sqrt(
-        apply(idx, 2, function(i) sum(error_target[i] * w_target[i]) / sum(w_target[i]))
-      )
-      rmse_ref <- sqrt(
-        apply(idx, 2, function(i) sum(error_ref[i] * w_ref[i]) / sum(w_ref[i]))
-      )
-
-      ci_list[[index_ci_list]] <- tibble(
-        ci_low_rmse = quantile(rmse_target, 0.025),
-        ci_high_rmse = quantile(rmse_target, 0.975),
-        ci_low_delta_rmse = quantile(rmse_ref - rmse_target, 0.025),
-        ci_high_delta_rmse = quantile(rmse_ref - rmse_target, 0.975),
-        predictors = predictor
-      ) %>%
-        mutate(age_group = age_bin)
-
-      index_ci_list <- index_ci_list + 1
-    }
-  }
-
-  ci_df <- bind_rows(ci_list)
-
-  if (isTRUE(covariate_analysis)) {
-    ci_df <- ci_df %>%
-      mutate(
-        temp = ci_low_delta_rmse,
-        ci_low_delta_rmse = ci_high_delta_rmse * -1,
-        ci_high_delta_rmse = temp * -1
-      ) %>%
-      select(-temp)
-  }
-
-  summary %>%
-    left_join(ci_df, by = c("predictors", "age_group"))
 }
-```
 
-### Run descriptive statistics calculation pipeline
-
-```{r descr_stat_pipeline}
-summary_bioage_overall <- results_bioage_overall %>%
-  calculate_pooled_mse() %>%
-  calculate_statistics_across_folds(
-    predictions = pred_bioage,
-    data = df
-  ) %>%
-  compute_rmse_ci(
-    predictions = pred_bioage,
-    n_boot = params$n_boot
-  )
 summary_bioage <- results_bioage %>%
-  calculate_pooled_mse() %>%
-  calculate_statistics_across_folds(
-    predictions = pred_bioage,
-    data = df,
-    per_age_group = TRUE
-  ) %>%
-  compute_rmse_ci(
-    predictions = pred_bioage,
-    n_boot = params$n_boot,
-    per_age_group = TRUE
+  calculate_pooled_statistics(
+    design = design,
+    data = df
   )
+
+summary_bioage_overall <- summary_bioage %>%
+  filter(age_group == "overall")
+summary_bioage <- summary_bioage %>%
+  filter(age_group != "overall")
 
 if (isFALSE(params$telolength)) {
-  summary_bioage_reverse_overall <- results_bioage_reverse_overall %>%
-    calculate_pooled_mse() %>%
-    calculate_statistics_across_folds(
-      predictions = pred_bioage_reverse,
-      data = df
-    ) %>%
-    compute_rmse_ci(
-      predictions = pred_bioage_reverse,
-      n_boot = params$n_boot
-    )
   summary_bioage_reverse <- results_bioage_reverse %>%
-    calculate_pooled_mse() %>%
-    calculate_statistics_across_folds(
-      predictions = pred_bioage_reverse,
-      data = df,
-      per_age_group = TRUE
-    ) %>%
-    compute_rmse_ci(
-      predictions = pred_bioage_reverse,
-      n_boot = params$n_boot,
-      per_age_group = TRUE
-    )
-
-  summary_biomarkers_overall <- results_biomarkers_overall %>%
-    calculate_pooled_mse() %>%
-    calculate_statistics_across_folds(
-      predictions = pred_biomarkers,
+    calculate_pooled_statistics(
+      design = design,
       data = df
-    ) %>%
-    compute_rmse_ci(
-      predictions = pred_biomarkers,
-      n_boot = params$n_boot
-    )
-  summary_biomarkers <- results_biomarkers %>%
-    calculate_pooled_mse() %>%
-    calculate_statistics_across_folds(
-      predictions = pred_biomarkers,
-      data = df,
-      per_age_group = TRUE
-    ) %>%
-    compute_rmse_ci(
-      predictions = pred_biomarkers,
-      n_boot = params$n_boot,
-      per_age_group = TRUE
     )
 
-  summary_covariates_overall <- results_covariates_overall %>%
-    calculate_pooled_mse() %>%
-    calculate_statistics_across_folds(
-      predictions = pred_covariates,
-      data = df,
-      covariate_analysis = TRUE
-    ) %>%
-    compute_rmse_ci(
-      predictions = pred_covariates,
-      n_boot = params$n_boot,
-      covariate_analysis = TRUE
+  summary_bioage_reverse_overall <- summary_bioage_reverse %>%
+    filter(age_group == "overall")
+  summary_bioage_reverse <- summary_bioage_reverse %>%
+    filter(age_group != "overall")
+
+  summary_biomarkers <- results_biomarkers %>%
+    calculate_pooled_statistics(
+      design = design,
+      data = df
     )
+
+  summary_biomarkers_overall <- summary_biomarkers %>%
+    filter(age_group == "overall")
+  summary_biomarkers <- summary_biomarkers %>%
+    filter(age_group != "overall")
+
   summary_covariates <- results_covariates %>%
-    calculate_pooled_mse() %>%
-    calculate_statistics_across_folds(
-      predictions = pred_covariates,
-      data = df,
-      per_age_group = TRUE,
-      covariate_analysis = TRUE
-    ) %>%
-    compute_rmse_ci(
-      predictions = pred_covariates,
-      n_boot = params$n_boot,
-      per_age_group = TRUE,
-      covariate_analysis = TRUE
+    calculate_pooled_statistics(
+      design = design,
+      data = df
     )
+
+  summary_covariates_overall <- summary_covariates %>%
+    filter(age_group == "overall")
+  summary_covariates <- summary_covariates %>%
+    filter(age_group != "overall")
 }
 ```
 
@@ -695,10 +439,11 @@ predictive effect?', in which case we could consider doing pairwise on all, but 
 power and would have to use FDR and accept a 5% false discovery rate to salvage it.
 
 ```{r t_test_models}
-nb_corrected_repeated_t_test <- function(summary,
-                                         exceptions = NULL,
-                                         exception_include_exclude,
-                                         adjust_method) {
+jackknife_t_test <- function(summary,
+                             design,
+                             exceptions = NULL,
+                             exception_include_exclude,
+                             adjust_method) {
   if ("p" %in% colnames(summary)) {
     summary <- summary %>%
       select(
@@ -715,8 +460,8 @@ nb_corrected_repeated_t_test <- function(summary,
 
   pwc <- pwc %>%
     mutate(
-      t = delta_mse_w / se_delta_mse_w_nb,
-      df = n - 1,
+      t = delta_mse_w / se_delta_mse_w,
+      df = degf(design),
       p = pt(t, df = df, lower.tail = FALSE),
       p_adj = p.adjust(p, method = adjust_method),
       signif = case_when(
@@ -738,8 +483,9 @@ nb_corrected_repeated_t_test <- function(summary,
   summary
 }
 
-summary_bioage_overall <- nb_corrected_repeated_t_test(
+summary_bioage_overall <- jackknife_t_test(
   summary_bioage_overall,
+  design = design,
   exceptions = c(
     "age",
     if (isTRUE(params$telolength)) "age, phenoage" else NULL,
@@ -750,30 +496,34 @@ summary_bioage_overall <- nb_corrected_repeated_t_test(
   adjust_method = "holm"
 )
 
-summary_bioage <- nb_corrected_repeated_t_test(
+summary_bioage <- jackknife_t_test(
   summary_bioage,
+  design = design,
   exceptions = c("age, phenoage", "age, kdm"),
   exception_include_exclude = "include",
   adjust_method = "holm"
 )
 
 if (isFALSE(params$telolength)) {
-  summary_bioage_reverse_overall <- nb_corrected_repeated_t_test(
+  summary_bioage_reverse_overall <- jackknife_t_test(
     summary_bioage_reverse_overall,
+    design = design,
     exceptions = c("phenoage", "kdm", "hd_log"),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
   )
 
-  summary_bioage_reverse <- nb_corrected_repeated_t_test(
+  summary_bioage_reverse <- jackknife_t_test(
     summary_bioage_reverse,
+    design = design,
     exceptions = c("phenoage", "kdm", "hd_log"),
     exception_include_exclude = "exclude",
     adjust_method = "holm"
   )
 
-  summary_biomarkers_overall <- nb_corrected_repeated_t_test(
+  summary_biomarkers_overall <- jackknife_t_test(
     summary_biomarkers_overall,
+    design = design,
     exceptions = c(
       "age"
     ),
@@ -781,8 +531,9 @@ if (isFALSE(params$telolength)) {
     adjust_method = "holm"
   )
 
-  summary_biomarkers <- nb_corrected_repeated_t_test(
+  summary_biomarkers <- jackknife_t_test(
     summary_biomarkers,
+    design = design,
     exceptions = c(
       "crp"
     ),
@@ -790,8 +541,9 @@ if (isFALSE(params$telolength)) {
     adjust_method = "holm"
   )
 
-  summary_covariates_overall <- nb_corrected_repeated_t_test(
+  summary_covariates_overall <- jackknife_t_test(
     summary_covariates_overall,
+    design = design,
     exceptions = c(
       "age, sex, smoking, race, education"
     ),
@@ -799,8 +551,9 @@ if (isFALSE(params$telolength)) {
     adjust_method = "holm"
   )
 
-  summary_covariates <- nb_corrected_repeated_t_test(
+  summary_covariates <- jackknife_t_test(
     summary_covariates,
+    design = design,
     exceptions = c(
       "age, sex, smoking, race, education",
       "age, sex, race, education",
@@ -925,25 +678,43 @@ if (isFALSE(params$telolength)) {
 
 ### Add n training and testing datasets to dataframe
 
+We calculate the number of participants in the dataset for each repeat excluding the testing fold
+for the training dataset and for only the testing fold for the test datatset. We then show the
+unique participant count with `n` and the `n_train_mean` and `n_test_mean` to show the mean across
+folds.
+
 ```{r add_n}
 add_n_age_groups <- function(summary_data, data, per_age_group = FALSE) {
-  if (per_age_group) {
-    summary_data <- summary_data %>%
-      rename("n_folds_repeats" = n) %>%
-      left_join(
-        data %>%
-          select(age_group) %>%
-          group_by(age_group) %>%
-          summarize(n = n()),
-        by = "age_group"
-      )
-  } else {
-    summary_data <- summary_data %>%
-      rename("n_folds_repeats" = n) %>%
-      mutate(n = nrow(data))
+  if (isFALSE(per_age_group)) {
+    data <- data %>%
+      mutate(age_group = "overall")
   }
 
-  summary_data
+  sample_sizes <- map_dfr(seq_len(params$global_repeats), function(r) {
+    repeat_column <- paste0("fold_r", r)
+
+    map_dfr(seq_len(params$global_folds), function(fold) {
+      # Models train across all age groups
+      train_n <- sum(data[[repeat_column]] != fold)
+
+      data %>%
+        summarize(
+          n = n(),
+          n_train = train_n,
+          n_test = sum(.data[[repeat_column]] == fold),
+          .by = age_group
+        )
+    })
+  }) %>%
+    summarize(
+      n = first(n),
+      n_train_mean = mean(n_train),
+      n_test_mean = mean(n_test),
+      .by = age_group
+    )
+
+  summary_data %>%
+    left_join(sample_sizes, by = "age_group")
 }
 
 summary_bioage <- summary_bioage %>%
