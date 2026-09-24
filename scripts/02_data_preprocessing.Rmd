@@ -453,7 +453,8 @@ df_train <- df_train_raw %>%
 #### NHANES 4 HD Train
 
 This is the full unfiltered NHANES 4 dataset from the included cycles. For training HD, we do not
-require only audiometry data.
+require only audiometry data. There are also a number of columns we don't need for the training
+data. We only need biomarkers, age, SEQN, weights, PSUs, stratum, and pregnancy information.
 
 ```{r}
 df_train_hd <- df_raw %>%
@@ -461,7 +462,10 @@ df_train_hd <- df_raw %>%
     column_path = here("specs", "col_spec_nhanes4.csv")
   ) %>%
   merge_data() %>%
-  standardize_values()
+  standardize_values() %>%
+  select(
+    -all_of(c(audiometry_cols, "smoking", "race", "education", "time", "status", "audio_left_3000", "audio_right_3000", "age_group"))
+  )
 ```
 
 ## Survey design
