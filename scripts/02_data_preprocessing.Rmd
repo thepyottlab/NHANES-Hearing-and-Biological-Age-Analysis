@@ -525,12 +525,13 @@ This list will be reused throughout the scripts whenever we need to do something
 biomarkers.
 
 ```{r list_bm}
-list_bm <- function(spec_path) {
+list_bm <- function(spec_path, excl_hd = FALSE) {
   specs <- read.csv(spec_path)
 
   bm_labels <- unique(
     specs %>% filter(
       include == TRUE,
+      if (excl_hd) used_for != "hd" else TRUE,
       vartype == "biomarker",
       !label %in% c(
         "sbp1",
@@ -1083,6 +1084,5 @@ rm(df_raw)
 rm(df_unfiltered)
 rm(df_no_missing)
 rm(df_train)
-rm(df_train_hd)
 rm(df_train_raw)
 ```
