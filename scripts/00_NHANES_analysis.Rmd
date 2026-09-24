@@ -90,7 +90,7 @@ params:
     help: "Set to skip refitting of k-fold validation if model results are present"
   covariates:
     label: "Included covariates"
-    value: "sex_smoking_race_education_sex, race_education, sex"
+    value: "sex_smoking_race_education_sex, race_education, sex_sex, smoking_smoking, race_smoking, education_race, education"
     input: text
     help: "Set covariate factor variables and interaction to be included in analysis separated by underscore"
   n_threads:
@@ -160,7 +160,7 @@ knitr::opts_knit$set(
 options(
   contrasts = c("contr.sum", "contr.poly"),
   knitr.duplicate.label = "allow",
-  future.globals.maxSize = 5120 * 1024^2
+  future.globals.maxSize = 10240 * 1024^2
 )
 
 run_module <- function(path) {
