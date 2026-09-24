@@ -382,7 +382,7 @@ if (isFALSE(params$telolength)) {
     equal_wiggliness = TRUE,
     formulas = c(
       "age",
-      paste0("age, ", biomarker_vars)
+      paste0("age, ", list_bm(here("specs", "col_spec_nhanes4.csv"), excl_hd = TRUE))
     ),
     covariates = covariate_interactions
   )
@@ -835,45 +835,6 @@ if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
 }
 ```
 
-### Model biomarkers
-
-#### Biomarkers K-fold CV
-
-```{r biomarkers_cv, warning=FALSE}
-if (isFALSE(params$telolength)) {
-  system.time({
-    pred_biomarkers <- if (
-      isTRUE(params$load_model_results) &&
-        file.exists(generate_model_path("biomarkers_predictions"))
-    ) {
-      readRDS(generate_model_path("biomarkers_predictions"))
-    } else {
-      jackknife_cross_validation(
-        df,
-        design = design,
-        formulas = formulas_biomarkers,
-        folds = params$global_folds,
-        repeats = params$global_repeats,
-        discrete = params$global_discrete,
-        threads = max(1, min(params$n_threads, availableCores() - 1))
-      )
-    }
-  })
-}
-```
-
-#### Store bioage modeling results
-
-```{r store_biomarkers_cv}
-if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
-  saveRDS(
-    object = pred_biomarkers,
-    file = generate_model_path("biomarkers_predictions"),
-    compress = "xz"
-  )
-}
-```
-
 ### Model covariates
 
 #### Covariates K-fold CV
@@ -914,7 +875,46 @@ if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
 }
 ```
 
-## Model age rate
+### Model biomarkers
+
+#### Biomarkers K-fold CV
+
+```{r biomarkers_cv, warning=FALSE}
+if (isFALSE(params$telolength)) {
+  system.time({
+    pred_biomarkers <- if (
+      isTRUE(params$load_model_results) &&
+        file.exists(generate_model_path("biomarkers_predictions"))
+    ) {
+      readRDS(generate_model_path("biomarkers_predictions"))
+    } else {
+      jackknife_cross_validation(
+        df,
+        design = design,
+        formulas = formulas_biomarkers,
+        folds = params$global_folds,
+        repeats = params$global_repeats,
+        discrete = params$global_discrete,
+        threads = max(1, min(params$n_threads, availableCores() - 1))
+      )
+    }
+  })
+}
+```
+
+#### Store bioage modeling results
+
+```{r store_biomarkers_cv}
+if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
+  saveRDS(
+    object = pred_biomarkers,
+    file = generate_model_path("biomarkers_predictions"),
+    compress = "xz"
+  )
+}
+```
+
+### Model age rate
 
 ### Build GAM and linear age models in a list
 
@@ -2159,7 +2159,7 @@ if (isTRUE(params$run_optional_chunks)) {
   time_cross_validation(
     data = df,
     design = design,
-    formulas = c(formulas_bioage, formulas_bioage_reverse, formulas_biomarkers, formulas_covariates),
+    formulas = c(formulas_bioage, formulas_bioage_reverse, formulas_covariates, formulas_biomarkers),
     folds = params$global_folds,
     repeats = params$global_repeats,
     discrete = params$global_discrete,
