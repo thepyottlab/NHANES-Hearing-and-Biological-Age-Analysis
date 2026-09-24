@@ -445,8 +445,17 @@ cross_validation <- function(
   repeats = 10,
   discrete = FALSE,
   covariate_analysis = FALSE,
-  threads = 1
+  threads = 1,  
+  data_train_hd = NULL
 ) {
+  if (!"hd_weight" %in% names(data)) {
+    data$hd_weight <- 1
+  }
+  
+  biomarkers_hd <- c(
+    "alb", "alp", "alt_log", "ast_log", "baso", "cal", "chlor", "ggt_log", "hdl", "hg", "htc", "iron", "ld", "lymph", "mch", "mchc", "mono", "neut", "phos", "pot", "rbc", "rdw", "sod", "totchol", "tp", "ua", "wbc"
+  )
+  
   # Initialize age groups to stratify by and repeat column names that contain fold specification
   age_groups <- c("20–29", "30–39", "40–49", "50–59", "60–69", if (isFALSE(params$telolength)) "70–79")
   repeat_columns <- paste0("fold_r", seq_len(repeats))
@@ -484,8 +493,12 @@ cross_validation <- function(
       c(
         "SEQN",
         "weights",
+        "stratum",
+        "psu",
+        "hd_weight",
         params$hearing_var,
         "age_group",
+        biomarkers_hd,
         predictor_columns,
         covariate_vars,
         repeat_columns
@@ -522,7 +535,7 @@ cross_validation <- function(
       ) %>%
       select(
         -starts_with("fold"),
-        -all_of(setdiff(predictor_columns, predictors))
+        -all_of(setdiff(predictor_columns, c(predictors, biomarkers_hd)))
       )
     test <- data %>%
       filter(
@@ -530,7 +543,7 @@ cross_validation <- function(
       ) %>%
       select(
         -starts_with("fold"),
-        -all_of(setdiff(predictor_columns, predictors))
+        -all_of(setdiff(predictor_columns, c(predictors, biomarkers_hd)))
       )
 
     # We keep the original mean of weights
@@ -540,7 +553,65 @@ cross_validation <- function(
     train <- train %>% filter(weights > 0)
     test <- test %>% filter(weights > 0)
 
-
+    # Add weights per PSU and list held-out fold for the first person in each PSU for HD
+    if ("hd_log" %in% predictors) {
+      train_hd <- data_train_hd %>%
+        left_join(
+          data %>%
+            summarize(
+              hd_weight = first(hd_weight),
+              held_out = first(.data[[repeat_column]]) == fold,
+              .by = c(stratum, psu)
+            ),
+          by = c("stratum", "psu")
+        ) %>%
+        filter(
+          hd_weight > 0,
+          !held_out
+        )
+      
+      # Calculate HD within CV for males and females, we calculate weighted variance for train to scale HD by
+      hd <- map_dfr(c("1", "2"), function(sex_value) {
+        reference <- train_hd %>%
+          filter(sex == sex_value)
+        
+        hd <- hd_calc(
+          data = bind_rows(train, test) %>%
+            filter(sex == sex_value) %>%
+            select(SEQN, all_of(biomarkers_hd)),
+          reference = reference,
+          biomarkers = biomarkers_hd,
+          reference_weights = reference$hd_weight
+        )$data %>%
+          select(SEQN, hd_raw)
+        
+        
+        training_hd <- train %>%
+          filter(sex == sex_value) %>%
+          select(SEQN, hd_weight) %>%
+          left_join(hd, by = "SEQN")
+        
+        hd_scale <- sqrt(
+          cov.wt(
+            matrix(log(training_hd$hd_raw), ncol = 1),
+            wt = training_hd$hd_weight,
+            method = "unbiased"
+          )$cov[1, 1]
+        )
+        
+        hd %>%
+          transmute(
+            SEQN,
+            hd_log = log(hd_raw) / hd_scale
+          )
+      })
+      
+      train$hd_log <- hd$hd_log[match(train$SEQN, hd$SEQN)]
+      test$hd_log <- hd$hd_log[match(test$SEQN, hd$SEQN)]
+      
+      rm(hd, train_hd)
+    }
+    
     # Fit GAM and normalize weights to the mean weight
     mod <- bam(
       as.formula(formula),
@@ -594,7 +665,10 @@ cross_validation <- function(
       discrete = discrete,
       predictor_labels = predictor_labels,
       predictor_columns = predictor_columns,
-      formulas = formulas
+      formulas = formulas,
+      data_train_hd = data_train_hd,
+      hd_calc = hd_calc,
+      biomarkers_hd = biomarkers_hd
     ),
     future.packages = c(
       "mgcv",
@@ -653,7 +727,8 @@ jackknife_cross_validation <- function(data, design, formulas, threads, ...) {
   # Prepare to store statistics per run and the predictions from the run with original weights
   run_replicate <- function(j, ...) {
     data$weights <- cv_weights[, j]
-
+    data$hd_weight <- cv_weights[, j] / cv_weights[, 1]
+    
     pred <- cross_validation(
       data = data,
       formulas = formulas,
@@ -780,7 +855,8 @@ system.time({
       folds = params$global_folds,
       repeats = params$global_repeats,
       discrete = params$global_discrete,
-      threads = max(1, min(params$n_threads, availableCores() - 1))
+      threads = max(1, min(params$n_threads, availableCores() - 1)),
+      data_train_hd = df_train_hd
     )
   }
 })
@@ -816,7 +892,8 @@ if (isFALSE(params$telolength)) {
         folds = params$global_folds,
         repeats = params$global_repeats,
         discrete = params$global_discrete,
-        threads = max(1, min(params$n_threads, availableCores() - 1))
+        threads = max(1, min(params$n_threads, availableCores() - 1)),
+        data_train_hd = df_train_hd
       )
     }
   })
@@ -856,7 +933,8 @@ if (isFALSE(params$telolength)) {
         repeats = params$global_repeats,
         discrete = params$global_discrete,
         covariate_analysis = TRUE,
-        threads = max(1, min(params$n_threads, availableCores() - 1))
+        threads = max(1, min(params$n_threads, availableCores() - 1)),
+        data_train_hd = df_train_hd
       )
     }
   })
@@ -895,7 +973,8 @@ if (isFALSE(params$telolength)) {
         folds = params$global_folds,
         repeats = params$global_repeats,
         discrete = params$global_discrete,
-        threads = max(1, min(params$n_threads, availableCores() - 1))
+        threads = max(1, min(params$n_threads, availableCores() - 1)),
+        data_train_hd = df_train_hd
       )
     }
   })
@@ -2163,7 +2242,8 @@ if (isTRUE(params$run_optional_chunks)) {
     folds = params$global_folds,
     repeats = params$global_repeats,
     discrete = params$global_discrete,
-    threads = max(1, min(params$n_threads, availableCores() - 1))
+    threads = max(1, min(params$n_threads, availableCores() - 1)),
+    data_train_hd = df_train_hd
   ) %>%
     print()
 }
