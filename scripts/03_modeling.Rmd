@@ -2212,7 +2212,8 @@ if (isTRUE(params$run_optional_chunks)) {
 
 ```{r test_CV_duration}
 if (isTRUE(params$run_optional_chunks)) {
-  time_cross_validation <- function(data, design, formulas, ...) {
+  time_cross_validation <- function(data, design, formulas, run = TRUE, ...) {
+    if (run) {
     cv_time <- system.time({
       cross_validation(
         data = data,
@@ -2233,12 +2234,13 @@ if (isTRUE(params$run_optional_chunks)) {
         minutes_per_formula = inner_cv_minutes / n_formulas,
         estimated_total_hours = inner_cv_minutes * cv_runs / 60
       )
-  }
+    } else return
+  }  
 
   time_cross_validation(
     data = df,
     design = design,
-    formulas = c(formulas_bioage, formulas_bioage_reverse, formulas_covariates, formulas_biomarkers),
+    formulas = c(formulas_bioage, if (params$telolength) NULL else c(formulas_bioage_reverse, formulas_covariates, formulas_biomarkers)),
     folds = params$global_folds,
     repeats = params$global_repeats,
     discrete = params$global_discrete,
