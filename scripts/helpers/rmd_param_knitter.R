@@ -198,6 +198,11 @@ smart_knitter <- function(inputFile,
       shiny::observe({
         shiny::invalidateLater(1000, session)
 
+        if (isTRUE(rv$running)) {
+          rv$job$read_output()
+          rv$job$read_error()
+        }
+
         if (isTRUE(rv$running) && !rv$job$is_alive()) {
           rv$running <- FALSE
           rv$runtime <- round(difftime(Sys.time(), rv$start_time), 2)
