@@ -762,81 +762,25 @@ if (isFALSE(params$telolength)) {
 
 ## Assess rate of aging
 
-### Compare linear vs quadratic vs smooth age fits
+### Compare linear vs quadratic fits
 
-We do a partial F-test to compare a full model with a constrained model, to see if the added term
-significantly improves fit. We also calculate RMSEs with a weighted mean of residuals. The GAM does
-not have explicit parametric linear and quadratic terms but instead has linear and quadratic terms
-in the null space, so they're unpenalized, which means they do have the parametric terms, just not
-spelled out in the formula. Adding the terms explicitly would make them double. We additionally
-calculate partial omega-squared for the effect size of the additional terms. Note that the effect
-size for the GAM is approximate, because the degrees of freedom are estimated.
+We fit our age rate model with a linear and quadratic term using `svyglm()`, which uses the survey
+weighting and considers design-based variance. We then use `regTermTest()` also from the Survey
+package to perform a Satterthwaite Wald test. This test asks whether the quadratic term is needed
+after accounting for the linear term and intercept.
 
-```{r compare_aging_models}
-aov_quadratic <- anova(
-  models_age_rate$linear,
-  models_age_rate$quadratic
+```{r compare_linear_vs_quadratic}
+regTermTest(
+  svyglm(
+    reformulate(c("age", "I(age^2)"), response = params$hearing_var),
+    design = design,
+    family = gaussian()
+  )
+  ,
+  ~I(age^2),
+  method = "Wald"
 )
-
-aov_gam <- anova(
-  models_age_rate$quadratic,
-  models_age_rate$smooth
-)
-
-c(
-  linear = sqrt(
-    sum(residuals(models_age_rate$linear, type = "response")^2 * df$weights) /
-      sum(df$weights)
-  ),
-  quadratic = sqrt(
-    sum(residuals(models_age_rate$quadratic, type = "response")^2 * df$weights) /
-      sum(df$weights)
-  ),
-  smooth = sqrt(
-    sum(residuals(models_age_rate$smooth, type = "response")^2 * df$weights) /
-      sum(df$weights)
-  )
-) %>%
-  construct_table(
-    title = "RMSE (In-Sample)"
-  )
-
-calculate_f_test_statistics <- function(anova) {
-  anova_table <- tidy(anova) %>%
-    rename(
-      "numerator df" = df,
-      "denominator df" = df.residual,
-      "F statistic" = statistic,
-      "p" = p.value
-    ) %>%
-    mutate(
-      "Partial Omega2" = `numerator df` * (`F statistic` - 1) / (`numerator df` * `F statistic` + `denominator df` + 1)
-    )
-
-  report <- paste0(
-    "<i>F</i><sub>(",
-    round(anova_table$`numerator df`[2], 1),
-    ", ",
-    round(anova_table$`denominator df`[2], 1),
-    ")</sub> = ",
-    round(anova_table$F[2], 2),
-    ", <i>p</i> ",
-    if (anova_table$p[2] > 0.001) "= " else "< ",
-    if (anova_table$p[2] > 0.001) signif(anova_table$p[2], 1) else "0.001",
-    ", <i>ω²</i> = ",
-    signif(anova_table$`Partial Omega2`[2], 1)
-  )
-
-  htmltools::HTML(report)
-}
-
-calculate_f_test_statistics(aov_quadratic)
-calculate_f_test_statistics(aov_gam)
 ```
-
-**We see that the quadratic curve fits better than the linear one, so the rate of aging is not
-linear, and the smooth curve fits better than the quadratic one, so there are deviations from a
-quadratic pattern.**
 
 ### Assess where rate of aging differs
 
@@ -916,6 +860,45 @@ pwc_age_rate_boundaries %>%
     title = "Boundaries"
   )
 ```
+
+### Show effect sizes
+
+We know the quadratic term significantly improves fit over the linear term and that no individual
+ages significantly deviate from the quadratic trend in the smooth model. We now calculate the RMSE
+to quantify (improvement in) error and calculate the partial R² as an effect size metric.
+
+```{r}
+rmse_age_rate <- c(
+  linear = sqrt(
+    sum(residuals(models_age_rate$linear, type = "response")^2 * df$weights) /
+      sum(df$weights)
+  ),
+  quadratic = sqrt(
+    sum(residuals(models_age_rate$quadratic, type = "response")^2 * df$weights) /
+      sum(df$weights)
+  ),
+  smooth = sqrt(
+    sum(residuals(models_age_rate$smooth, type = "response")^2 * df$weights) /
+      sum(df$weights)
+  )
+)
+
+tibble(
+  Model = c("Linear", "Quadratic", "GAM"),
+  RMSE = unname(rmse_age_rate),
+  `Partial R² vs previous model` = c(
+    NA_real_,
+    1 - (rmse_age_rate[["quadratic"]] / rmse_age_rate[["linear"]])^2,
+    1 - (rmse_age_rate[["smooth"]] / rmse_age_rate[["quadratic"]])^2
+  )
+) %>%
+  construct_table(
+    title = "Weighted in-sample fit of age curves"
+  )
+```
+
+**We see that the quadratic curve fits better than the linear one, so the rate of aging is not
+linear, and the smooth curve does not support deviation beyond quadratic.**
 
 ## Calculate coefficients
 
