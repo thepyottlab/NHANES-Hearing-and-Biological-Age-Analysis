@@ -490,7 +490,7 @@ summary_bioage_overall <- jackknife_t_test(
     "age",
     if (isTRUE(params$telolength)) "age, phenoage" else NULL,
     if (isTRUE(params$telolength)) "age, kdm" else NULL,
-    if (isTRUE(params$telolength)) "age, hd" else NULL
+    if (isTRUE(params$telolength)) "age, hd_log" else NULL
   ),
   exception_include_exclude = "exclude",
   adjust_method = "holm"
@@ -535,7 +535,7 @@ if (isFALSE(params$telolength)) {
     summary_biomarkers,
     design = design,
     exceptions = c(
-      "crp"
+      "age, crp"
     ),
     exception_include_exclude = "include",
     adjust_method = "holm"
