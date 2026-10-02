@@ -499,7 +499,7 @@ summary_bioage_overall <- jackknife_t_test(
 summary_bioage <- jackknife_t_test(
   summary_bioage,
   design = design,
-  exceptions = c("age, phenoage", "age, kdm"),
+  exceptions =  c("age, kdm", if (params$hearing_var == "pta_lf") "age, phenoage" else NULL),
   exception_include_exclude = "include",
   adjust_method = "holm"
 )
