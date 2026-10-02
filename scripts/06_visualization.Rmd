@@ -970,7 +970,7 @@ set_geom_theme <- function(geom_theme_name, global_params = params) {
 
   switch(geom_theme_name,
     ribbon = list(
-      alpha = 0.1
+      alpha = 0.15
     ),
     highlight_rect = list(
       alpha = 0.125,
