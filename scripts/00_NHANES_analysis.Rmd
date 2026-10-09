@@ -20,7 +20,7 @@ knit:
       here::here("output", "html", paste(parts, collapse = "_"));
     };
   
-    smart_knitter(inputFile, out_path = filename_constructor, auto_close = FALSE);
+    smart_knitter(inputFile, out_path = filename_constructor, auto_close = FALSE, launch_in_browser = TRUE);
   })
   
 output:
@@ -134,9 +134,9 @@ params:
 # Set-up
 
 We set graphics device to ragg, set wd to `here::here()`, set contrasts by default to compare each
-level to the overall mean as opposed to reference, and import packages. The `run_module()` function
-checks if knitting or interactive session is in progress. If knitting, return markdown output, if
-interactive, only run code in environment and print a time message.
+level to the overall mean as opposed to reference. The `run_module()` function checks if knitting or
+interactive session is in progress. If knitting, return markdown output, if interactive, only run
+code in environment and print a time message.
 
 We set default contrast to be sum to zero instead of treatment vs control, allow duplicate knitr
 labels (when rerunning chunks) and set maximum size per worker for multithreading to 4 GB.
@@ -153,6 +153,8 @@ knitr::opts_chunk$set(
   error = FALSE
 )
 
+cowplot::set_null_device("agg")
+
 knitr::opts_knit$set(
   root.dir = here::here()
 )
@@ -160,7 +162,8 @@ knitr::opts_knit$set(
 options(
   contrasts = c("contr.sum", "contr.poly"),
   knitr.duplicate.label = "allow",
-  future.globals.maxSize = 10240 * 1024^2
+  future.globals.maxSize = 10240 * 1024^2,
+  ggpubr.null_device = cowplot::agg_null_device
 )
 
 run_module <- function(path) {
