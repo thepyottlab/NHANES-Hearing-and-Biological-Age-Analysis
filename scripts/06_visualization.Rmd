@@ -772,8 +772,8 @@ axes <- function(x = NULL, y = NULL, global_params = params) {
         config = config,
         axis = "y",
         type = "continuous",
-        breaks = seq(0, 0.1, 0.05),
-        limits = c(-0.05, 0.1015),
+        breaks = seq(-0.05, 0.1, 0.05),
+        limits = c(-0.075, 0.1015),
         name = "Additional Predictive Performance",
         unit = "ΔRMSE (dB HL)"
       ),
@@ -1946,6 +1946,7 @@ if (isFALSE(params$telolength)) {
         y = delta_rmse_w
       )
     ) +
+    geom_hline(yintercept = 0, linetype = "dashed") +
     geom_point(
       aes(
         color = predictors,
