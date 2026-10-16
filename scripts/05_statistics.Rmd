@@ -416,27 +416,25 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-## Repeated Nadeau-Bengio corrected t-tests
+## T-tests with jackknife variance 
 
 ### Calculate p-values
 
-Calculate t-statistic according to Nadeau Bengio (although we use a weighted adaptation of it),
-which is `t = m/(√(variance(1/n + n2/n1)))`. `m` is the difference between the sample mean and
-hypothesized population mean. In this case, we've normalized it to age, so the null hypothesis (the
-hypothesized population mean) is 0, i.e., there is no difference from age only. The variance was
-already calculated before. `n` is equivalent to the number of folds times the number of repeats.
-`n2` is the number of testing/validation data and `n1` the number of training data. We then
-calculate degrees of freedom by taking n - 1. Then we use `pt()` (which automatically calculates the
-critical value) using a one-tailed t-test of the upper tail. This is because we're not interested in
-whether an age + bioage model is different from age-only. We only want to know if it is better. We
-then adjust p values with Holm error correction.
+We perform one-tailed t-tests using the jackknife variance. We estimate degrees of freedom in the
+same way. The variance estimator reflects NHANES' design. We do not treat the inner 5x10 CV as
+independent measurements, but instead we get one estimate per those 50 CV evaluations and the
+jackknife sees how that changes when we remove one PSU. The jackknife variance does not include
+random fold assignments, as the same folds are used across jackknife replicates. Because our
+analysis already does not consider the 5x10 inner CV evaluations as independent, we don't need a
+Nadeau-Bengio variance correction.
 
 First, the question is, 'Does this bioage/biomarker add predictive value for hearing loss in the
 population while controlling for chronological age?', which we test with the overall comparisons.
 Only if it's significantly different do we look at per age-group tests. Another option is to ask
 'Might bioage/biomarker only matter for specific age ranges, even if it doesn't have an overall
 predictive effect?', in which case we could consider doing pairwise on all, but we'd lose a lot of
-power and would have to use FDR and accept a 5% false discovery rate to salvage it.
+power and would have to use FDR and accept a 5% false discovery rate to salvage it, inflating type 1
+error rate.
 
 ```{r t_test_models}
 jackknife_t_test <- function(summary,
@@ -766,7 +764,7 @@ if (isFALSE(params$telolength)) {
 
 We fit our age rate model with a linear and quadratic term using `svyglm()`, which uses the survey
 weighting and considers design-based variance. We then use `regTermTest()` also from the Survey
-package to perform a Satterthwaite Wald test. This test asks whether the quadratic term is needed
+package to perform a design-based Wald test. This test asks whether the quadratic term is needed
 after accounting for the linear term and intercept.
 
 ```{r compare_linear_vs_quadratic}
@@ -821,7 +819,7 @@ To identify significant boundaries, check which pairwise comparisons are signifi
 the previous row was significant, then whenever a row is significant but the previous one was,
 change the value by 1 (using `cumsum()`), or if the previous row was not significant but the current
 one is, also change by 1 to identify stretches. Then take the first and last values of the stretches
-to identify boundaries. Only keep the significant stretches.
+to identify boundaries. Only keep the significant stretches with non-linear growing slopes.
 
 ```{r find_sig_ages}
 pwc_age_rate <- pred_age_rate$derivative_smooth %>%

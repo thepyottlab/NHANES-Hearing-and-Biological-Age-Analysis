@@ -99,10 +99,10 @@ params:
     input: numeric
     help: "Set number of threads used during cross-validation, set to large value (e.g. 1000) to use all - 1 threads"
   n_boot:
-    label: "RMSE bootstrap N"
+    label: "Age rate/covariate bootstrap N"
     value: 10000
     input: numeric
-    help: "Set number of samples to take when bootstrapping RMSEs for CI calculations"
+    help: "Set number of samples to take when bootstrapping for CI calculations"
   run_optional_chunks:
     label: "Run tests and validations"
     value: FALSE

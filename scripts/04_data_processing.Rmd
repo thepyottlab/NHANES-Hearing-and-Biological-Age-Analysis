@@ -100,17 +100,18 @@ worst standardized deviation among any age for each replicate. We then find the 
 of the maximum deviations do not exceed. The critical value based on the largest deviation is then
 used for each ages. If the variance of an age is lower, then the width of the confidence intervals
 will still be lower, since we multiply by the standard error of each age. To illustrate, if age 50
-has a mean standard deviation of 4 dB and a bootstrap replicate has an SD of 2 or 6 dB at that age
-(2 different from the mean), the standardized deviation is 0.5. If at age 25 the mean SD is 0.2 dB
-and a bootstrap replicate has an SD of 0.8 (0.6 difference), the standardized difference is 3. We
-check here what the largest departure is from resampling relative to local uncertainty, then apply
-that uncertainty factor to all ages. The 95% confidence intervals then represent the values for
-which, if we repeat the experiment many times, 95% of the cases the entire curve would fall within
-that band, so that essentially we're 95% sure the entire curve lays within the confidence intervals.
-If any point falls outside that confidence interval range, we have a significant departure from the
-null. More ages to compare gives more opportunities for the maximum to be increased, but adjacent
-values often are strongly correlated, so going from testing at every 5 ages to every age does not
-widen confidence intervals much.
+has a mean bootstrap estimate of 4 dB and a bootstrap replicate has an estimate of 2 or 6 dB at that
+age (2 different from the mean), the standardized deviation is 0.5 if the bootstrap SD is 4 dB. If
+at age 25 the mean bootstrap estimate is 0.2 dB and a bootstrap replicate has an estimate of 0.8 dB
+(0.6 difference), the standardized deviation is 3 if the bootstrap SD is 0.2 dB. We check here what
+the largest departure is from resampling relative to local uncertainty, then apply that uncertainty
+factor to all ages. The 95% confidence intervals then represent the values for which, if we repeat
+the experiment many times, 95% of the cases the entire curve would fall within that band, so that
+essentially we're 95% sure the entire curve lays within the confidence intervals. If any point falls
+outside that confidence interval range, we have a significant departure from the null. More ages to
+compare gives more opportunities for the maximum to be increased, but adjacent values often are
+strongly correlated, so going from testing at every 5 ages to every age does not widen confidence
+intervals much.
 
 ```{r predict_age_rate_bootstrap}
 predict_age_rate_bootstrap <- function(

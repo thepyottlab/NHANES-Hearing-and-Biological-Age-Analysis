@@ -366,9 +366,10 @@ df_unfiltered <- df_raw %>%
 
 #### NHANES 3
 
-Training is only used for biological age algorithms and there's only a single cycle so no
+Training is only used for biological age algorithms and there's only a single cycle so no weights
 standardization or audiometry subsampling required. Filtering will be performed in the biological
-age calculation chunk. Missing data is recoded to NA.
+age calculation chunk. Creatinine is standardized following guidelines. Missing data is recoded to
+NA.
 
 ```{r preprocess_pipe_train}
 df_train <- df_train_raw %>%
