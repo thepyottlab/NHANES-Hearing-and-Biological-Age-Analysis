@@ -1712,7 +1712,7 @@ if (isTRUE(params$telolength)) {
 
   p1 <- p1 +
     draw_label(
-      if (params$hearing_var == "pta_hf") "PTA-HF" else "PTA-LF",
+      if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA",
       x = 0.99,
       y = 0.99,
       hjust = 1,
@@ -1999,7 +1999,7 @@ if (isFALSE(params$telolength)) {
 
   p <- p +
     draw_label(
-      if (params$hearing_var == "pta_hf") "PTA-HF" else "PTA-LF",
+      if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA",
       x = 0.5,
       y = 0.99,
       hjust = 0.5,

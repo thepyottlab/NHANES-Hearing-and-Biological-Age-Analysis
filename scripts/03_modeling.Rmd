@@ -1488,7 +1488,7 @@ if (isTRUE(params$run_optional_chunks)) {
 
     p +
       draw_label(
-        if (params$hearing_var == "pta_hf") "PTA-HF" else "PTA-LF",
+        if (params$hearing_var == "pta_hf") "HF-PTA" else "LF-PTA",
         x = 0.5,
         y = 0.99,
         hjust = 0.5,
