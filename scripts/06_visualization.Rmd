@@ -340,7 +340,7 @@ if (isFALSE(params$telolength)) {
         "Smoker",
         "Non-smoker",
         "< 9th grade",
-        "9–11th grade",
+        "9th–11th grade",
         "High school",
         "Some college or AA degree",
         "College graduate or higher"
@@ -928,7 +928,7 @@ color_scales <- function(color_list_name) {
       ),
       labels = c(
         "1" = "< 9th grade",
-        "2" = "9–11th grade",
+        "2" = "9th–11th grade",
         "3" = "High school",
         "4" = "Some college or AA degree",
         "5" = "College graduate or higher"

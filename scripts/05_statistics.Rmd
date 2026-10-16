@@ -50,7 +50,7 @@ calculate_descriptive_statistics <- function(design, audiometry_cols, incl_bioag
     ),
     education = dplyr::recode(education,
       "1" = "< 9th grade",
-      "2" = "9–11th grade",
+      "2" = "9th–11th grade",
       "3" = "High school",
       "4" = "Some college or AA degree",
       "5" = "College graduate or higher",
