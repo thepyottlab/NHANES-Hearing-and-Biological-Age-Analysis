@@ -535,7 +535,7 @@ if (isFALSE(params$telolength)) {
     summary_biomarkers,
     design = design,
     exceptions = c(
-      "age, crp"
+      "age, crp_log"
     ),
     exception_include_exclude = "include",
     adjust_method = "holm"

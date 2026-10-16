@@ -29,16 +29,13 @@ if (isFALSE(params$telolength)) {
           "CREA",
           "BUN",
           "LYMPH",
-          "Mono",
+          "MONO",
           "RBC",
           "RDW",
           "MCV",
           "TC",
           "WBC",
           "SBP",
-          "ALT",
-          "AST",
-          "GGT",
           "CRP"
         )
     ) %>%

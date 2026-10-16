@@ -546,7 +546,7 @@ list_bm <- function(spec_path, excl_hd = FALSE) {
     ) %>%
       pull(label)
   )
-  c(bm_labels, "sbp", "alt_log", "ast_log", "ggt_log", "crp_log")
+  c(bm_labels, "sbp", "crp_log", if (!excl_hd) c("alt_log", "ast_log", "ggt_log"))
 }
 
 biomarker_vars <- list_bm(here("specs", "col_spec_nhanes4.csv"))

@@ -981,7 +981,7 @@ if (isFALSE(params$telolength)) {
 }
 ```
 
-#### Store bioage modeling results
+#### Store biomarker modeling results
 
 ```{r store_biomarkers_cv}
 if (isFALSE(params$telolength) && isTRUE(params$store_model_results)) {
@@ -2212,7 +2212,7 @@ if (isTRUE(params$run_optional_chunks)) {
 
 ```{r test_CV_duration}
 if (isTRUE(params$run_optional_chunks)) {
-  time_cross_validation <- function(data, design, formulas, run = TRUE, ...) {
+  time_cross_validation <- function(data, design, formulas, run = FALSE, ...) {
     if (run) {
     cv_time <- system.time({
       cross_validation(
