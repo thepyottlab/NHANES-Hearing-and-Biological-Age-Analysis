@@ -17,8 +17,7 @@
 
 # Output
 *.pptx
-*.html
-/output/
+/output/figures
 
 # Environment/state
 /models/
@@ -32,6 +31,5 @@
 desktop.ini
 **/desktop.ini
 .positai
-*.html
 *.tif
 *.png
